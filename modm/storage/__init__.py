@@ -1,20 +1,47 @@
-import random
+"""
 
-class Storage:
+"""
+
+import random
+import string
+
+class KeyExistsException(Exception): pass
+
+class Storage(object):
+    """Abstract base class for storage objects. Subclasses (e.g. PickleStorage,
+    MongoStorage, etc.) must define insert, update, get, remove, flush, and
+    find_all methods.
+
+    """
     def _generate_random_id(self, n=5):
-        NUMBERS = '23456789'
-        LOWERS = 'abcdefghijkmnpqrstuvwxyz'
-        UPPERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-        return ''.join(random.sample(NUMBERS+LOWERS+UPPERS, n))
+        """Generated random alphanumeric key.
+
+        :param n: Number of characters in random key
+
+        """
+        # Build character set
+        charset = string.lowercase + \
+            string.uppercase + \
+            string.digits
+
+        return ''.join(random.sample(charset, n))
 
     def optimistic_insert(self, value, label, n=5):
+        """Attempt to insert with randomly generated key until insert
+        is successful.
+
+        :param value:
+        :param label:
+        :param n: Number of characters in random key
+
+        """
         while True:
             try:
                 key = self._generate_random_id(n)
                 value[label] = key
                 self.insert(key, value)
-            except:
-                continue
+            except KeyExistsException:
+                pass
             break
         return key
 
