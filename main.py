@@ -28,34 +28,29 @@ Tag.set_storage(PickleStorage('tag'))
 Blog.set_storage(PickleStorage('blog'))
 
 import random
-tag1 = Tag()
-print tag1._get_original_object().to_storage()
-print tag1._get_modified_object().to_storage()
-tag1.value=str(random.randint(0,1000))
+tag1 = Tag(value=str(random.randint(0,1000)))
 tag1.save()
 
-print tag1._get_modified_object().to_storage()
-print tag1._get_original_object().to_storage()
+tag2 = Tag(value=str(random.randint(0,1000)))
+tag2.save()
 
-# tag2 = Tag(value=str(random.randint(0,1000)))
-# tag2.save()
-#
-# tag3 = Tag(value=str(random.randint(0,1000)))
-# tag3.save()
-#
-# blog1 = Blog()
-# blog1.tag = tag1
-# blog1.tags.append(tag1)
-# blog1.tags.append(tag2)
-# blog1.tags.append(tag3)
-# print [x.value for x in blog1.tags[::-1]]
-# blog1.save()
-#
-# pk = blog1._primary_key
-# # del blog1
-#
-# print blog1._get_modified_object().to_storage()
-# print blog1._get_original_object().to_storage()
+tag3 = Tag(value=str(random.randint(0,1000)))
+tag3.save()
+
+blog1 = Blog()
+blog1.tag = tag1
+blog1.tags.append(tag1)
+blog1.tags.append(tag2)
+blog1.tags.append(tag3)
+print [x.value for x in blog1.tags[::-1]]
+blog1.save()
+
+pk = blog1._primary_key
+del blog1
+
+blog1 = Blog.load(pk)
+blog1.tag = tag1
+blog1.save()
 
 # use for testing Blog.__dict__['tag'].modified_data[blog1]
 

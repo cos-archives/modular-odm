@@ -40,24 +40,50 @@ class StoredObject(SchemaObject):
         cls.register()
 
     @classmethod
-    def load(cls, key, data=None):
-        if not data:
-            data = copy.deepcopy(cls._storage[0].get(key)) # better way to do this? Otherwise on load, the Storage.store
+    def _is_cached(cls, key):
+        class_name = cls.__name__.lower()
+        if class_name in cls._cache:
+            if key in cls._cache[class_name]:
+                return True
+        return False
+
+    @classmethod
+    def _load_from_cache(cls, key):
+        class_name = cls.__name__.lower()
+        if cls._is_cached(key):
+            # todo make the deepcopy an option
+            return copy.deepcopy(cls._cache[class_name][key])
+        return None
+
+    @classmethod
+    def _set_cache(cls, key, obj):
+        class_name = cls.__name__.lower()
+        if class_name not in cls._cache:
+            cls._cache[class_name] = {}
+        cls._cache[class_name][key] = copy.deepcopy(obj)
+
+    @classmethod
+    def load(cls, key):
+        cached_object = cls._load_from_cache(key)
+        if cached_object is not None:
+            return cached_object
+
+        data = copy.deepcopy(cls._storage[0].get(key)) # better way to do this? Otherwise on load, the Storage.store
                                                        #  look just like changed object
         if not data:
             return None
+
         data['_is_loaded'] = True
-        return cls(**data)
+        loaded_object = cls(**data)
 
-    def _get_original_object(self):
-        new_object = self.__class__.load(None, data=self.to_storage(original=True))
-        return new_object
-
-    def _get_modified_object(self):
-        new_object = self.__class__.load(None, data=self.to_storage())
-        return new_object
+        cls._set_cache(cls, key, loaded_object)
+        return loaded_object
 
     def save(self):
+        if self._is_cached(self._primary_key):
+            # do diff
+            pass
+
         for field_name, field_descriptor in self._fields.items():
             print field_descriptor.do_diff(self)
 
@@ -69,6 +95,8 @@ class StoredObject(SchemaObject):
             self._storage[0].insert(self._primary_key, self.to_storage())
 
         self._is_loaded = True
+
+        self._set_cache(self._primary_key, self)
         # self.resolve_dirty()
 
         return True # todo raise exception on not save
