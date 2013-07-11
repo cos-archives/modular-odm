@@ -18,6 +18,3 @@ class StringField(Field):
                 return True
             except:
                 return False
-
-    def to_storage(self, value):
-        return value

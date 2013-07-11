@@ -1,6 +1,7 @@
 from ..storage import Storage
 from ..storage import KeyExistsException
 
+import copy
 import os
 try:
     import cpickle as pickle
