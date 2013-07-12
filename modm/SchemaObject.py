@@ -25,14 +25,18 @@ class SchemaObject(object):
     def _primary_key(self, value):
         setattr(self, self._primary_name, value)
 
-    def to_storage(self, original=False):
-        # if original:
-        #     d = {field_name:field_object.to_storage(field_object.get_original(self)) for field_name,field_object in self._fields.items()}
-        # else:
-        d = {field_name:field_object.to_storage(field_object.__get__(self, None)) for field_name,field_object in self._fields.items()}
+    def to_storage(self):
+        for field_name, field_object in self._fields.items():
+            # print '***', field_name, getattr(self, field_name)
+            if field_name == 'tag':
+                # print self.tag._primary_key
+                # print [v.value for i,v in self._cache['tag'].items()]
+                pass
+        dtmp = {field_name:field_object.to_storage(getattr(self, field_name)) for field_name, field_object in self._fields.items()}
+
         if self._backrefs:
-            d['_backrefs'] = self._backrefs
-        return d
+            dtmp['_backrefs'] = self._backrefs
+        return dtmp
 
     def _process_and_get_fields(self):
         """ Prepare and retrieve schema fields. """
@@ -82,17 +86,10 @@ class SchemaObject(object):
         # Set all instance-level field values to defaults
         if not self._is_loaded:
             for k,v in self._fields.items():
-                setattr(self, k, v._default)
-                # descriptor = self.__class__.__dict__[k]
-                # descriptor.set_original(self, copy.deepcopy(v._default)) # should look at immutability checks
+                setattr(self, k, copy.deepcopy(v._default))
 
         # Add kwargs to instance
         for k,v in kwargs.items():
             # if isinstance(getattr(self, k), ListField):
             #     print v
-            if self._is_loaded:
-                if k in self._fields:
-                    descriptor = self.__class__.__dict__[k]
-                    descriptor.set_original(self, copy.deepcopy(v))
-            else:
-                setattr(self, k, v)
+            setattr(self, k, v)

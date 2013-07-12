@@ -44,8 +44,7 @@ class Field(object):
 
         self._parent = None # gets set in SchemaObject
 
-        self.modified_data = weakref.WeakKeyDictionary()
-        self.original_data = weakref.WeakKeyDictionary()
+        self.data = weakref.WeakKeyDictionary()
 
         self._validate = kwargs.get('validate', False)
         if hasattr(self._validate, '__call__'):
@@ -64,18 +63,7 @@ class Field(object):
         return not original == modified
 
     def do_diff(self, instance):
-        if instance not in self.original_data:
-            return True
-        return self.diff(self.original_data[instance], self.modified_data[instance])
-
-    def get_original(self, instance):
-        return self.original_data[instance]
-
-    def set_original(self, instance, value):
-        self.original_data[instance] = value
-
-    def get_modified(self, instance):
-        return self.modified_data[instance]
+        pass
 
     # __set__ is set_modified
 
@@ -96,12 +84,10 @@ class Field(object):
         if self._validate and hasattr(self, 'validate'):
             if not self.validate(value):
                 raise Exception('Not validated')
-        self.modified_data[instance] = value
+        self.data[instance] = value
 
     def __get__(self, instance, owner):
-        if instance not in self.modified_data:
-            return self.original_data[instance]
-        return self.modified_data[instance]
+        return self.data.get(instance, None)
 
     def __delete__(self):
         pass

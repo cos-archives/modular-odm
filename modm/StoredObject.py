@@ -65,6 +65,7 @@ class StoredObject(SchemaObject):
     @classmethod
     def load(cls, key):
         cached_object = cls._load_from_cache(key)
+
         if cached_object is not None:
             return cached_object
 
@@ -80,12 +81,14 @@ class StoredObject(SchemaObject):
         return loaded_object
 
     def save(self):
-        if self._is_cached(self._primary_key):
+        if self._primary_key is not None and self._is_cached(self._primary_key):
             # do diff
             pass
 
-        for field_name, field_descriptor in self._fields.items():
-            print field_descriptor.do_diff(self)
+        # for field_name, field_descriptor in self._fields.items():
+        #     print field_descriptor.do_diff(self)
+
+        print 'RIGHT BEFORE SAVE', self.to_storage()
 
         if self._is_loaded:
             self._storage[0].update(self._primary_key, self.to_storage())
@@ -95,6 +98,8 @@ class StoredObject(SchemaObject):
             self._storage[0].insert(self._primary_key, self.to_storage())
 
         self._is_loaded = True
+
+        print 'RIGHT AFTER SAVE', self.to_storage()
 
         self._set_cache(self._primary_key, self)
         # self.resolve_dirty()

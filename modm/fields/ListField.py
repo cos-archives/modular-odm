@@ -11,9 +11,9 @@ class ListField(Field):
     def __set__(self, instance, value):
         if isinstance(value, list) and not isinstance(value, List):
             for i in value:
-                self.modified_data[instance].append(i)
+                self.data[instance].append(i)
         else:
-            self.modified_data[instance] = value
+            self.data[instance] = value
 
     def to_storage(self, value):
         if value:

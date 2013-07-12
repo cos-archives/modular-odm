@@ -19,8 +19,8 @@ class Tag(StoredObject):
 class Blog(StoredObject):
     _id = StringField(primary=True, optimistic=True)
     body = StringField(default='blog body')
-    tag = ForeignField('Tag', backref='tagged')
-    tags = ForeignField('Tag', list=True)
+    tag = ForeignField('Tag')
+    # tags = ForeignField('Tag', list=True)
     tag_strings = StringField(validate=True, list=True)
     _meta = {'optimistic':True}
 
@@ -39,18 +39,15 @@ tag3.save()
 
 blog1 = Blog()
 blog1.tag = tag1
-blog1.tags.append(tag1)
-blog1.tags.append(tag2)
-blog1.tags.append(tag3)
-print [x.value for x in blog1.tags[::-1]]
+# blog1.tags.append(tag1)
+# blog1.tags.append(tag2)
+# blog1.tags.append(tag3)
+# print [x.value for x in blog1.tags[::-1]]
 blog1.save()
 
-pk = blog1._primary_key
-del blog1
-
-blog1 = Blog.load(pk)
-blog1.tag = tag1
-blog1.save()
+print 'main1:', blog1.tag
+print 'main2:', blog1.__class__.__dict__['tag']
+print 'main3:', blog1.to_storage()
 
 # use for testing Blog.__dict__['tag'].modified_data[blog1]
 
