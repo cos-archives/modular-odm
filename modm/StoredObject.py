@@ -52,7 +52,7 @@ class StoredObject(SchemaObject):
         class_name = cls.__name__.lower()
         if cls._is_cached(key):
             # todo make the deepcopy an option
-            return copy.deepcopy(cls._cache[class_name][key])
+            return cls._cache[class_name][key]._copy()#copy.deepcopy(cls._cache[class_name][key])
         return None
 
     @classmethod
@@ -60,7 +60,7 @@ class StoredObject(SchemaObject):
         class_name = cls.__name__.lower()
         if class_name not in cls._cache:
             cls._cache[class_name] = {}
-        cls._cache[class_name][key] = copy.deepcopy(obj)
+        cls._cache[class_name][key] = obj._copy()#copy.deepcopy(obj)
 
     @classmethod
     def load(cls, key):
@@ -80,6 +80,25 @@ class StoredObject(SchemaObject):
         cls._set_cache(cls, key, loaded_object)
         return loaded_object
 
+    def _copy(self):
+        """Deep copy self, including descriptor values. Note: normal deep copy
+        won't work with descriptors values, since this won't add replace the
+        object in the weak key dictionary.
+
+        It may be better to start with a new instantiation of self.__class__
+        and deep copy everything in self.__class__.__dict__.iteritems
+
+        """
+        # Captures all non-descriptor values
+        copied = copy.deepcopy(self)
+
+        # Copy values of all descriptors
+        for key, val in self.__class__.__dict__.iteritems():
+            if hasattr(val, '__get__') and hasattr(val, '__set__'):
+                setattr(copied, key, copy.deepcopy(getattr(self, key)))
+
+        return copied
+
     def save(self):
         if self._primary_key is not None and self._is_cached(self._primary_key):
             # do diff
@@ -87,8 +106,6 @@ class StoredObject(SchemaObject):
 
         # for field_name, field_descriptor in self._fields.items():
         #     print field_descriptor.do_diff(self)
-
-        print 'RIGHT BEFORE SAVE', self.to_storage()
 
         if self._is_loaded:
             self._storage[0].update(self._primary_key, self.to_storage())
@@ -98,8 +115,6 @@ class StoredObject(SchemaObject):
             self._storage[0].insert(self._primary_key, self.to_storage())
 
         self._is_loaded = True
-
-        print 'RIGHT AFTER SAVE', self.to_storage()
 
         self._set_cache(self._primary_key, self)
         # self.resolve_dirty()

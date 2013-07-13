@@ -82,7 +82,6 @@ class ForeignField(Field):
         self._base_class = None
 
     def to_storage(self, value):
-        import pdb;pdb.set_trace()
         if '_primary_key' in dir(value):
             return value._primary_key
         return value #todo deal with not lazily getting references
