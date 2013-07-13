@@ -54,19 +54,24 @@ class StoredObject(SchemaObject):
 
     @classmethod
     def _load_from_cache(cls, key):
-        logging.debug('Loading {key} from cache'.format(key=key))
-        class_name = cls.__name__.lower()
-        if cls._is_cached(key):
-            # todo make the deepcopy an option
-            return cls._cache[class_name][key]._copy()
-        return None
+        cached = cls._get_cache(key)
+        if cached is None:
+            return None
+        return cls.load_from_data(cached)
 
     @classmethod
     def _set_cache(cls, key, obj):
         class_name = cls.__name__.lower()
         if class_name not in cls._cache:
             cls._cache[class_name] = {}
-        cls._cache[class_name][key] = obj._copy()  # copy.deepcopy(obj)
+        cls._cache[class_name][key] = obj.to_storage()
+
+    @classmethod
+    def _get_cache(cls, key):
+        class_name = cls.__name__.lower()
+        if cls._is_cached(key):
+            return cls._cache[class_name][key]
+        return None
 
     def _get_list_of_differences_from_cache(self):
 
@@ -76,20 +81,26 @@ class StoredObject(SchemaObject):
             return field_list
 
         logging.debug('Before loading from cache')
-        cached_object = self._load_from_cache(self._primary_key)
+        cached_data = self._get_cache(self._primary_key)
         logging.debug('After loading from cache')
 
-        if cached_object == None:
+        if cached_data == None:
             return field_list
 
+        current_data = self.to_storage()
+
         for field_name in self._fields:
-            import pdb; pdb.set_trace()
-            if getattr(self, field_name) != getattr(cached_object, field_name):
+            if current_data[field_name] != cached_data[field_name]:
                 field_list.append(field_name)
 
         return field_list
 
     ###########################################################################
+
+    @classmethod
+    def load_from_data(cls, data):
+        data['_is_loaded'] = True
+        return cls(**data)
 
     @classmethod
     def load(cls, key):
