@@ -6,6 +6,11 @@ from modm.storage.PickleStorage import PickleStorage
 import pprint
 pp = pprint.PrettyPrinter(indent=4)
 
+import random
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
 import os
 try:os.remove('db_blog.pkl')
 except:pass
@@ -27,7 +32,6 @@ class Blog(StoredObject):
 Tag.set_storage(PickleStorage('tag'))
 Blog.set_storage(PickleStorage('blog'))
 
-import random
 tag1 = Tag(value=str(random.randint(0,1000)))
 tag1.save()
 
@@ -45,6 +49,8 @@ blog1.tags.append(tag3)
 # print [x.value for x in blog1.tags[::-1]]
 blog1.save()
 
+logging.debug('list of diffs' + str(blog1._get_list_of_differences_from_cache()))
+
 # use for testing Blog.__dict__['tag'].modified_data[blog1]
 
 # b = Blog.load('Vj8I3')
@@ -59,7 +65,6 @@ blog1.save()
 
 # print tag1.tagged
 
-print '*** DATABASE ***'
-pp.pprint(Tag._storage[0].store)
-pp.pprint(Blog._storage[0].store)
-print '****************'
+logging.debug('*** DATABASE ***\n' + pp.pformat(Tag._storage[0].store))
+logging.debug('\n' + pp.pformat(Blog._storage[0].store))
+logging.debug('****************')

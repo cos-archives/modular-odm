@@ -5,8 +5,12 @@ import collections
 import warnings
 
 class List(collections.MutableSequence):
-    def __init__(self, *args, **kwargs):
-        self.data = []
+    def __init__(self, value=None, **kwargs):
+        if value is not None:
+            # todo try..catch this at an appropriate place (e.g., ListField)
+            self.data = list(value)
+        else:
+            self.data = []
         self._field_instance = kwargs.get('field_instance', None)
 
     def __delitem__(self, key):
@@ -58,15 +62,6 @@ class Field(object):
 
         self._list = kwargs.get('list', False)
 
-    def diff(self, original, modified):
-        # is different?
-        return not original == modified
-
-    def do_diff(self, instance):
-        pass
-
-    # __set__ is set_modified
-
     def do_validate(self, value):
         if self._validate:
             if not hasattr(self, 'validate'):
@@ -79,6 +74,9 @@ class Field(object):
 
     def to_storage(self, value):
         return value
+
+    def on_save(self):
+        pass
 
     def __set__(self, instance, value):
         if self._validate and hasattr(self, 'validate'):

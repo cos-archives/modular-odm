@@ -1,6 +1,9 @@
 import copy
 
+import logging
+
 from SchemaObject import SchemaObject
+from fields import Field
 
 class StoredObject(SchemaObject):
 
@@ -39,6 +42,8 @@ class StoredObject(SchemaObject):
         cls._storage.append(storage)
         cls.register()
 
+    # Caching ################################################################
+
     @classmethod
     def _is_cached(cls, key):
         class_name = cls.__name__.lower()
@@ -49,10 +54,11 @@ class StoredObject(SchemaObject):
 
     @classmethod
     def _load_from_cache(cls, key):
+        logging.debug('Loading {key} from cache'.format(key=key))
         class_name = cls.__name__.lower()
         if cls._is_cached(key):
             # todo make the deepcopy an option
-            return cls._cache[class_name][key]._copy()#copy.deepcopy(cls._cache[class_name][key])
+            return cls._cache[class_name][key]._copy()
         return None
 
     @classmethod
@@ -60,7 +66,30 @@ class StoredObject(SchemaObject):
         class_name = cls.__name__.lower()
         if class_name not in cls._cache:
             cls._cache[class_name] = {}
-        cls._cache[class_name][key] = obj._copy()#copy.deepcopy(obj)
+        cls._cache[class_name][key] = obj._copy()  # copy.deepcopy(obj)
+
+    def _get_list_of_differences_from_cache(self):
+
+        field_list = []
+
+        if not self._is_loaded:
+            return field_list
+
+        logging.debug('Before loading from cache')
+        cached_object = self._load_from_cache(self._primary_key)
+        logging.debug('After loading from cache')
+
+        if cached_object == None:
+            return field_list
+
+        for field_name in self._fields:
+            import pdb; pdb.set_trace()
+            if getattr(self, field_name) != getattr(cached_object, field_name):
+                field_list.append(field_name)
+
+        return field_list
+
+    ###########################################################################
 
     @classmethod
     def load(cls, key):
@@ -90,13 +119,13 @@ class StoredObject(SchemaObject):
 
         """
         # Captures all non-descriptor values
+        logging.debug('_copying ' + str(self.__class__.__name__))
         copied = copy.deepcopy(self)
 
         # Copy values of all descriptors
         for key, val in self.__class__.__dict__.iteritems():
-            if hasattr(val, '__get__') and hasattr(val, '__set__'):
-                setattr(copied, key, copy.deepcopy(getattr(self, key)))
-
+            if isinstance(val, Field):
+                setattr(copied, key, val.to_storage(getattr(self, key)))
         return copied
 
     def save(self):
@@ -104,15 +133,16 @@ class StoredObject(SchemaObject):
             # do diff
             pass
 
-        # for field_name, field_descriptor in self._fields.items():
-        #     print field_descriptor.do_diff(self)
-
         if self._is_loaded:
             self._storage[0].update(self._primary_key, self.to_storage())
         elif self._is_optimistic:
             self._primary_key = self._storage[0].optimistic_insert(self.to_storage(), self._primary_name) # do a local update; no dirty
         else:
             self._storage[0].insert(self._primary_key, self.to_storage())
+
+        # if primary key has changed, follow back refrences and update
+        # AND
+        # run after_save or after_save_on_difference
 
         self._is_loaded = True
 
