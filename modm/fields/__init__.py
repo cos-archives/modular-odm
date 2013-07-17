@@ -24,6 +24,9 @@ class List(collections.MutableSequence):
             self.data[key] = value
 
     def __getitem__(self, key):
+        '''
+        This dispatches to the getitem method of list
+        '''
         return self.data[key]
 
     def insert(self, index, value):

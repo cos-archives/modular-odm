@@ -24,7 +24,7 @@ class Tag(StoredObject):
 class Blog(StoredObject):
     _id = StringField(primary=True, optimistic=True)
     body = StringField(default='blog body')
-    tag = ForeignField('Tag')
+    tag = ForeignField('Tag', backref='tagged')
     tags = ForeignField('Tag', list=True)
     tag_strings = StringField(validate=True, list=True)
     _meta = {'optimistic':True}
@@ -41,6 +41,8 @@ tag2.save()
 tag3 = Tag(value=str(random.randint(0,1000)))
 tag3.save()
 
+# todo what happens when you append an object to a foreign* and the object's not saved
+
 blog1 = Blog()
 blog1.tag = tag1
 blog1.tags.append(tag1)
@@ -48,6 +50,11 @@ blog1.tags.append(tag2)
 blog1.tags.append(tag3)
 # print [x.value for x in blog1.tags[::-1]]
 blog1.save()
+
+logging.debug(Tag._cache)
+logging.debug(Tag.load(tag1._primary_key).tagged)
+# logging.debug(tag1._backrefs)
+# logging.debug(tag1.tagged)
 
 logging.debug('list of diffs' + str(blog1._get_list_of_differences_from_cache()))
 

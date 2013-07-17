@@ -1,15 +1,12 @@
 from ..fields import Field, List
 from modm.SchemaObject import SchemaObject
 
-import weakref
+import logging
 
 class ForeignList(List):
 
-    # todo take out caching here
-
     def __init__(self, *args, **kwargs):
         super(ForeignList, self).__init__(*args, **kwargs)
-        self.object_cache = {}
 
     def as_primary_keys(self):
         out = []
@@ -19,18 +16,6 @@ class ForeignList(List):
             else:
                 out.append(i)
         return out
-
-    def set_cache_object(self, key, value):
-        self.object_cache[key] = value
-
-    def get_cache_object(self, key):
-        if key in self.object_cache:
-            return self.object_cache[key]
-        else:
-            # todo try this and catch error
-            obj = self._field_instance.base_class.load(key)
-            self.set_cache_object(key, obj)
-            return obj
 
     def __contains__(self, item):
         # todo needs to be tested
@@ -46,30 +31,22 @@ class ForeignList(List):
 
     def __setitem__(self, key, value):
         if self._field_instance.do_validate(value):
-            super(ForeignList, self).__setitem__(key, value)
+            super(ForeignList, self).__setitem__(key, self._field_instance.to_primary_key(value))
 
     def __getitem__(self, item):
+        # todo we could turn this into a generator, but that's really an interface question
         result = super(ForeignList, self).__getitem__(item) # we're really just dealing with self[item]
         if isinstance(result, list):
-            return [self.get_cache_object(i) for i in result]
-        return self.get_cache_object(result)
+            return [self._field_instance.base_class.load(primary_key) for i in result]
+        return self._field_instance.base_class.load(result)
 
     def insert(self, index, value):
         if self._field_instance.do_validate(value): # will never return False
-            super(ForeignList, self).insert(index, value)
+            super(ForeignList, self).insert(index, self._field_instance.to_primary_key(value))
+            # super(ForeignList, self).insert(index, value)
 
     def append(self, value):
-        if isinstance(value, self._field_instance.base_class):
-            key = value._primary_key
-            self.set_cache_object(key, value)
-            super(ForeignList, self).append(key)
-        elif type(value) in [str, unicode]:
-            # the value is the primary key
-            # todo check to see if key is valid?
-            super(ForeignList, self).append(value)
-        else:
-            raise TypeError('Type {actual} is not a primary key or object of {type}'.format(
-                actual=type(value), type=self._field_instance.base_class))
+        super(ForeignList, self).append(self._field_instance.to_primary_key(value))
 
 class ForeignField(Field):
 
@@ -81,10 +58,30 @@ class ForeignField(Field):
         self._base_class_name = args[0] # todo allow class references
         self._base_class = None
 
+    def on_after_save(self, instance):
+        # go into object being saved
+        # see if parent class/id is in object._backrefs
+        object_in_this_field = self.__get__(instance, None)
+        object_in_this_field._set_backref(self._backref_field_name, self._parent)
+
+
     def to_storage(self, value):
         if '_primary_key' in dir(value):
             return value._primary_key
         return value #todo deal with not lazily getting references
+
+    def to_primary_key(self, value):
+        # todo do validation here so the list doesn't have to implement each time
+        if value is None:
+            return None
+        if isinstance(value, self.base_class):
+            return value._primary_key
+        elif type(value) in [str, unicode]:
+            # todo: verify that value is a valid primary key for base_class
+            return value
+        else:
+            raise TypeError('Type {actual} is not a primary key or object of {type}'.format(
+                actual=type(value), type=self.base_class))
 
     @property
     def base_class(self):
@@ -93,14 +90,7 @@ class ForeignField(Field):
         return self._base_class
 
     def __set__(self, instance, value):
-        if isinstance(value, SchemaObject):
-            super(ForeignField, self).__set__(instance, value._primary_key)
-        else:
-            super(ForeignField, self).__set__(instance, value)
-        # if self._backref_field_name is not None and not value == current_value:
-        #     instance._dirty.append(
-        #         ('backref', {'object_with_backref': value, 'backref_key': self._backref_field_name},)
-        #     )
+        super(ForeignField, self).__set__(instance, self.to_primary_key(value))
 
     def __get__(self, instance, owner):
         primary_key = super(ForeignField, self).__get__(instance, None)

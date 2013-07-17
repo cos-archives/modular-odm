@@ -8,26 +8,21 @@ from fields import Field
 class StoredObject(SchemaObject):
 
     _cache = {} # todo implement this with save and load
+    _object_cache = {}
 
     def __init__(self, **kwargs):
-        self._dirty = []
         self._backrefs = {}
         self._is_loaded = False # this gets passed in via kwargs in self.load
         self._is_optimistic = self._meta.get('optimistic') if hasattr(self, '_meta') else None
         super(StoredObject, self).__init__(**kwargs)
 
-    def resolve_dirty(self):
-        while self._dirty:
-            i = self._dirty.pop()
-            if i[0] == 'backref':
-                kwargs = i[1]
-                object_with_backref = kwargs['object_with_backref']
-                backref_key = kwargs['backref_key']
-                backref_value_class_name = self.__class__.__name__.lower()
-                backref_value_primary_key = self._primary_key
-                object_with_backref._set_backref(backref_key, backref_value_class_name, backref_value_primary_key)
+    def _set_backref(self, backref_key, backref_value):
+        backref_value_class_name = backref_value.__class__.__name__.lower() # todo standardized class name getter
+        backref_value_primary_key = backref_value._primary_key
 
-    def _set_backref(self, backref_key, backref_value_class_name, backref_value_primary_key):
+        if backref_value_primary_key is None:
+            raise Exception('backref object\'s primary key must be saved first')
+
         if backref_key not in self._backrefs:
             self._backrefs[backref_key] = {}
         if backref_value_class_name not in self._backrefs[backref_key]:
@@ -54,6 +49,10 @@ class StoredObject(SchemaObject):
 
     @classmethod
     def _load_from_cache(cls, key):
+        # class_name = cls.__name__.lower()
+        # if class_name in cls._object_cache and key in cls._object_cache[class_name]:
+        #     return cls._object_cache[class_name][key]
+
         cached = cls._get_cache(key)
         if cached is None:
             return None
@@ -62,6 +61,10 @@ class StoredObject(SchemaObject):
     @classmethod
     def _set_cache(cls, key, obj):
         class_name = cls.__name__.lower()
+        # if class_name not in cls._object_cache:
+        #     cls._object_cache[class_name] = {}
+        # cls._object_cache[class_name][key] = obj
+
         if class_name not in cls._cache:
             cls._cache[class_name] = {}
         cls._cache[class_name][key] = obj.to_storage()
@@ -130,7 +133,6 @@ class StoredObject(SchemaObject):
 
         """
         # Captures all non-descriptor values
-        logging.debug('_copying ' + str(self.__class__.__name__))
         copied = copy.deepcopy(self)
 
         # Copy values of all descriptors
@@ -141,8 +143,9 @@ class StoredObject(SchemaObject):
 
     def save(self):
         if self._primary_key is not None and self._is_cached(self._primary_key):
-            # do diff
-            pass
+            list_on_save_after_fields = self._get_list_of_differences_from_cache()
+        else:
+            list_on_save_after_fields = self._fields.keys()
 
         if self._is_loaded:
             self._storage[0].update(self._primary_key, self.to_storage())
@@ -157,8 +160,12 @@ class StoredObject(SchemaObject):
 
         self._is_loaded = True
 
+        for field_names in list_on_save_after_fields:
+            field = self.__class__.__dict__[field_names]
+            if hasattr(field, 'on_after_save'):
+                field.on_after_save(self)
+
         self._set_cache(self._primary_key, self)
-        # self.resolve_dirty()
 
         return True # todo raise exception on not save
 
