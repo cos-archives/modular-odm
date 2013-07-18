@@ -1,7 +1,7 @@
-from modm import StoredObject
-from modm.fields.StringField import StringField
-from modm.fields.ForeignField import ForeignField
-from modm.storage.PickleStorage import PickleStorage
+from modularodm import StoredObject
+from modularodm.fields.StringField import StringField
+from modularodm.fields.ForeignField import ForeignField
+from modularodm.storage.PickleStorage import PickleStorage
 
 import pprint
 pp = pprint.PrettyPrinter(indent=4)

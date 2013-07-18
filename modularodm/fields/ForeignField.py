@@ -1,5 +1,5 @@
 from ..fields import Field, List
-from modm.SchemaObject import SchemaObject
+from ..SchemaObject import SchemaObject
 
 import logging
 
