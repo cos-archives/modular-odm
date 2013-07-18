@@ -16,6 +16,10 @@ class StoredObject(SchemaObject):
         self._is_optimistic = self._meta.get('optimistic') if hasattr(self, '_meta') else None
         super(StoredObject, self).__init__(**kwargs)
 
+    def _remove_backref(self, backref_field_name, cls, primary_key):
+        class_name = cls.__name__.lower()
+        self._backrefs[backref_field_name][class_name].remove(primary_key)
+
     def _set_backref(self, backref_key, backref_value):
         backref_value_class_name = backref_value.__class__.__name__.lower() # todo standardized class name getter
         backref_value_primary_key = backref_value._primary_key
@@ -42,28 +46,30 @@ class StoredObject(SchemaObject):
     @classmethod
     def _is_cached(cls, key):
         class_name = cls.__name__.lower()
-        if class_name in cls._cache:
-            if key in cls._cache[class_name]:
+        #if class_name in cls._cache:
+        #    if key in cls._cache[class_name]:
+        if class_name in cls._object_cache:
+            if key in cls._object_cache[class_name]:
                 return True
         return False
 
     @classmethod
     def _load_from_cache(cls, key):
-        # class_name = cls.__name__.lower()
-        # if class_name in cls._object_cache and key in cls._object_cache[class_name]:
-        #     return cls._object_cache[class_name][key]
+        class_name = cls.__name__.lower()
+        if class_name in cls._object_cache and key in cls._object_cache[class_name]:
+            return cls._object_cache[class_name][key]
 
-        cached = cls._get_cache(key)
-        if cached is None:
-            return None
-        return cls.load_from_data(cached)
+        # cached = cls._get_cache(key)
+        # if cached is None:
+        #     return None
+        # return cls.load_from_data(cached)
 
     @classmethod
     def _set_cache(cls, key, obj):
         class_name = cls.__name__.lower()
-        # if class_name not in cls._object_cache:
-        #     cls._object_cache[class_name] = {}
-        # cls._object_cache[class_name][key] = obj
+        if class_name not in cls._object_cache:
+            cls._object_cache[class_name] = {}
+        cls._object_cache[class_name][key] = obj
 
         if class_name not in cls._cache:
             cls._cache[class_name] = {}
@@ -71,6 +77,16 @@ class StoredObject(SchemaObject):
 
     @classmethod
     def _get_cache(cls, key):
+        class_name = cls.__name__.lower()
+        if class_name in cls._object_cache and key in cls._object_cache[class_name]:
+            return cls._object_cache[class_name][key].to_storage()
+        # if cls._is_cached(key):
+        #     return cls._cache[class_name][key]
+        return None
+
+    @classmethod
+    def _get_cached_data(cls, key):
+        # todo once object cache is renamed we may need to fiddle with _is_cahed and others
         class_name = cls.__name__.lower()
         if cls._is_cached(key):
             return cls._cache[class_name][key]
@@ -84,7 +100,7 @@ class StoredObject(SchemaObject):
             return field_list
 
         logging.debug('Before loading from cache')
-        cached_data = self._get_cache(self._primary_key)
+        cached_data = self._cache[self.__class__.__name__.lower()][self._primary_key]
         logging.debug('After loading from cache')
 
         if cached_data == None:
@@ -160,16 +176,20 @@ class StoredObject(SchemaObject):
 
         self._is_loaded = True
 
-        for field_names in list_on_save_after_fields:
-            field = self.__class__.__dict__[field_names]
+        for field_name in list_on_save_after_fields:
+            field = self.__class__.__dict__[field_name]
             if hasattr(field, 'on_after_save'):
-                field.on_after_save(self)
+                cached_data = self._get_cached_data(self._primary_key)
+                if cached_data:
+                    cached_data = cached_data.get(field_name, None)
+                field.on_after_save(cached_data, getattr(self, field_name))
 
         self._set_cache(self._primary_key, self)
 
         return True # todo raise exception on not save
 
     def __getattr__(self, item):
+        # TODO: on remove, kill empty lists of backrefs
         if item in self._backrefs:
             return self._backrefs[item]
         raise AttributeError(item + ' not found')

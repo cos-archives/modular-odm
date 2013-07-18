@@ -26,14 +26,7 @@ class SchemaObject(object):
         setattr(self, self._primary_name, value)
 
     def to_storage(self):
-        for field_name, field_object in self._fields.items():
-            # print '***', field_name, getattr(self, field_name)
-            if field_name == 'tag':
-                # print self.tag._primary_key
-                # print [v.value for i,v in self._cache['tag'].items()]
-                pass
-        dtmp = {field_name:field_object.to_storage(getattr(self, field_name)) for field_name, field_object in self._fields.items()}
-
+        dtmp = {field_name:field_object.to_storage(field_object.get_underlying_data(self)) for field_name, field_object in self._fields.items()}
         if self._backrefs:
             dtmp['_backrefs'] = self._backrefs
         return dtmp

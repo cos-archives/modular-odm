@@ -90,5 +90,11 @@ class Field(object):
     def __get__(self, instance, owner):
         return self.data.get(instance, None)
 
+    def get_underlying_data(self, instance):
+        '''
+            Should not be overwritten
+        '''
+        return self.data.get(instance, None)
+
     def __delete__(self):
         pass

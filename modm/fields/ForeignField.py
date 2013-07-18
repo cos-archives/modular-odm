@@ -58,12 +58,22 @@ class ForeignField(Field):
         self._base_class_name = args[0] # todo allow class references
         self._base_class = None
 
-    def on_after_save(self, instance):
-        # go into object being saved
-        # see if parent class/id is in object._backrefs
-        object_in_this_field = self.__get__(instance, None)
-        object_in_this_field._set_backref(self._backref_field_name, self._parent)
+    def on_after_save(self, old_stored_data, new_value):
+        '''
+            None, Obj = go from nothing or add
+            Obj, None = means go to nothing or remove
+            Obj, Obj = remove then add or swap
+        '''
 
+        if self._backref_field_name == None:
+            return
+
+        if old_stored_data is not None:
+            old_value = self.base_class.load(old_stored_data)
+            old_value._remove_backref(self._backref_field_name, self._parent.__class__, self._parent._primary_key)
+
+        if new_value is not None:
+            new_value._set_backref(self._backref_field_name, self._parent)
 
     def to_storage(self, value):
         if '_primary_key' in dir(value):
