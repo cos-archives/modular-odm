@@ -1,5 +1,5 @@
 from ..fields import Field, List
-from ..SchemaObject import SchemaObject
+from ..StoredObject import StoredObject
 
 import logging
 
@@ -11,7 +11,7 @@ class ForeignList(List):
     def as_primary_keys(self):
         out = []
         for i in self.data:
-            if isinstance(i, SchemaObject):
+            if isinstance(i, StoredObject):
                 out.append(i._primary_key)
             else:
                 out.append(i)
@@ -21,7 +21,7 @@ class ForeignList(List):
         # todo needs to be tested
         if isinstance(item, str): # assume item is a primary key
             return item in self.as_primary_keys()
-        elif isinstance(item, SchemaObject): # should do an object level comparison rather than
+        elif isinstance(item, StoredObject): # should do an object level comparison rather than
             return item._primary_key in self.as_primary_keys()
         else:
             return False
@@ -30,8 +30,10 @@ class ForeignList(List):
         del self.data[key]
 
     def __setitem__(self, key, value):
-        if self._field_instance.do_validate(value):
-            super(ForeignList, self).__setitem__(key, self._field_instance.to_primary_key(value))
+        StoredObject._must_be_loaded(value)
+        # todo: do we need validation here?
+        self._field_instance.do_validate(value)
+        super(ForeignList, self).__setitem__(key, self._field_instance.to_primary_key(value))
 
     def __getitem__(self, item):
         # todo we could turn this into a generator, but that's really an interface question
@@ -41,11 +43,16 @@ class ForeignList(List):
         return self._field_instance.base_class.load(result)
 
     def insert(self, index, value):
-        if self._field_instance.do_validate(value): # will never return False
-            super(ForeignList, self).insert(index, self._field_instance.to_primary_key(value))
-            # super(ForeignList, self).insert(index, value)
+        StoredObject._must_be_loaded(value)
+        # todo: do we need validation here?
+        self._field_instance.do_validate(value)
+        super(ForeignList, self).insert(index, self._field_instance.to_primary_key(value))
+        # super(ForeignList, self).insert(index, value)
 
     def append(self, value):
+        StoredObject._must_be_loaded(value)
+        # todo: do we need validation here?
+        self._field_instance.do_validate(value)
         super(ForeignList, self).append(self._field_instance.to_primary_key(value))
 
 class ForeignField(Field):
@@ -55,7 +62,7 @@ class ForeignField(Field):
     def __init__(self, *args, **kwargs):
         super(ForeignField, self).__init__(*args, **kwargs)
         self._backref_field_name = kwargs.get('backref', None)
-        self._base_class_name = args[0] # todo allow class references
+        self._base_class_name = args[0] # todo allow class references / callable?
         self._base_class = None
 
     def on_after_save(self, old_stored_data, new_value):
@@ -96,10 +103,11 @@ class ForeignField(Field):
     @property
     def base_class(self):
         if self._base_class is None:
-            self._base_class = self._parent.__class__.get_collection(self._base_class_name)
+            self._base_class = StoredObject.get_collection(self._base_class_name)
         return self._base_class
 
     def __set__(self, instance, value):
+        StoredObject._must_be_loaded(value)
         super(ForeignField, self).__set__(instance, self.to_primary_key(value))
 
     def __get__(self, instance, owner):
