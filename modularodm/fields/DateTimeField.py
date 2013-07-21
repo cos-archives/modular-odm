@@ -26,8 +26,5 @@ class DateTimeField(Field):
         try:
             self.validate(value)
         except ValidationError:
-            try:
-                value = parser.parse(value)
-            except ValueError:
-                raise
+            value = parser.parse(value)
         super(DateTimeField, self).__set__(instance, value)
