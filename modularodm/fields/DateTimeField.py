@@ -1,7 +1,9 @@
 from ..fields import Field
+from ..validators import ValidationError
 from ..validators import DateTimeValidator
 
 import datetime
+from dateutil import parser
 
 class DateTimeField(Field):
 
@@ -18,3 +20,14 @@ class DateTimeField(Field):
     def on_before_save(self, instance):
         if self._auto_now:
             self.data[instance] = self.default()
+
+    # todo: abstract this as optional Field.transform() or Field.preprocess() method
+    def __set__(self, instance, value):
+        try:
+            self.validate(value)
+        except ValidationError:
+            try:
+                value = parser.parse(value)
+            except ValueError:
+                raise
+        super(DateTimeField, self).__set__(instance, value)
