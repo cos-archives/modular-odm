@@ -14,7 +14,13 @@ class ListField(Field):
 
         # Descriptor data is this type of list object, instantiated as our
         # default
-        self._default = self._list_class(field_instance=self._field_instance)
+        if self._field_instance._default and not hasattr(self._field_instance._default, '__iter__'):
+            raise Exception(
+                'Default value for list fields must be a list; received <{0}>'.format(
+                    repr(self._field_instance._default)
+                )
+            )
+        self._default = self._list_class(self._field_instance._default, field_instance=self._field_instance)
 
     def __set__(self, instance, value):
         if isinstance(value, self._default.__class__):
