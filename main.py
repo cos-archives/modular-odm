@@ -1,7 +1,9 @@
 from modularodm import StoredObject
 from modularodm.fields.StringField import StringField
+from modularodm.fields.DateTimeField import DateTimeField
 from modularodm.fields.ForeignField import ForeignField
 from modularodm.storage.PickleStorage import PickleStorage
+from modularodm.validators import *
 
 import pprint
 pp = pprint.PrettyPrinter(indent=4)
@@ -19,41 +21,38 @@ except:pass
 
 class Tag(StoredObject):
     value = StringField(primary=True)
-    count = StringField(default='one')
+    count = StringField(default='one@two.thr', validate=True)
+    created = DateTimeField(validate=True)
+    modified = DateTimeField(validate=True, automod=True)
+    keywords = StringField(default=['hihihi', 'foobar'], validate=MinLengthValidator(5), list=True)
 
 class Blog(StoredObject):
     _id = StringField(primary=True, optimistic=True)
     body = StringField(default='blog body')
     tag = ForeignField('Tag', backref='tagged')
     tags = ForeignField('Tag', list=True, backref='taggeds')
-    tag_strings = StringField(validate=True, list=True)
     _meta = {'optimistic':True}
 
 Tag.set_storage(PickleStorage('tag'))
 Blog.set_storage(PickleStorage('blog'))
 
-tag1 = Tag(value=str(random.randint(0,1000)), count="one")
+tag1 = Tag(value=str(random.randint(0,1000)), count='one')
+tag1.keywords.append('wazaa!')
+tag1.keywords.append('keywordhere')
 tag1.save()
 
-tag2 = Tag(value=str(random.randint(0,1000)), count="two")
+tag2 = Tag(value=str(random.randint(0,1000)), count="one@two.thr")
 tag2.save()
 
-tag3 = Tag(value=str(random.randint(0,1000)), count="thr")
+tag3 = Tag(value=str(random.randint(0,1000)), count="one@two.thr")
 tag3.save()
-
-# todo what happens when you append an object to a foreign* and the object's not saved
 
 blog1 = Blog()
 blog1.tag = tag1
 blog1.tags.append(tag1)
 blog1.tags.append(tag2)
 blog1.tags.append(tag3)
-# print [x.value for x in blog1.tags[::-1]]
 blog1.save()
-
-# logging.debug(Tag._cache)
-# logging.debug(Tag.load(tag1._primary_key).tagged)
-# logging.debug(tag1._backrefs)
 
 # Test deleting a tag
 
@@ -64,7 +63,7 @@ blog1.save()
 
 # Test replacing a tag
 
-tag4 = Tag(value=str(random.randint(0,1000)), count="for")
+tag4 = Tag(value=str(random.randint(0,1000)), count="ofor@fiv.six")
 tag4.save()
 
 # blog1.tag = tag2
@@ -104,5 +103,7 @@ logging.debug('*** DATABASE ***\n' + pp.pformat(Tag._storage[0].store))
 logging.debug('\n' + pp.pformat(Blog._storage[0].store))
 logging.debug('****************')
 
-
-blog1
+logging.debug('*** QUERYING ***\n')
+logging.debug(('exact match', list(Tag.find(count='one@two.thr'))))
+logging.debug(('matcher from value', list(Tag.find(count__startswith='one'))))
+logging.debug(('matcher from operator', list(Tag.find(created__le=datetime.datetime.utcnow()))))
