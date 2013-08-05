@@ -14,7 +14,13 @@ class ListField(Field):
 
         # Descriptor data is this type of list object, instantiated as our
         # default
-        self._default = self._list_class(field_instance=self._field_instance)
+        if self._field_instance._default and not hasattr(self._field_instance._default, '__iter__'):
+            raise Exception(
+                'Default value for list fields must be a list; received <{0}>'.format(
+                    repr(self._field_instance._default)
+                )
+            )
+        self._default = self._list_class(self._field_instance._default, field_instance=self._field_instance)
 
     def __set__(self, instance, value):
         if isinstance(value, self._default.__class__):
@@ -46,7 +52,10 @@ class ListField(Field):
             additions = [i for i in new_value if self._field_instance.to_storage(i) not in old_stored_data]
             removes = [i for i in old_stored_data if i not in new_value]
         else:
-            raise Exception('There shouldn\'t be a diff in the first place.')
+            # raise Exception('There shouldn\'t be a diff in the first place.')
+            # todo: discuss -- this point can be reached when the object is not loaded and the new value is an empty list
+            additions = []
+            removes = []
 
         for i in additions:
             self._field_instance.on_after_save(None, i)

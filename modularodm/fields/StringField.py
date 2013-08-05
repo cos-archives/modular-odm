@@ -1,20 +1,11 @@
 from ..fields import Field
-
-import weakref
+from ..validators import StringValidator
 
 class StringField(Field):
 
     default = ''
 
+    validate = StringValidator()
+
     def __init__(self, *args, **kwargs):
         super(StringField, self).__init__(*args, **kwargs)
-
-    def validate(self, value):
-        if isinstance(value, unicode):
-            return True
-        else:
-            try:
-                value.decode('utf-8')
-                return True
-            except:
-                return False

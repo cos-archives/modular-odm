@@ -2,26 +2,116 @@ import copy
 
 import logging
 
-from SchemaObject import SchemaObject
 from fields import Field
+from fields.ListField import ListField
 
-class StoredObject(SchemaObject):
+class SOMeta(type):
 
+    def __init__(cls, name, bases, dct):
+
+        super(SOMeta, cls).__init__(name, bases, dct)
+        cls._name = name.lower()
+
+class StoredObject(object):
+
+    __metaclass__ = SOMeta
+
+    _collections = {}
     _cache = {} # todo implement this with save and load
     _object_cache = {}
 
     def __init__(self, **kwargs):
+
         self._backrefs = {}
         self._is_loaded = False # this gets passed in via kwargs in self.load
-        self._is_optimistic = self._meta.get('optimistic') if hasattr(self, '_meta') else None
-        super(StoredObject, self).__init__(**kwargs)
+        self._is_optimistic = hasattr(self, '_meta') and self._meta.get('optimistic', False)
+
+        self._is_loaded = kwargs.pop('_is_loaded', False)
+
+        # Set _primary_name to '_id' by default
+        self._primary_name = '_id'
+        # todo: only store _primary_name in cls
+        self.__class__._primary_name = '_id'
+
+        # Store dict of class-level Field instances
+        self._fields = self._process_and_get_fields()
+
+        # Set all instance-level field values to defaults
+        if not self._is_loaded:
+            for k, v in self._fields.items():
+                if hasattr(v._default, '__call__'):
+                    setattr(self, k, v._default())
+                else:
+                    setattr(self, k, copy.deepcopy(v._default))
+
+        # Add kwargs to instance
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def __str__(self):
+
+        return str({field : str(getattr(self, field)) for field in self._fields})
+
+    @classmethod
+    def register_collection(cls, **kwargs):
+        cls._collections[cls._name] = cls
+
+    @classmethod
+    def get_collection(cls, name):
+        return cls._collections[name.lower()]
+
+    @property
+    def _primary_key(self):
+        return getattr(self, self._primary_name)
+
+    @_primary_key.setter
+    def _primary_key(self, value):
+        setattr(self, self._primary_name, value)
+
+    def to_storage(self):
+        dtmp = {field_name:field_object.to_storage(field_object._get_underlying_data(self)) for field_name, field_object in self._fields.items()}
+        if self._backrefs:
+            dtmp['_backrefs'] = self._backrefs
+        return dtmp
+
+    def _process_and_get_fields(self):
+        """ Prepare and retrieve schema fields. """
+
+        out = {}
+        found_primary = False
+        for k, v in self.__class__.__dict__.iteritems():
+
+            if not isinstance(v, Field):
+                continue
+
+            v._parent = self
+
+            # Check for primary key
+            if v._is_primary:
+                if not found_primary:
+                    self._primary_name = k
+                    # todo: only store _primary_name in cls
+                    self.__class__._primary_name = k
+                    found_primary = True
+                else:
+                    raise Exception('Multiple keys are not supported')
+
+            if v._list:
+                v = ListField(v)
+                setattr(self.__class__, k, v)
+
+            out[k] = v
+
+        return out
+
+    def __getattribute__(self, name):
+        return super(StoredObject, self).__getattribute__(name)
 
     def _remove_backref(self, backref_field_name, cls, primary_key):
-        class_name = cls.__name__.lower()
-        self._backrefs[backref_field_name][class_name].remove(primary_key)
+        self._backrefs[backref_field_name][cls._name].remove(primary_key)
 
     def _set_backref(self, backref_key, backref_value):
-        backref_value_class_name = backref_value.__class__.__name__.lower() # todo standardized class name getter
+        backref_value_class_name = backref_value.__class__._name
         backref_value_primary_key = backref_value._primary_key
 
         if backref_value_primary_key is None:
@@ -39,25 +129,21 @@ class StoredObject(SchemaObject):
         if not hasattr(cls, '_storage'):
             cls._storage = []
         cls._storage.append(storage)
-        cls.register()
+        cls.register_collection()
 
     # Caching ################################################################
 
     @classmethod
     def _is_cached(cls, key):
-        class_name = cls.__name__.lower()
-        #if class_name in cls._cache:
-        #    if key in cls._cache[class_name]:
-        if class_name in cls._object_cache:
-            if key in cls._object_cache[class_name]:
+        if cls._name in cls._object_cache:
+            if key in cls._object_cache[cls._name]:
                 return True
         return False
 
     @classmethod
     def _load_from_cache(cls, key):
-        class_name = cls.__name__.lower()
-        if class_name in cls._object_cache and key in cls._object_cache[class_name]:
-            return cls._object_cache[class_name][key]
+        if cls._name in cls._object_cache and key in cls._object_cache[cls._name]:
+            return cls._object_cache[cls._name][key]
 
         # cached = cls._get_cache(key)
         # if cached is None:
@@ -66,20 +152,18 @@ class StoredObject(SchemaObject):
 
     @classmethod
     def _set_cache(cls, key, obj):
-        class_name = cls.__name__.lower()
-        if class_name not in cls._object_cache:
-            cls._object_cache[class_name] = {}
-        cls._object_cache[class_name][key] = obj
+        if cls._name not in cls._object_cache:
+            cls._object_cache[cls._name] = {}
+        cls._object_cache[cls._name][key] = obj
 
-        if class_name not in cls._cache:
-            cls._cache[class_name] = {}
-        cls._cache[class_name][key] = obj.to_storage()
+        if cls._name not in cls._cache:
+            cls._cache[cls._name] = {}
+        cls._cache[cls._name][key] = obj.to_storage()
 
     @classmethod
     def _get_cache(cls, key):
-        class_name = cls.__name__.lower()
-        if class_name in cls._object_cache and key in cls._object_cache[class_name]:
-            return cls._object_cache[class_name][key].to_storage()
+        if cls._name in cls._object_cache and key in cls._object_cache[cls._name]:
+            return cls._object_cache[cls._name][key].to_storage()
         # if cls._is_cached(key):
         #     return cls._cache[class_name][key]
         return None
@@ -87,9 +171,8 @@ class StoredObject(SchemaObject):
     @classmethod
     def _get_cached_data(cls, key):
         # todo once object cache is renamed we may need to fiddle with _is_cahed and others
-        class_name = cls.__name__.lower()
         if cls._is_cached(key):
-            return cls._cache[class_name][key]
+            return cls._cache[cls._name][key]
         return None
 
     def _get_list_of_differences_from_cache(self):
@@ -99,11 +182,9 @@ class StoredObject(SchemaObject):
         if not self._is_loaded:
             return field_list
 
-        logging.debug('Before loading from cache')
-        cached_data = self._cache[self.__class__.__name__.lower()][self._primary_key]
-        logging.debug('After loading from cache')
+        cached_data = self._cache[self.__class__._name][self._primary_key]
 
-        if cached_data == None:
+        if cached_data is None:
             return field_list
 
         current_data = self.to_storage()
@@ -123,13 +204,14 @@ class StoredObject(SchemaObject):
 
     @classmethod
     def load(cls, key):
+
         cached_object = cls._load_from_cache(key)
 
         if cached_object is not None:
             return cached_object
 
-        data = copy.deepcopy(cls._storage[0].get(key)) # better way to do this? Otherwise on load, the Storage.store
-                                                       #  look just like changed object
+        data = copy.deepcopy(cls._storage[0].get(cls, key)) # better way to do this? Otherwise on load, the Storage.store
+                                                            #  look just like changed object
         if not data:
             return None
 
@@ -139,45 +221,44 @@ class StoredObject(SchemaObject):
         cls._set_cache(cls, key, loaded_object)
         return loaded_object
 
-    def _copy(self):
-        """Deep copy self, including descriptor values. Note: normal deep copy
-        won't work with descriptors values, since this won't add replace the
-        object in the weak key dictionary.
+    @classmethod
+    def _get_descriptor(cls, field_name):
+        return cls.__dict__[field_name]
 
-        It may be better to start with a new instantiation of self.__class__
-        and deep copy everything in self.__class__.__dict__.iteritems
-
-        """
-        # Captures all non-descriptor values
-        copied = copy.deepcopy(self)
-
-        # Copy values of all descriptors
-        for key, val in self.__class__.__dict__.iteritems():
-            if isinstance(val, Field):
-                setattr(copied, key, val.to_storage(getattr(self, key)))
-        return copied
+    @classmethod
+    def _must_be_loaded(cls, value):
+        # return
+        if value is not None and not value._is_loaded:
+            raise Exception('Record must be loaded')
 
     def save(self):
+
+        for field_name in self._fields:
+            field = self._get_descriptor(field_name)
+            if hasattr(field, 'on_before_save'):
+                field.on_before_save(self)
+
         if self._primary_key is not None and self._is_cached(self._primary_key):
             list_on_save_after_fields = self._get_list_of_differences_from_cache()
         else:
             list_on_save_after_fields = self._fields.keys()
 
         if self._is_loaded:
-            self._storage[0].update(self._primary_key, self.to_storage())
+            self.update(self._primary_key, self.to_storage())
         elif self._is_optimistic:
-            self._primary_key = self._storage[0].optimistic_insert(self.to_storage(), self._primary_name) # do a local update; no dirty
+            self._primary_key = self._storage[0].optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
         else:
-            self._storage[0].insert(self._primary_key, self.to_storage())
+            self.insert(self._primary_key, self.to_storage())
+            # self._storage[0].insert(self._primary_key, self.to_storage())
 
-        # if primary key has changed, follow back refrences and update
+        # if primary key has changed, follow back references and update
         # AND
         # run after_save or after_save_on_difference
 
         self._is_loaded = True
 
         for field_name in list_on_save_after_fields:
-            field = self.__class__.__dict__[field_name]
+            field = self._get_descriptor(field_name)
             if hasattr(field, 'on_after_save'):
                 cached_data = self._get_cached_data(self._primary_key)
                 if cached_data:
@@ -194,5 +275,32 @@ class StoredObject(SchemaObject):
             return self._backrefs[item]
         raise AttributeError(item + ' not found')
 
-    def __getattribute__(self, name):
-        return super(StoredObject, self).__getattribute__(name)
+    # Querying ######
+
+    @classmethod
+    def find_all(cls):
+        return cls._storage[0]._query_set_class(cls, cls._storage[0].find_all())
+
+    @classmethod
+    def find(cls, *args, **kwargs):
+        return cls._storage[0]._query_set_class(cls, cls._storage[0].find(*args, **kwargs))
+
+    @classmethod
+    def find_one(cls, **kwargs):
+        return cls.load(cls._storage[0].find_one(cls, **kwargs))
+
+    @classmethod
+    def get(cls, key):
+        return cls.load(cls._storage[0].get(cls, key))
+
+    @classmethod
+    def insert(cls, key, val):
+        cls._storage[0].insert(cls, key, val)
+
+    @classmethod
+    def update(cls, key, val):
+        cls._storage[0].update(cls, key, val)
+
+    @classmethod
+    def remove(cls, key):
+        cls._storage[0].remove(key)
