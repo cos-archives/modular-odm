@@ -52,7 +52,10 @@ class ListField(Field):
             additions = [i for i in new_value if self._field_instance.to_storage(i) not in old_stored_data]
             removes = [i for i in old_stored_data if i not in new_value]
         else:
-            raise Exception('There shouldn\'t be a diff in the first place.')
+            # raise Exception('There shouldn\'t be a diff in the first place.')
+            # todo: discuss -- this point can be reached when the object is not loaded and the new value is an empty list
+            additions = []
+            removes = []
 
         for i in additions:
             self._field_instance.on_after_save(None, i)
