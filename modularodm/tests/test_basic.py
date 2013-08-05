@@ -1,6 +1,7 @@
 import unittest
 import datetime
 import time
+import os
 
 from modularodm import StoredObject
 from modularodm.fields.StringField import StringField
@@ -8,6 +9,8 @@ from modularodm.fields.DateTimeField import DateTimeField
 from modularodm.validators import ValidationError
 from modularodm.validators import MinLengthValidator
 from modularodm.storage.PickleStorage import PickleStorage
+from modularodm.storage.MongoStorage import MongoStorage
+from modularodm.query.query import Query as Q
 
 class Tag(StoredObject):
     _id = StringField(primary=True)
@@ -121,6 +124,22 @@ class BasicTests(unittest.TestCase):
 
     def test_find_operator_method(self):
         pass
+
+    def test_find_match(self):
+        tag = Tag()
+        tag.value = 'test_query_match'
+        tag.save()
+        results = Tag.find(Q('value', valu='test_query_match'))
+        results = list(results)
+        self.assertEqual(len(results), 1)
+
+    def test_find_match_no_result(self):
+        tag = Tag()
+        tag.value = 'test_query_match'
+        tag.save()
+        results = Tag.find(Q('value', valu='no_matches_should_be_found!'))
+        results = list(results)
+        self.assertEqual(len(results), 0)
 
 if __name__ == '__main__':
     unittest.main()
