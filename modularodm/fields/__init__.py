@@ -50,6 +50,9 @@ class List(collections.MutableSequence):
         self._field_instance.do_validate(value)
         self.data.append(value)
 
+    def __str__(self):
+        return str(self.data)
+
     def __repr__(self):
         return '<MutableSequence: '+self.data.__repr__()+'>'
 
@@ -102,10 +105,14 @@ class Field(object):
         self.do_validate(value)
         self.data[instance] = value
 
-    def __get__(self, instance, owner=None):
+    def __get__(self, instance, owner):
         return self.data.get(instance, None)
 
-    get_underlying_data = __get__
+    def _get_underlying_data(self, instance):
+        """Return data from raw data store, rather than overridden
+        __get__ methods. Should NOT be overwritten.
+        """
+        return self.data.get(instance, None)
 
     def __delete__(self):
         pass
