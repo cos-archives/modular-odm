@@ -1,5 +1,6 @@
 from ..storage import Storage
 from ..storage import KeyExistsException
+from ..query.queryset import PickleQuerySet
 
 import operator
 import copy
@@ -9,8 +10,34 @@ try:
 except ImportError:
     import pickle
 
+def _eq(data, test):
+    if hasattr(data, '__iter__'):
+        return test in data
+    return data == test
+
+operators = {
+
+    'eq' : _eq,
+    'ne' : lambda data, test: data != test,
+    'gt' : lambda data, test: data > test,
+    'gte' : lambda data, test: data >= test,
+    'lt' : lambda data, test: data < test,
+    'lte' : lambda data, test: data <= test,
+    'in' : lambda data, test: data in test,
+    'nin' : lambda data, test: data not in test,
+
+    'startswith' : lambda data, test: data.startswith(test),
+    'endswith' : lambda data, test: data.endswith(test),
+    'contains' : lambda data, test: test in data,
+    'icontains' : lambda data, test: test.lower() in data.lower(),
+
+
+}
+
 class PickleStorage(Storage):
     """ Storage backend using pickle. """
+
+    _query_set_class = PickleQuerySet
 
     def __init__(self, collection_name,  prefix='db_', ext='pkl'):
         """Build pickle file name and load data if exists.
@@ -32,7 +59,7 @@ class PickleStorage(Storage):
                 data = fp.read()
                 self.store = pickle.loads(data)
 
-    def insert(self, key, value):
+    def insert(self, schema, key, value):
         """Add key-value pair to storage. Key must not exist.
 
         :param key: Key
@@ -46,7 +73,7 @@ class PickleStorage(Storage):
             msg = 'Key ({key}) already exists'.format(key=key)
             raise KeyExistsException(msg)
 
-    def update(self, key, value):
+    def update(self, schema, key, value):
         """Update value of key. Key need not exist.
 
         :param key: Key
@@ -56,7 +83,7 @@ class PickleStorage(Storage):
         self.store[key] = value
         self.flush()
 
-    def get(self, key):
+    def get(self, schema, key):
         return self.store[key]
 
     def remove(self, key):
@@ -88,30 +115,22 @@ class PickleStorage(Storage):
             )
         )
 
-    def find(self, **kwargs):
+    def find(self, *query):
 
         for key, value in self.store.iteritems():
+
             match = True
-            for field, arg in kwargs.iteritems():
-                field_parse = field.split('__')
-                if len(field_parse) == 1:
-                    # Exact match
-                    match = value[field] == arg
-                elif len(field_parse) == 2:
-                    field_name, field_op = field_parse
-                    if hasattr(value[field_name], field_op):
-                        # Matcher is property of value
-                        match = getattr(value[field_name], field_op)(arg)
-                    elif hasattr(operator, field_op):
-                        # Matcher is provided by operator
-                        match = getattr(operator, field_op)(value[field_name], arg)
+
+            for part in query:
+
+                attr, oper, valu = part.attr, part.oper, part.valu
+                match = operators[oper](value[attr], valu)
+
                 if not match:
                     break
+
             if match:
                 yield value
-
-    def get(self, key):
-        return self.store[key]
 
     def __repr__(self):
         return str(self.store)
