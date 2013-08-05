@@ -26,7 +26,7 @@ class Storage(object):
 
         return ''.join(random.sample(charset, n))
 
-    def optimistic_insert(self, value, label, n=5):
+    def optimistic_insert(self, schema, value, n=5):
         """Attempt to insert with randomly generated key until insert
         is successful.
 
@@ -38,8 +38,8 @@ class Storage(object):
         while True:
             try:
                 key = self._generate_random_id(n)
-                value[label] = key
-                self.insert(key, value)
+                value[schema._primary_name] = key
+                self.insert(schema, key, value)
             except KeyExistsException:
                 pass
             break
