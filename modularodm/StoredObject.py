@@ -30,6 +30,8 @@ class StoredObject(object):
 
         # Set _primary_name to '_id' by default
         self._primary_name = '_id'
+        # todo: only store _primary_name in cls
+        self.__class__._primary_name = '_id'
 
         # Store dict of class-level Field instances
         self._fields = self._process_and_get_fields()
@@ -45,6 +47,10 @@ class StoredObject(object):
         # Add kwargs to instance
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    def __str__(self):
+
+        return str({field : str(getattr(self, field)) for field in self._fields})
 
     @classmethod
     def register_collection(cls, **kwargs):
@@ -63,7 +69,7 @@ class StoredObject(object):
         setattr(self, self._primary_name, value)
 
     def to_storage(self):
-        dtmp = {field_name:field_object.to_storage(field_object.get_underlying_data(self)) for field_name, field_object in self._fields.items()}
+        dtmp = {field_name:field_object.to_storage(field_object._get_underlying_data(self)) for field_name, field_object in self._fields.items()}
         if self._backrefs:
             dtmp['_backrefs'] = self._backrefs
         return dtmp
@@ -84,6 +90,8 @@ class StoredObject(object):
             if v._is_primary:
                 if not found_primary:
                     self._primary_name = k
+                    # todo: only store _primary_name in cls
+                    self.__class__._primary_name = k
                     found_primary = True
                 else:
                     raise Exception('Multiple keys are not supported')
@@ -196,13 +204,14 @@ class StoredObject(object):
 
     @classmethod
     def load(cls, key):
+
         cached_object = cls._load_from_cache(key)
 
         if cached_object is not None:
             return cached_object
 
-        data = copy.deepcopy(cls._storage[0].get(key)) # better way to do this? Otherwise on load, the Storage.store
-                                                       #  look just like changed object
+        data = copy.deepcopy(cls._storage[0].get(cls, key)) # better way to do this? Otherwise on load, the Storage.store
+                                                            #  look just like changed object
         if not data:
             return None
 
@@ -218,6 +227,7 @@ class StoredObject(object):
 
     @classmethod
     def _must_be_loaded(cls, value):
+        # return
         if value is not None and not value._is_loaded:
             raise Exception('Record must be loaded')
 
@@ -234,13 +244,14 @@ class StoredObject(object):
             list_on_save_after_fields = self._fields.keys()
 
         if self._is_loaded:
-            self._storage[0].update(self._primary_key, self.to_storage())
+            self.update(self._primary_key, self.to_storage())
         elif self._is_optimistic:
-            self._primary_key = self._storage[0].optimistic_insert(self.to_storage(), self._primary_name) # do a local update; no dirty
+            self._primary_key = self._storage[0].optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
         else:
-            self._storage[0].insert(self._primary_key, self.to_storage())
+            self.insert(self._primary_key, self.to_storage())
+            # self._storage[0].insert(self._primary_key, self.to_storage())
 
-        # if primary key has changed, follow back refrences and update
+        # if primary key has changed, follow back references and update
         # AND
         # run after_save or after_save_on_difference
 
@@ -268,20 +279,28 @@ class StoredObject(object):
 
     @classmethod
     def find_all(cls):
-        return cls._storage[0].find_all()
+        return cls._storage[0]._query_set_class(cls, cls._storage[0].find_all())
 
     @classmethod
-    def find(cls, **kwargs):
-        return cls._storage[0].find(**kwargs)
-
-    @classmethod
-    def get(cls, key):
-        return cls._storage[0].get(key)
+    def find(cls, *args, **kwargs):
+        return cls._storage[0]._query_set_class(cls, cls._storage[0].find(*args, **kwargs))
 
     @classmethod
     def find_one(cls, **kwargs):
-        return cls._storage[0].find_one(**kwargs)
+        return cls.load(cls._storage[0].find_one(cls, **kwargs))
 
     @classmethod
     def get(cls, key):
-        return cls._storage[0].get(key)
+        return cls.load(cls._storage[0].get(cls, key))
+
+    @classmethod
+    def insert(cls, key, val):
+        cls._storage[0].insert(cls, key, val)
+
+    @classmethod
+    def update(cls, key, val):
+        cls._storage[0].update(cls, key, val)
+
+    @classmethod
+    def remove(cls, key):
+        cls._storage[0].remove(key)
