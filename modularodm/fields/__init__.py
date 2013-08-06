@@ -33,7 +33,7 @@ class List(collections.MutableSequence):
         return len(self.data)
 
     def __setitem__(self, key, value):
-        self._field_instance.do_validate(value)
+        #self._field_instance.do_validate(value)
         self.data[key] = value
 
     def __getitem__(self, key):
@@ -43,11 +43,11 @@ class List(collections.MutableSequence):
         return self.data[key]
 
     def insert(self, index, value):
-        self._field_instance.do_validate(value)
+        #self._field_instance.do_validate(value)
         self.data.insert(index, value)
 
     def append(self, value):
-        self._field_instance.do_validate(value)
+        #self._field_instance.do_validate(value)
         self.data.append(value)
 
     def __str__(self):
@@ -87,12 +87,21 @@ class Field(object):
         self._list = kwargs.get('list', False)
 
     def do_validate(self, value):
+
+        # Mandatory validation
+        cls = self.__class__
+        if hasattr(cls, 'validate'):
+            cls.validate(value)
+
+        # Optional validation
         if self._validate and hasattr(self, 'validate'):
             if hasattr(self.validate, '__iter__'):
                 for validator in self.validate:
                     validator(value)
             else:
                 self.validate(value)
+
+        # Success
         return True
 
     def to_storage(self, value):
@@ -102,7 +111,7 @@ class Field(object):
         pass
 
     def __set__(self, instance, value):
-        self.do_validate(value)
+        #self.do_validate(value)
         self.data[instance] = value
 
     def __get__(self, instance, owner):
