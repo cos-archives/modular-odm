@@ -1,13 +1,22 @@
+# todo: warn on no default, or something
+# todo: get default collection name for picklestorage, mongostorage constructors
+# todo: requirements.txt
+# todo: distutils
+
 import pprint
 
 from modularodm import StoredObject
 from modularodm.fields.StringField import StringField
+from modularodm.fields.IntegerField import IntegerField
+from modularodm.fields.FloatField import FloatField
+from modularodm.fields.BooleanField import BooleanField
 from modularodm.fields.DateTimeField import DateTimeField
 from modularodm.fields.ForeignField import ForeignField
 from modularodm.storage.PickleStorage import PickleStorage
 from modularodm.storage.MongoStorage import MongoStorage
 from modularodm.validators import *
-from modularodm.query.query import Query as Q
+from modularodm.query.query import QueryGroup, RawQuery
+from modularodm.query.query import RawQuery as Q
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -29,6 +38,14 @@ except:pass
 try:os.remove('db_tag.pkl')
 except:pass
 
+class User(StoredObject):
+    username = StringField(validate=[MinLengthValidator(6), MaxLengthValidator(20)])
+
+myuser = User()
+myuser.password = 'ABCabc123'
+myuser.password = 'Ac7'
+myuser.password = 'alllower' # this SHOULD crash
+
 class Tag(StoredObject):
     value = StringField(primary=True)
     count = StringField(default='c', validate=True)
@@ -37,22 +54,30 @@ class Tag(StoredObject):
     created = DateTimeField(validate=True)
     modified = DateTimeField(validate=True, auto_now=True)
     keywords = StringField(default=['keywd1', 'keywd2'], validate=[MinLengthValidator(5), MaxLengthValidator(10)], list=True)
+    mybool = BooleanField(default=False)
+    myint = IntegerField()
+    myfloat = FloatField()
 
 class Blog(StoredObject):
     _id = StringField(primary=True, optimistic=True)
     body = StringField(default='blog body')
+    title = StringField(default='asdfasdfasdf', validate=MinLengthValidator(8))
     tag = ForeignField('Tag', backref='tagged')
     tags = ForeignField('Tag', list=True, backref='taggeds')
     _meta = {'optimistic':True}
 
-Tag.set_storage(MongoStorage(db, 'tag'))
-Blog.set_storage(MongoStorage(db, 'blog'))
-# Tag.set_storage(PickleStorage('tag'))
-# Blog.set_storage(PickleStorage('blog'))
+
+# import pdb; pdb.set_trace()
+
+# Tag.set_storage(MongoStorage(db, 'tag'))
+# Blog.set_storage(MongoStorage(db, 'blog'))
+Tag.set_storage(PickleStorage('tag'))
+Blog.set_storage(PickleStorage('blog'))
 
 tag1 = Tag(value=str(random.randint(0, 1000)), count='count_1', keywords=['keywd1', 'keywd3', 'keywd4'])
 tag1.save()
 
+# import pdb; pdb.set_trace()
 tag2 = Tag(value=str(random.randint(0, 1000)), count="count_2", misc="foobar", misc2="a")
 tag2.save()
 
@@ -76,6 +101,12 @@ blog2 = Blog()
 blog2.tag = tag1
 blog2.tags.append(tag2)
 blog2.save()
+
+# import pdb; pdb.set_trace()
+
+res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+
+# Tag.find(Q('foo', 'bar', 'baz'))
 
 # todo: accept list of strings
 res = Tag.find_all().sort('misc2', '-misc')

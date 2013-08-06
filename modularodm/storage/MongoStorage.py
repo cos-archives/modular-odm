@@ -4,6 +4,8 @@ import logging
 from ..storage import Storage
 from ..storage import KeyExistsException
 from ..query.queryset import MongoQuerySet
+from ..query.query import QueryGroup
+from ..query.query import RawQuery
 
 # From mongoengine.queryset.transform
 COMPARISON_OPERATORS = ('ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'mod',
@@ -55,9 +57,11 @@ class MongoStorage(Storage):
         self.store = db[self.collection]
 
     def find_all(self):
+        # return {}
         return self.store.find()
 
     def find(self, *query):
+        # return self._translate_query(*query)
         mongo_query = self._translate_query(*query)
         return self.store.find(mongo_query)
 
@@ -93,25 +97,54 @@ class MongoStorage(Storage):
 
     def _translate_query(self, *query):
 
+        if len(query) > 1:
+            query = QueryGroup('and', *query)
+        else:
+            query = query[0]
+
         mongo_query = {}
 
-        for part in query:
+        if isinstance(query, RawQuery):
 
-            attr, oper, valu = part.attr, part.oper, part.valu
+            attribute, operator, argument = \
+                query.attribute, query.operator, query.argument
 
-            if oper == 'eq':
+            if operator == 'eq':
 
-                mongo_query[attr] = valu
+                mongo_query[attribute] = argument
 
-            elif oper in COMPARISON_OPERATORS:
+            elif operator in COMPARISON_OPERATORS:
 
-                mongo_oper = '$' + oper
-                mongo_query[attr] = {mongo_oper : valu}
+                mongo_operator = '$' + operator
+                mongo_query[attribute] = {mongo_operator : argument}
 
-            elif oper in STRING_OPERATORS:
+            elif operator in STRING_OPERATORS:
 
-                mongo_oper = '$regex'
-                mongo_regex = prepare_query_value(oper, valu)
-                mongo_query[attr] = {mongo_oper : mongo_regex}
+                mongo_operator = '$regex'
+                mongo_regex = prepare_query_value(operator, argument)
+                mongo_query[attribute] = {mongo_operator : mongo_regex}
+
+        elif isinstance(query, QueryGroup):
+
+            if query.operator == 'and':
+
+                mongo_query = {}
+
+                for node in query.nodes:
+                    mongo_query.update(self._translate_query(node))
+
+                return mongo_query
+
+            elif query.operator == 'or':
+
+                return {'$or' : [self._translate_query(node) for node in query.nodes]}
+
+            else:
+
+                raise Exception('QueryGroup operator must be <and> or <or>.')
+
+        else:
+
+            raise Exception('Query must be a QueryGroup or Query object.')
 
         return mongo_query

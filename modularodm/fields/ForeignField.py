@@ -32,7 +32,7 @@ class ForeignList(List):
     def __setitem__(self, key, value):
         StoredObject._must_be_loaded(value)
         # todo: do we need validation here?
-        self._field_instance.do_validate(value)
+        #self._field_instance.do_validate(value)
         super(ForeignList, self).__setitem__(key, self._field_instance.to_primary_key(value))
 
     def __getitem__(self, item):
@@ -45,14 +45,14 @@ class ForeignList(List):
     def insert(self, index, value):
         StoredObject._must_be_loaded(value)
         # todo: do we need validation here?
-        self._field_instance.do_validate(value)
+        #self._field_instance.do_validate(value)
         super(ForeignList, self).insert(index, self._field_instance.to_primary_key(value))
         # super(ForeignList, self).insert(index, value)
 
     def append(self, value):
         StoredObject._must_be_loaded(value)
         # todo: do we need validation here?
-        self._field_instance.do_validate(value)
+        #self._field_instance.do_validate(value)
         super(ForeignList, self).append(self._field_instance.to_primary_key(value))
 
 class ForeignField(Field):

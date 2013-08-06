@@ -1,8 +1,8 @@
 
-import logging
+# todo groupby
+# todo indexing
 
-from pymongo import ASCENDING
-from pymongo import DESCENDING
+import pymongo
 
 class QuerySet(object):
 
@@ -113,9 +113,9 @@ class MongoQuerySet(QuerySet):
 
             if key.startswith('-'):
                 key = key.lstrip('-')
-                sign = DESCENDING
+                sign = pymongo.DESCENDING
             else:
-                sign = ASCENDING
+                sign = pymongo.ASCENDING
 
             sort_key.append((key, sign))
 

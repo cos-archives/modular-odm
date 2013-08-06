@@ -1,6 +1,8 @@
 from ..storage import Storage
 from ..storage import KeyExistsException
 from ..query.queryset import PickleQuerySet
+from ..query.query import QueryGroup
+from ..query.query import RawQuery
 
 import operator
 import copy
@@ -115,22 +117,54 @@ class PickleStorage(Storage):
             )
         )
 
+    def _match(self, value, query):
+
+        if isinstance(query, QueryGroup):
+
+            matches = [self._match(value, node) for node in query.nodes]
+
+            if query.operator == 'and':
+                return all(matches)
+            elif query.operator == 'or':
+                return any(matches)
+            else:
+                raise Exception('QueryGroup operator must be <and> or <or>.')
+
+        elif isinstance(query, RawQuery):
+
+            attribute, operator, argument = \
+                query.attribute, query.operator, query.argument
+
+            return operators[operator](value[attribute], argument)
+
+        else:
+
+            raise Exception('Query must be a QueryGroup or Query object.')
+
     def find(self, *query):
+
+        if len(query) > 1:
+            query = QueryGroup('and', *query)
+        else:
+            query = query[0]
 
         for key, value in self.store.iteritems():
 
-            match = True
-
-            for part in query:
-
-                attr, oper, valu = part.attr, part.oper, part.valu
-                match = operators[oper](value[attr], valu)
-
-                if not match:
-                    break
-
-            if match:
+            if self._match(value, query):
                 yield value
+
+            # match = True
+            #
+            # for part in query:
+            #
+            #     attr, oper, valu = part.attr, part.oper, part.valu
+            #     match = operators[oper](value[attr], valu)
+            #
+            #     if not match:
+            #         break
+            #
+            # if match:
+            #     yield value
 
     def __repr__(self):
         return str(self.store)

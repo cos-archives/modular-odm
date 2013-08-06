@@ -1,6 +1,6 @@
 from ..fields import Field
 from ..validators import ValidationError
-from ..validators import DateTimeValidator
+from ..validators import validate_datetime
 
 import datetime
 from dateutil import parser
@@ -10,7 +10,7 @@ class DateTimeField(Field):
     # Method will be called on SchemaObject __init__
     default = datetime.datetime.utcnow
 
-    validate = DateTimeValidator()
+    validate = validate_datetime
 
     def __init__(self, *args, **kwargs):
         super(DateTimeField, self).__init__(*args, **kwargs)

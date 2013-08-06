@@ -238,6 +238,11 @@ class StoredObject(object):
             if hasattr(field, 'on_before_save'):
                 field.on_before_save(self)
 
+        # Validate
+        for field in self._fields:
+            field_obj = self._get_descriptor(field)
+            field_obj.do_validate(getattr(self, field))
+
         if self._primary_key is not None and self._is_cached(self._primary_key):
             list_on_save_after_fields = self._get_list_of_differences_from_cache()
         else:
