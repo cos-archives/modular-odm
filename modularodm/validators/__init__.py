@@ -9,6 +9,26 @@ class StringValidator(object):
         if type(value) not in [str, unicode]:
             raise ValidationError('Not a valid string: <{0}>'.format(value))
 
+class TypeValidator(object):
+
+    def __init__(self, _type):
+        self._type = _type
+
+    def __call__(self, value):
+        if not isinstance(value, self._type):
+            raise Exception(
+                'Expected a value of type {}; received value {} of type {}'.format(
+                    self._type, value, type(value)
+                )
+            )
+
+validate_integer = TypeValidator(int)
+validate_float = TypeValidator(float)
+validate_boolean = TypeValidator(bool)
+
+import datetime
+validate_datetime = TypeValidator(datetime.datetime)
+
 class MinLengthValidator(StringValidator):
 
     def __init__(self, min_length):
@@ -62,18 +82,6 @@ class RegexValidator(StringValidator):
                 'Value must match regex {0} and flags {1}; received value <{2}>'.format(
                     self.regex.pattern,
                     self.regex.flags,
-                    value
-                )
-            )
-
-import datetime
-class DateTimeValidator(object):
-
-    def __call__(self, value):
-
-        if not isinstance(value, datetime.datetime):
-            raise ValidationError(
-                'Value must be a datetime object; received value <{0}>'.format(
                     value
                 )
             )
