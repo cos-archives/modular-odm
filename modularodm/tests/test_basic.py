@@ -10,7 +10,7 @@ from modularodm.validators import ValidationError
 from modularodm.validators import MinLengthValidator
 from modularodm.storage.PickleStorage import PickleStorage
 from modularodm.storage.MongoStorage import MongoStorage
-from modularodm.query.query import Query as Q
+from modularodm.query.query import RawQuery as Q
 
 class Tag(StoredObject):
     _id = StringField(primary=True)
@@ -21,6 +21,24 @@ class Tag(StoredObject):
     _meta = {'optimistic':True}
 
 Tag.set_storage(PickleStorage('tag'))
+
+class ValidateTests(unittest.TestCase):
+
+    def test_min_length_validate(self):
+        pass
+
+    def test_max_length_validate(self):
+        pass
+
+class DefaultTests(unittest.TestCase):
+
+    pass
+
+class ForeignTests(unittest.TestCase):
+
+    pass
+
+
 
 class BasicTests(unittest.TestCase):
 
@@ -36,13 +54,14 @@ class BasicTests(unittest.TestCase):
         self.clear_pickle_files()
 
     def test_string_default(self):
+        """ Make sure the default option works for StringField fields. """
         tag = Tag()
-        self.assertTrue(tag.value == 'default')
+        self.assertEqual(tag.value, 'defaultt')
 
     def test_stringlist_default(self):
         tag = Tag()
-        self.assertTrue(tag.keywords[0] == 'keywd1')
-        self.assertTrue(tag.keywords[1] == 'keywd2')
+        self.assertEqual(tag.keywords[0], 'keywd1')
+        self.assertEqual(tag.keywords[1], 'keywd2')
 
     def test_minlength_validator(self):
         tag = Tag()
@@ -125,21 +144,21 @@ class BasicTests(unittest.TestCase):
     def test_find_operator_method(self):
         pass
 
-    def test_find_match(self):
-        tag = Tag()
-        tag.value = 'test_query_match'
-        tag.save()
-        results = Tag.find(Q('value', valu='test_query_match'))
-        results = list(results)
-        self.assertEqual(len(results), 1)
-
-    def test_find_match_no_result(self):
-        tag = Tag()
-        tag.value = 'test_query_match'
-        tag.save()
-        results = Tag.find(Q('value', valu='no_matches_should_be_found!'))
-        results = list(results)
-        self.assertEqual(len(results), 0)
+    # def test_find_match(self):
+    #     tag = Tag()
+    #     tag.value = 'test_query_match'
+    #     tag.save()
+    #     results = Tag.find(Q('value', valu='test_query_match'))
+    #     results = list(results)
+    #     self.assertEqual(len(results), 1)
+    #
+    # def test_find_match_no_result(self):
+    #     tag = Tag()
+    #     tag.value = 'test_query_match'
+    #     tag.save()
+    #     results = Tag.find(Q('value', valu='no_matches_should_be_found!'))
+    #     results = list(results)
+    #     self.assertEqual(len(results), 0)
 
 if __name__ == '__main__':
     unittest.main()
