@@ -15,8 +15,7 @@ from modularodm.fields.ForeignField import ForeignField
 from modularodm.storage.PickleStorage import PickleStorage
 from modularodm.storage.MongoStorage import MongoStorage
 from modularodm.validators import *
-from modularodm.query.query import QueryGroup, RawQuery
-from modularodm.query.query import RawQuery as Q
+from modularodm.query.querydialect import DefaultQueryDialect as Q
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -56,7 +55,8 @@ class Tag(StoredObject):
     keywords = StringField(default=['keywd1', 'keywd2'], validate=[MinLengthValidator(5), MaxLengthValidator(10)], list=True)
     mybool = BooleanField(default=False)
     myint = IntegerField()
-    myfloat = FloatField()
+    myfloat = FloatField(required=True, default=4.5)
+    myurl = StringField(validate=URLValidator())
 
 class Blog(StoredObject):
     _id = StringField(primary=True, optimistic=True)
@@ -69,12 +69,13 @@ class Blog(StoredObject):
 
 # import pdb; pdb.set_trace()
 
-# Tag.set_storage(MongoStorage(db, 'tag'))
-# Blog.set_storage(MongoStorage(db, 'blog'))
-Tag.set_storage(PickleStorage('tag'))
-Blog.set_storage(PickleStorage('blog'))
+Tag.set_storage(MongoStorage(db, 'tag'))
+Blog.set_storage(MongoStorage(db, 'blog'))
+# Tag.set_storage(PickleStorage('tag'))
+# Blog.set_storage(PickleStorage('blog'))
 
 tag1 = Tag(value=str(random.randint(0, 1000)), count='count_1', keywords=['keywd1', 'keywd3', 'keywd4'])
+import pdb; pdb.set_trace()
 tag1.save()
 
 # import pdb; pdb.set_trace()
@@ -90,12 +91,18 @@ tag4.save()
 tag5 = Tag(value=str(random.randint(0, 1000)), count="count_5", misc="baz", misc2="b")
 tag5.save()
 
+import pdb; pdb.set_trace()
+
 blog1 = Blog()
 blog1.tag = tag1
-blog1.tags.append(tag1)
-blog1.tags.append(tag2)
-blog1.tags.append(tag3)
+# blog1.tags.append(tag1)
+# blog1.tags.append(tag2)
+# blog1.tags.append(tag3)
+
+# import pdb; pdb.set_trace()
+
 blog1.save()
+
 
 blog2 = Blog()
 blog2.tag = tag1
