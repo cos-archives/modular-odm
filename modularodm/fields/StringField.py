@@ -3,7 +3,7 @@ from ..validators import StringValidator
 
 class StringField(Field):
 
-    default = ''
+    # default = ''
 
     validate = StringValidator()
 
