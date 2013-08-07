@@ -1,9 +1,10 @@
 import re
+import pymongo
 import logging
 
 from ..storage import Storage
 from ..storage import KeyExistsException
-from ..query.queryset import MongoQuerySet
+from ..query.queryset import BaseQuerySet#MongoQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
 
@@ -48,9 +49,58 @@ def prepare_query_value(op, value):
         value = re.compile(regex % value, flags)
     return value
 
+class MongoQuerySet(BaseQuerySet):
+
+    def __init__(self, schema, cursor):
+
+        super(MongoQuerySet, self).__init__(schema)
+        self.data = cursor
+
+    def __getitem__(self, index):
+
+        super(MongoQuerySet, self).__getitem__(index)
+        return self.schema.load(self.data[index][self.primary])
+
+    def __iter__(self):
+
+        return (self.schema.load(obj[self.primary]) for obj in self.data.clone())
+
+    def __len__(self):
+
+        return self.data.count(with_limit_and_skip=True)
+
+    count = __len__
+
+    def sort(self, *keys):
+
+        sort_key = []
+
+        for key in keys:
+
+            if key.startswith('-'):
+                key = key.lstrip('-')
+                sign = pymongo.DESCENDING
+            else:
+                sign = pymongo.ASCENDING
+
+            sort_key.append((key, sign))
+
+        self.data = self.data.sort(sort_key)
+        return self
+
+    def offset(self, n):
+
+        self.data = self.data.skip(n)
+        return self
+
+    def limit(self, n):
+
+        self.data = self.data.limit(n)
+        return self
+
 class MongoStorage(Storage):
 
-    _query_set_class = MongoQuerySet
+    QuerySet = MongoQuerySet
 
     def __init__(self, db, collection):
         self.collection = collection

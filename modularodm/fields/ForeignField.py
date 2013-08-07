@@ -112,4 +112,6 @@ class ForeignField(Field):
 
     def __get__(self, instance, owner):
         primary_key = super(ForeignField, self).__get__(instance, None)
+        if primary_key is None:
+            return
         return self.base_class.load(primary_key)

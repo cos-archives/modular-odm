@@ -1,6 +1,6 @@
 from ..storage import Storage
 from ..storage import KeyExistsException
-from ..query.queryset import PickleQuerySet
+from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
 
@@ -36,10 +36,57 @@ operators = {
 
 }
 
+class PickleQuerySet(BaseQuerySet):
+
+    def __init__(self, schema, data):
+
+        super(PickleQuerySet, self).__init__(schema)
+        self.data = list(data)
+
+    def __getitem__(self, index):
+
+        super(PickleQuerySet, self).__getitem__(index)
+        return self.schema.load(self.data[index][self.primary])
+
+    def __iter__(self):
+
+        return (self.schema.load(obj[self.primary]) for obj in self.data)
+
+    def __len__(self):
+
+        return len(self.data)
+
+    count = __len__
+
+    def sort(self, *keys):
+        """ Iteratively sort data by keys in reverse order. """
+
+        for key in keys[::-1]:
+
+            if key.startswith('-'):
+                reverse = True
+                key = key.lstrip('-')
+            else:
+                reverse = False
+
+            self.data = sorted(self.data, key=lambda record: record[key], reverse=reverse)
+
+        return self
+
+    def offset(self, n):
+
+        self.data = self.data[n:]
+        return self
+
+    def limit(self, n):
+
+        self.data = self.data[:n]
+        return self
+
 class PickleStorage(Storage):
     """ Storage backend using pickle. """
 
-    _query_set_class = PickleQuerySet
+    QuerySet = PickleQuerySet
 
     def __init__(self, collection_name,  prefix='db_', ext='pkl'):
         """Build pickle file name and load data if exists.

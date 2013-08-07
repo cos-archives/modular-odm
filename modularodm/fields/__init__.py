@@ -70,7 +70,7 @@ class Field(object):
 
         self.data = weakref.WeakKeyDictionary()
 
-        # todo:
+        # Validation
         self._validate = kwargs.get('validate', False)
         if hasattr(self._validate, '__iter__'):
             self.validate = []
@@ -81,19 +81,24 @@ class Field(object):
             self.validate = self._validate
 
         self._default = kwargs.get('default', self.default)
-
         self._is_primary = kwargs.get('primary', False)
-
         self._list = kwargs.get('list', False)
+        self._required = kwargs.get('required', False)
 
-    def do_validate(self, value):
+    def do_validate(self, name, value):
 
-        # Mandatory validation
+        # Check if required
+        if value is None:
+            if self._required:
+                raise Exception('Value <{}> is required.'.format(name))
+            return True
+
+        # Field-level validation
         cls = self.__class__
         if hasattr(cls, 'validate'):
             cls.validate(value)
 
-        # Optional validation
+        # Schema-level validation
         if self._validate and hasattr(self, 'validate'):
             if hasattr(self.validate, '__iter__'):
                 for validator in self.validate:
@@ -106,9 +111,6 @@ class Field(object):
 
     def to_storage(self, value):
         return value
-
-    def on_save(self):
-        pass
 
     def __set__(self, instance, value):
         #self.do_validate(value)

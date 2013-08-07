@@ -69,10 +69,13 @@ class StoredObject(object):
         setattr(self, self._primary_name, value)
 
     def to_storage(self):
-        dtmp = {field_name:field_object.to_storage(field_object._get_underlying_data(self)) for field_name, field_object in self._fields.items()}
+        data = {}
+        for field_name, field_object in self._fields.iteritems():
+            field_value = field_object.to_storage(field_object._get_underlying_data(self))
+            data[field_name] = field_value
         if self._backrefs:
-            dtmp['_backrefs'] = self._backrefs
-        return dtmp
+            data['_backrefs'] = self._backrefs
+        return data
 
     def _process_and_get_fields(self):
         """ Prepare and retrieve schema fields. """
@@ -218,7 +221,7 @@ class StoredObject(object):
         data['_is_loaded'] = True
         loaded_object = cls(**data)
 
-        cls._set_cache(cls, key, loaded_object)
+        cls._set_cache(key, loaded_object)
         return loaded_object
 
     @classmethod
@@ -239,9 +242,8 @@ class StoredObject(object):
                 field.on_before_save(self)
 
         # Validate
-        for field in self._fields:
-            field_obj = self._get_descriptor(field)
-            field_obj.do_validate(getattr(self, field))
+        for field_name, field_obj in self._fields.iteritems():
+            field_obj.do_validate(field_name, getattr(self, field_name))
 
         if self._primary_key is not None and self._is_cached(self._primary_key):
             list_on_save_after_fields = self._get_list_of_differences_from_cache()
@@ -254,7 +256,6 @@ class StoredObject(object):
             self._primary_key = self._storage[0].optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
         else:
             self.insert(self._primary_key, self.to_storage())
-            # self._storage[0].insert(self._primary_key, self.to_storage())
 
         # if primary key has changed, follow back references and update
         # AND
@@ -284,11 +285,11 @@ class StoredObject(object):
 
     @classmethod
     def find_all(cls):
-        return cls._storage[0]._query_set_class(cls, cls._storage[0].find_all())
+        return cls._storage[0].QuerySet(cls, cls._storage[0].find_all())
 
     @classmethod
     def find(cls, *args, **kwargs):
-        return cls._storage[0]._query_set_class(cls, cls._storage[0].find(*args, **kwargs))
+        return cls._storage[0].QuerySet(cls, cls._storage[0].find(*args, **kwargs))
 
     @classmethod
     def find_one(cls, **kwargs):
