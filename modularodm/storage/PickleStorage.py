@@ -4,8 +4,6 @@ from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
 
-import operator
-import copy
 import os
 try:
     import cpickle as pickle
@@ -199,19 +197,6 @@ class PickleStorage(Storage):
 
             if self._match(value, query):
                 yield value
-
-            # match = True
-            #
-            # for part in query:
-            #
-            #     attr, oper, valu = part.attr, part.oper, part.valu
-            #     match = operators[oper](value[attr], valu)
-            #
-            #     if not match:
-            #         break
-            #
-            # if match:
-            #     yield value
 
     def __repr__(self):
         return str(self.store)
