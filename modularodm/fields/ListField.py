@@ -27,6 +27,7 @@ class ListField(Field):
         if isinstance(value, self._default.__class__):
             self.data[instance] = value
         elif hasattr(value, '__iter__'):
+            self.data[instance] = self._list_class(field_instance=self._field_instance)
             self.data[instance].extend(value)
         else:
             self.data[instance] = value
