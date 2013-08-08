@@ -86,23 +86,26 @@ tag4.save()
 tag5 = Tag(value=str(random.randint(0, 1000)), count="count_5", misc="baz", misc2="b")
 tag5.save()
 
-blog1 = Blog()
+blog1 = Blog(title='blogtitle1')
+blog2 = Blog(title='blogtitle2')
+blog3 = Blog(title='blogtitle3')
+
+blog1.tags.append(tag1)
+
 blog1.tag = tag1
-# blog1.tags.append(tag1)
-# blog1.tags.append(tag2)
-# blog1.tags.append(tag3)
-
-# import pdb; pdb.set_trace()
-
 blog1.save()
 
-
-blog2 = Blog()
 blog2.tag = tag1
-blog2.tags.append(tag2)
+# blog2.tags.append(tag1)
+
 blog2.save()
 
-# import pdb; pdb.set_trace()
+blog3.tag = tag1
+
+blog3.save()
+
+blog4 = Blog(tags=[tag1])
+blog4.save()
 
 res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
 
