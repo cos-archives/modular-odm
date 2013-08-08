@@ -9,8 +9,35 @@ class SOMeta(type):
 
     def __init__(cls, name, bases, dct):
 
+        # Run super-metaclass __init__
         super(SOMeta, cls).__init__(name, bases, dct)
+
+        # Store prettified name
         cls._name = name.lower()
+
+        # Prepare fields
+
+        cls._fields = {}
+        cls._primary_name = '_id'
+        found_primary = False
+
+        for key, value in cls.__dict__.iteritems():
+
+            if not isinstance(value, Field):
+                continue
+
+            if value._is_primary:
+                if not found_primary:
+                    cls._primary_name = key
+                    found_primary = True
+                else:
+                    raise Exception('Multiple primary keys are not supported.')
+
+            if value._list:
+                value = ListField(value)
+
+            setattr(cls, key, value)
+            cls._fields[key] = value
 
 class StoredObject(object):
 
@@ -28,13 +55,8 @@ class StoredObject(object):
 
         self._is_loaded = kwargs.pop('_is_loaded', False)
 
-        # Set _primary_name to '_id' by default
-        self._primary_name = '_id'
-        # todo: only store _primary_name in cls
-        self.__class__._primary_name = '_id'
-
-        # Store dict of class-level Field instances
-        self._fields = self._process_and_get_fields()
+        # # Store dict of class-level Field instances
+        # self._fields = self._process_and_get_fields()
 
         # Set all instance-level field values to defaults
         if not self._is_loaded:
@@ -69,43 +91,17 @@ class StoredObject(object):
         setattr(self, self._primary_name, value)
 
     def to_storage(self):
+
         data = {}
+
         for field_name, field_object in self._fields.iteritems():
             field_value = field_object.to_storage(field_object._get_underlying_data(self))
             data[field_name] = field_value
+
         if self._backrefs:
             data['_backrefs'] = self._backrefs
+
         return data
-
-    def _process_and_get_fields(self):
-        """ Prepare and retrieve schema fields. """
-
-        out = {}
-        found_primary = False
-        for k, v in self.__class__.__dict__.iteritems():
-
-            if not isinstance(v, Field):
-                continue
-
-            v._parent = self
-
-            # Check for primary key
-            if v._is_primary:
-                if not found_primary:
-                    self._primary_name = k
-                    # todo: only store _primary_name in cls
-                    self.__class__._primary_name = k
-                    found_primary = True
-                else:
-                    raise Exception('Multiple keys are not supported')
-
-            if v._list:
-                v = ListField(v)
-                setattr(self.__class__, k, v)
-
-            out[k] = v
-
-        return out
 
     def __getattribute__(self, name):
         return super(StoredObject, self).__getattribute__(name)
@@ -230,7 +226,7 @@ class StoredObject(object):
 
     @classmethod
     def _must_be_loaded(cls, value):
-        # return
+        return
         if value is not None and not value._is_loaded:
             raise Exception('Record must be loaded')
 
@@ -269,7 +265,7 @@ class StoredObject(object):
                 cached_data = self._get_cached_data(self._primary_key)
                 if cached_data:
                     cached_data = cached_data.get(field_name, None)
-                field.on_after_save(cached_data, getattr(self, field_name))
+                field.on_after_save(self, cached_data, getattr(self, field_name))
 
         self._set_cache(self._primary_key, self)
 
