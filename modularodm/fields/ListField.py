@@ -1,5 +1,6 @@
 from ..fields import Field, List
 
+
 import copy
 
 class ListField(Field):
@@ -25,8 +26,8 @@ class ListField(Field):
     def __set__(self, instance, value):
         if isinstance(value, self._default.__class__):
             self.data[instance] = value
-        elif isinstance(value, list):
-            self.data[instance] = self._list_class(value, field_instance=self._field_instance)
+        elif hasattr(value, '__iter__'):
+            self.data[instance].extend(value)
         else:
             self.data[instance] = value
 
@@ -38,7 +39,7 @@ class ListField(Field):
             return [self._field_instance.to_storage(i) for i in value]
         return []
 
-    def on_after_save(self, old_stored_data, new_value):
+    def on_after_save(self, parent, old_stored_data, new_value):
         if not hasattr(self._field_instance, 'on_after_save'):
             return
 
@@ -58,6 +59,6 @@ class ListField(Field):
             removes = []
 
         for i in additions:
-            self._field_instance.on_after_save(None, i)
+            self._field_instance.on_after_save(parent, None, i)
         for i in removes:
-            self._field_instance.on_after_save(i, None)
+            self._field_instance.on_after_save(parent, i, None)
