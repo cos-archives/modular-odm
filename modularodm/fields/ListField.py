@@ -5,7 +5,7 @@ import copy
 
 class ListField(Field):
     def __init__(self, field_instance):
-        super(self.__class__, self).__init__()
+        super(self.__class__, self).__init__(list=True)
 
         # ListField is a list of the following (e.g., ForeignFields)
         self._field_instance = field_instance
@@ -62,3 +62,11 @@ class ListField(Field):
             self._field_instance.on_after_save(parent, None, i)
         for i in removes:
             self._field_instance.on_after_save(parent, i, None)
+
+    @property
+    def base_class(self):
+        if self._field_instance is None:
+            return
+        if not hasattr(self._field_instance, 'base_class'):
+            return
+        return self._field_instance.base_class
