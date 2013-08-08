@@ -1,4 +1,4 @@
-from ..fields import Field
+from . import Field
 from ..validators import validate_float
 
 class FloatField(Field):

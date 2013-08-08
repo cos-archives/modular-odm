@@ -1,4 +1,4 @@
-from ..fields import Field, List
+from . import Field, List
 from ..StoredObject import StoredObject
 
 import logging
@@ -65,7 +65,7 @@ class ForeignField(Field):
         self._base_class_name = args[0] # todo allow class references / callable?
         self._base_class = None
 
-    def on_after_save(self, old_stored_data, new_value):
+    def on_after_save(self, parent, old_stored_data, new_value):
         '''
             None, Obj = go from nothing or add
             Obj, None = means go to nothing or remove
@@ -77,10 +77,10 @@ class ForeignField(Field):
 
         if old_stored_data is not None:
             old_value = self.base_class.load(old_stored_data)
-            old_value._remove_backref(self._backref_field_name, self._parent.__class__, self._parent._primary_key)
+            old_value._remove_backref(self._backref_field_name, parent.__class__, parent._primary_key)
 
         if new_value is not None:
-            new_value._set_backref(self._backref_field_name, self._parent)
+            new_value._set_backref(self._backref_field_name, parent)
 
     def to_storage(self, value):
         if '_primary_key' in dir(value):

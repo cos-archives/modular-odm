@@ -66,8 +66,6 @@ class Field(object):
         self._args = args
         self._kwargs = kwargs
 
-        self._parent = None # gets set in StoredObject
-
         self.data = weakref.WeakKeyDictionary()
 
         # Validation
