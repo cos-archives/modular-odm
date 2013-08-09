@@ -5,6 +5,9 @@
 import random
 import string
 
+from ..translators import DefaultTranslator
+from ..translators import JSONTranslator
+
 class KeyExistsException(Exception): pass
 
 class Storage(object):
@@ -13,6 +16,10 @@ class Storage(object):
     find_all methods.
 
     """
+
+    Translator = DefaultTranslator
+    Translator = JSONTranslator
+
     def _generate_random_id(self, n=5):
         """Generated random alphanumeric key.
 
