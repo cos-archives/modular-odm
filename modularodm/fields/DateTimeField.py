@@ -11,8 +11,8 @@ class DateTimeField(Field):
 
     # Method will be called on SchemaObject __init__
     default = datetime.datetime.utcnow
-
     validate = validate_datetime
+    translate_type = datetime.datetime
 
     def __init__(self, *args, **kwargs):
         super(DateTimeField, self).__init__(*args, **kwargs)
@@ -26,7 +26,7 @@ class DateTimeField(Field):
     # todo: abstract this as optional Field.transform() or Field.preprocess() method
     def __set__(self, instance, value):
         try:
-            self.validate(value)
+            self.do_validate(value)
         except ValidationError:
             value = parser.parse(value)
         super(DateTimeField, self).__set__(instance, value)
