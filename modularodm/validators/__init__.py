@@ -26,44 +26,49 @@ validate_integer = TypeValidator(int)
 validate_float = TypeValidator(float)
 validate_boolean = TypeValidator(bool)
 
+from ..fields import List
+validate_list = TypeValidator(List)
+
 import datetime
 validate_datetime = TypeValidator(datetime.datetime)
 
-class MinLengthValidator(StringValidator):
-
-    def __init__(self, min_length):
-
-        self.min_length = min_length
-
-    def __call__(self, value):
-
-        super(MinLengthValidator, self).__call__(value)
-        if len(value) < self.min_length:
-            raise ValidationError(
-                'Length must be at least {0}; received value <{1}> of length {2}'.format(
-                    self.min_length,
-                    value,
-                    len(value)
-                )
-            )
-
-class MaxLengthValidator(StringValidator):
-
-    def __init__(self, max_length):
-
-        self.max_length = max_length
-
-    def __call__(self, value):
-
-        super(MaxLengthValidator, self).__call__(value)
-        if len(value) > self.max_length:
-            raise ValidationError(
-                'Length must be less than or equal to {0}; received value <{1}> of length {2}'.format(
-                    self.max_length,
-                    value,
-                    len(value)
-                )
-            )
+# # class MinLengthValidator(StringValidator):
+# class MinLengthValidator(object):
+#
+#     def __init__(self, min_length):
+#
+#         self.min_length = min_length
+#
+#     def __call__(self, value):
+#
+#         # super(MinLengthValidator, self).__call__(value)
+#         if len(value) < self.min_length:
+#             raise ValidationError(
+#                 'Length must be at least {0}; received value <{1}> of length {2}'.format(
+#                     self.min_length,
+#                     value,
+#                     len(value)
+#                 )
+#             )
+#
+# # class MaxLengthValidator(StringValidator):
+# class MaxLengthValidator(object):
+#
+#     def __init__(self, max_length):
+#
+#         self.max_length = max_length
+#
+#     def __call__(self, value):
+#
+#         # super(MaxLengthValidator, self).__call__(value)
+#         if len(value) > self.max_length:
+#             raise ValidationError(
+#                 'Length must be less than or equal to {0}; received value <{1}> of length {2}'.format(
+#                     self.max_length,
+#                     value,
+#                     len(value)
+#                 )
+#             )
 
 
 # Adapted from Django RegexValidator
@@ -119,3 +124,71 @@ class URLValidator(RegexValidator):
         else:
             pass
             # url = value
+
+class BaseValidator(object):
+    compare = lambda self, a, b: a is not b
+
+    def __init__(self, limit_value):
+        self.limit_value = limit_value
+
+    def __call__(self, value):
+        if self.compare(value, self.limit_value):
+            raise ValidationError('Received bad value: <{}>.'.format(value))
+
+class MaxValueValidator(BaseValidator):
+    compare = lambda self, a, b: a > b
+
+class MinValueValidator(BaseValidator):
+    compare = lambda self, a, b: a < b
+
+class MinLengthValidator(BaseValidator):
+    compare = lambda self, a, b: len(a) < b
+
+class MaxLengthValidator(BaseValidator):
+    compare = lambda self, a, b: len(a) > b
+
+class BaseValidator(object):
+
+    compare = lambda self, a, b: a is not b
+    clean = lambda self, x: x
+    message = 'Ensure this value is %(limit_value)s (it is %(show_value)s).'
+    code = 'limit_value'
+
+    def __init__(self, limit_value):
+        self.limit_value = limit_value
+
+    def __call__(self, value):
+        cleaned = self.clean(value)
+        params = {'limit_value': self.limit_value, 'show_value': cleaned}
+        if self.compare(cleaned, self.limit_value):
+            raise ValidationError(self.message.format(**params))
+
+
+class MaxValueValidator(BaseValidator):
+
+    compare = lambda self, a, b: a > b
+    message = 'Ensure this value is less than or equal to {limit_value}.'
+    code = 'max_value'
+
+
+class MinValueValidator(BaseValidator):
+
+    compare = lambda self, a, b: a < b
+    message = 'Ensure this value is greater than or equal to {limit_value}.'
+    code = 'min_value'
+
+
+class MinLengthValidator(BaseValidator):
+
+    compare = lambda self, a, b: a < b
+    clean = lambda self, x: len(x)
+    message = 'Ensure this value has length of at least {limit_value} (it has length {show_value}).'
+    code = 'min_length'
+
+
+class MaxLengthValidator(BaseValidator):
+
+    compare = lambda self, a, b: a > b
+    clean = lambda self, x: len(x)
+    message = 'Ensure this value has length of at most {limit_value} (it has length {show_value}).'
+    code = 'max_length'
