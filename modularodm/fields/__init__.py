@@ -22,6 +22,7 @@ class List(collections.MutableSequence):
                 )
             )
 
+        # todo: do these three lines do the same thing twice?
         for item in value:
             self.append(item)
         self.data = list(value)
@@ -61,39 +62,66 @@ class Field(object):
     default = None
     _list_class = List
 
+    def _prepare_validators(self, _validate):
+
+        if hasattr(_validate, '__iter__'):
+
+            # List of callable validators
+            validate = []
+            for validator in _validate:
+                if hasattr(validator, '__call__'):
+                    validate.append(validator)
+                else:
+                    raise Exception('Validator lists must be lists of callables.')
+
+        elif hasattr(_validate, '__call__'):
+
+            # Single callable validator
+            validate = _validate
+
+        elif type(_validate) == bool:
+
+            # Boolean validator
+            validate = _validate
+
+        else:
+
+            # Invalid validator type
+            raise Exception('Validators must be callables, lists of callables, or booleans.')
+
+        return _validate, validate
+
     def __init__(self, *args, **kwargs):
 
         self._args = args
         self._kwargs = kwargs
 
+        # Pointer to containing ListField
+        # Set in StoredObject.SOMeta
+        self._list_container = None
+
         self.data = weakref.WeakKeyDictionary()
 
-        # Validation
-        self._validate = kwargs.get('validate', False)
-        if hasattr(self._validate, '__iter__'):
-            self.validate = []
-            for validator in self._validate:
-                if hasattr(validator, '__call__'):
-                    self.validate.append(validator)
-        elif hasattr(self._validate, '__call__'):
-            self.validate = self._validate
+        self._validate, self.validate = \
+            self._prepare_validators(kwargs.get('validate', False))
 
         self._default = kwargs.get('default', self.default)
         self._is_primary = kwargs.get('primary', False)
         self._list = kwargs.get('list', False)
         self._required = kwargs.get('required', False)
 
-    def do_validate(self, name, value):
+    def do_validate(self, value):
 
         # Check if required
         if value is None:
-            if self._required:
-                raise Exception('Value <{}> is required.'.format(name))
+            if hasattr(self, '_required') and self._required:
+                raise Exception('Value <{}> is required.'.format(self._field_name))
             return True
 
         # Field-level validation
         cls = self.__class__
-        if hasattr(cls, 'validate'):
+        if hasattr(cls, 'validate') and \
+                self.validate != False:
             cls.validate(value)
 
         # Schema-level validation
@@ -101,14 +129,33 @@ class Field(object):
             if hasattr(self.validate, '__iter__'):
                 for validator in self.validate:
                     validator(value)
-            else:
+            elif hasattr(self.validate, '__call__'):
                 self.validate(value)
 
         # Success
         return True
 
+    # def to_storage(self, value, translator=DefaultTranslator()):
+    #     to_method = 'to_%s' % (self.translate_type.__name__)
+    #     if hasattr(translator, to_method):
+    #         return getattr(translator, to_method)(value)
+    #     return translator.to_default(value)
+    #     # return value
+
+    def _access_storage(self, direction, value):
+        translator = self._schema_class._translator()
+        method_name = '%s_%s' % (direction, self.translate_type.__name__)
+        if hasattr(translator, method_name):
+            method = getattr(translator, method_name)
+        else:
+            method = getattr(translator, '%s_default' % (direction))
+        return method(value)
+
     def to_storage(self, value):
-        return value
+        return self._access_storage('to', value)
+
+    def from_storage(self, value):
+        return self._access_storage('from', value)
 
     def __set__(self, instance, value):
         #self.do_validate(value)

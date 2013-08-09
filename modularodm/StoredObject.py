@@ -23,9 +23,15 @@ class SOMeta(type):
 
         for key, value in cls.__dict__.iteritems():
 
+            # Skip if not descriptor
             if not isinstance(value, Field):
                 continue
 
+            # Memorize parent references
+            value._schema_class = cls
+            value._field_name = key
+
+            # Check for primary key
             if value._is_primary:
                 if not found_primary:
                     cls._primary_name = key
@@ -33,11 +39,25 @@ class SOMeta(type):
                 else:
                     raise Exception('Multiple primary keys are not supported.')
 
+            # Wrap in list
             if value._list:
-                value = ListField(value)
+                value = ListField(
+                    value,
+                    **value._kwargs
+                )
+                # Memorize parent references
+                value._schema_class = cls
+                value._field_name = key
+                # Set parent pointer of child field to list field
+                value._field_instance._list_container = value
 
+            # Store descriptor to cls, cls._fields
             setattr(cls, key, value)
             cls._fields[key] = value
+
+    @property
+    def _translator(cls):
+        return cls._storage[0].Translator
 
 class StoredObject(object):
 
@@ -90,18 +110,36 @@ class StoredObject(object):
     def _primary_key(self, value):
         setattr(self, self._primary_name, value)
 
+    @property
+    def _translator(self):
+        return self.__class__._translator
+
     def to_storage(self):
 
         data = {}
 
         for field_name, field_object in self._fields.iteritems():
-            field_value = field_object.to_storage(field_object._get_underlying_data(self))
+            field_value = field_object.to_storage(field_object._get_underlying_data(self))#, self._translator())
             data[field_name] = field_value
 
         if self._backrefs:
             data['_backrefs'] = self._backrefs
 
         return data
+
+    @classmethod
+    def from_storage(cls, data):
+
+        result = cls()
+
+        for field_name, field_object in cls._fields.iteritems():
+
+            data_value = data[field_name]
+            setattr(result, field_name, field_object.from_storage(data_value))#, cls._translator()))
+
+        result._is_loaded = True
+
+        return result
 
     def __getattribute__(self, name):
         return super(StoredObject, self).__getattribute__(name)
@@ -204,13 +242,19 @@ class StoredObject(object):
     @classmethod
     def load(cls, key):
 
+        # todo rename to get?
+
+        # check the object cache
         cached_object = cls._load_from_cache(key)
 
         if cached_object is not None:
             return cached_object
 
+        # if not found in object cache, check storage cache
         data = copy.deepcopy(cls._storage[0].get(cls, key)) # better way to do this? Otherwise on load, the Storage.store
                                                             #  look just like changed object
+
+        # if not found in either cache, return None
         if not data:
             return None
 
@@ -239,7 +283,7 @@ class StoredObject(object):
 
         # Validate
         for field_name, field_obj in self._fields.iteritems():
-            field_obj.do_validate(field_name, getattr(self, field_name))
+            field_obj.do_validate(getattr(self, field_name))
 
         if self._primary_key is not None and self._is_cached(self._primary_key):
             list_on_save_after_fields = self._get_list_of_differences_from_cache()
