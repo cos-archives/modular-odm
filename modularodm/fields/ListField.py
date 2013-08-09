@@ -1,11 +1,17 @@
 from ..fields import Field, List
-
+from ..validators import validate_list
 
 import copy
 
 class ListField(Field):
-    def __init__(self, field_instance):
-        super(self.__class__, self).__init__(list=True)
+
+    validate = validate_list
+
+    def __init__(self, field_instance, **kwargs):
+
+        super(self.__class__, self).__init__(**kwargs)
+
+        self._list_validate, self.list_validate = self._prepare_validators(kwargs.get('list_validate', False))
 
         # ListField is a list of the following (e.g., ForeignFields)
         self._field_instance = field_instance
@@ -15,13 +21,15 @@ class ListField(Field):
 
         # Descriptor data is this type of list object, instantiated as our
         # default
-        if self._field_instance._default and not hasattr(self._field_instance._default, '__iter__'):
+        # if self._field_instance._default and not hasattr(self._field_instance._default, '__iter__'):
+        if self._default and not hasattr(self._default, '__iter__'):
             raise Exception(
                 'Default value for list fields must be a list; received <{0}>'.format(
                     repr(self._field_instance._default)
                 )
             )
-        self._default = self._list_class(self._field_instance._default, field_instance=self._field_instance)
+        # self._default = self._list_class(self._field_instance._default, field_instance=self._field_instance)
+        self._default = self._list_class(None, field_instance=self._field_instance)
 
     def __set__(self, instance, value):
         if isinstance(value, self._default.__class__):
@@ -32,12 +40,39 @@ class ListField(Field):
         else:
             self.data[instance] = value
 
+    def do_validate(self, value):
+
+        # Child-level validation
+        for part in value:
+            self._field_instance.do_validate(part)
+
+        # Field-level list validation
+        if hasattr(self.__class__, 'validate'):
+            self.__class__.validate(value)
+
+        # # Schema-level list validation
+        if self._list_validate:
+            if hasattr(self.list_validate, '__iter__'):
+                for validator in self.list_validate:
+                    validator(value)
+            elif hasattr(self.list_validate, '__call__'):
+                self.list_validate(value)
+
+        # Success
+        return True
+
     def to_storage(self, value):
         '''
             value will come in as a List (MutableSequence)
         '''
         if value:
             return [self._field_instance.to_storage(i) for i in value]
+        return []
+
+    def from_storage(self, value):
+
+        if value:
+            return [self._field_instance.from_storage(i) for i in value]
         return []
 
     def on_after_save(self, parent, old_stored_data, new_value):
