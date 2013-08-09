@@ -31,19 +31,55 @@ db = client['testdb']
 db.tag.remove()
 db.blog.remove()
 
-import os
-try:os.remove('db_blog.pkl')
-except:pass
-try:os.remove('db_tag.pkl')
-except:pass
 
-class User(StoredObject):
-    username = StringField(validate=[MinLengthValidator(6), MaxLengthValidator(20)])
+class Ron(StoredObject):
 
-myuser = User()
-myuser.password = 'ABCabc123'
-myuser.password = 'Ac7'
-myuser.password = 'alllower' # this SHOULD crash
+    ron_str = StringField()
+    ron_int = IntegerField()
+    ron_now = DateTimeField()
+
+Ron.set_storage(PickleStorage('ron'))
+
+import datetime
+
+class Sheila(StoredObject):
+
+    _id = StringField(primary=True)
+    _meta = {'optimistic' : True}
+
+    # Simple fields
+    sheila_str = StringField(default='sheila', validate=True, required=True)
+    sheila_int = IntegerField(default=7, validate=MaxValueValidator(9))
+    sheila_now = DateTimeField()
+    sheila_url = StringField(validate=URLValidator())
+
+    # List fields
+    sheila_strs = StringField(list=True, validate=MinLengthValidator(5), list_validate=MinLengthValidator(3))
+    sheila_nows = DateTimeField(list=True)#, default=[])
+    sheila_urls = StringField(list=True, validate=[URLValidator(), MinLengthValidator(20)], list_validate=MinLengthValidator(2))
+    sheila_ints = IntegerField(list=True, validate=MinValueValidator(3), list_validate=MinLengthValidator(2))
+
+Sheila.set_storage(PickleStorage('sheila'))
+
+sheila1 = Sheila()
+sheila1.sheila_url = None#'http://centerforopenscience.org/'
+sheila1.sheila_str = 'shh'
+sheila1.sheila_strs = ['abcde', 'bcdef', 'qqqqq']
+sheila1.sheila_nows = [
+    datetime.datetime.now() + datetime.timedelta(days=5),
+    datetime.datetime.now() + datetime.timedelta(days=-5),
+]
+sheila1.sheila_urls = [
+    'http://centerforopenscience.org/',
+    'http://openscienceframework.org/',
+]
+sheila1.sheila_ints = [5, 3]
+sheila1.save()
+sheila1_stored = sheila1.to_storage()
+sheila1_reloaded = Sheila.from_storage(sheila1_stored)
+
+# import pdb; pdb.set_trace()
+
 
 class Tag(StoredObject):
     value = StringField(primary=True)
@@ -70,6 +106,13 @@ class Blog(StoredObject):
 # Blog.set_storage(MongoStorage(db, 'blog'))
 Tag.set_storage(PickleStorage('tag'))
 Blog.set_storage(PickleStorage('blog'))
+
+
+import os
+try:os.remove('db_blog.pkl')
+except:pass
+try:os.remove('db_tag.pkl')
+except:pass
 
 tag1 = Tag(value=str(random.randint(0, 1000)), count='count_1', keywords=['keywd1', 'keywd3', 'keywd4'])
 tag1.save()
@@ -106,6 +149,8 @@ blog3.save()
 
 blog4 = Blog(tags=[tag1])
 blog4.save()
+
+import pdb; pdb.set_trace()
 
 res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
 
