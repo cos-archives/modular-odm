@@ -17,6 +17,8 @@ from modularodm.storage.MongoStorage import MongoStorage
 from modularodm.validators import *
 from modularodm.query.querydialect import DefaultQueryDialect as Q
 
+from modularodm.translators import DefaultTranslator, JSONTranslator
+
 pp = pprint.PrettyPrinter(indent=4)
 
 import random
@@ -31,14 +33,27 @@ db = client['testdb']
 db.tag.remove()
 db.blog.remove()
 
-
 class Ron(StoredObject):
+
+    _id = DateTimeField(primary=True)
+    # _id = StringField(primary=True)
+    # _meta = {'optimistic' : True}
 
     ron_str = StringField()
     ron_int = IntegerField()
     ron_now = DateTimeField()
 
 Ron.set_storage(PickleStorage('ron'))
+
+ron1 = Ron()
+ron1._id = datetime.datetime.now()
+ron1.save()
+
+ron2 = Ron()
+ron2._id = datetime.datetime.now() + datetime.timedelta(days=1)
+ron2.save()
+
+Ron._add_field('added_ron', StringField())
 
 import datetime
 
@@ -52,6 +67,7 @@ class Sheila(StoredObject):
     sheila_int = IntegerField(default=7, validate=MaxValueValidator(9))
     sheila_now = DateTimeField()
     sheila_url = StringField(validate=URLValidator())
+    sheila_foostop = StringField(required=True, validate=RegexValidator(r'foo$'), list=True)
 
     # List fields
     sheila_strs = StringField(list=True, validate=MinLengthValidator(5), list_validate=MinLengthValidator(3))
@@ -59,7 +75,13 @@ class Sheila(StoredObject):
     sheila_urls = StringField(list=True, validate=[URLValidator(), MinLengthValidator(20)], list_validate=MinLengthValidator(2))
     sheila_ints = IntegerField(list=True, validate=MinValueValidator(3), list_validate=MinLengthValidator(2))
 
+    # Foreign fields
+    sheila_ron = ForeignField('Ron', backref='ron')
+    sheila_rons = ForeignField('Ron', backref='rons', list=True)
+
 Sheila.set_storage(PickleStorage('sheila'))
+
+# import pdb; pdb.set_trace()
 
 sheila1 = Sheila()
 sheila1.sheila_url = None#'http://centerforopenscience.org/'
@@ -74,12 +96,35 @@ sheila1.sheila_urls = [
     'http://openscienceframework.org/',
 ]
 sheila1.sheila_ints = [5, 3]
-sheila1.save()
-sheila1_stored = sheila1.to_storage()
-sheila1_reloaded = Sheila.from_storage(sheila1_stored)
+sheila1.sheila_ron = ron1
+
+sheila1.sheila_rons = [ron1, ron2]
+
+# Regex example for Melissa
+sheila1.sheila_foostop.append('endswithfoo')      # Works
+# sheila1.sheila_foostop = 'endswithfood'     # Shouldn't work (validation fail)
+# sheila1.sheila_foostop = None               # Shouldn't work (required field)
 
 # import pdb; pdb.set_trace()
 
+sheila1.save()
+
+import pdb; pdb.set_trace()
+
+sheila1.sheila_ron = ron2
+sheila1.save()
+
+import pdb; pdb.set_trace()
+
+sheila1.sheila_rons = []
+sheila1.save()
+
+
+
+sheila1_stored = sheila1.to_storage()
+sheila1_reloaded = Sheila.from_storage(sheila1_stored)
+
+import pdb; pdb.set_trace()
 
 class Tag(StoredObject):
     value = StringField(primary=True)
@@ -102,17 +147,16 @@ class Blog(StoredObject):
     tags = ForeignField('Tag', list=True, backref='taggeds')
     _meta = {'optimistic':True}
 
-# Tag.set_storage(MongoStorage(db, 'tag'))
-# Blog.set_storage(MongoStorage(db, 'blog'))
-Tag.set_storage(PickleStorage('tag'))
-Blog.set_storage(PickleStorage('blog'))
-
-
 import os
 try:os.remove('db_blog.pkl')
 except:pass
 try:os.remove('db_tag.pkl')
 except:pass
+
+# Tag.set_storage(MongoStorage(db, 'tag'))
+# Blog.set_storage(MongoStorage(db, 'blog'))
+Tag.set_storage(PickleStorage('tag'))
+Blog.set_storage(PickleStorage('blog'))
 
 tag1 = Tag(value=str(random.randint(0, 1000)), count='count_1', keywords=['keywd1', 'keywd3', 'keywd4'])
 tag1.save()
@@ -136,6 +180,7 @@ blog3 = Blog(title='blogtitle3')
 blog1.tags.append(tag1)
 
 blog1.tag = tag1
+# import pdb; pdb.set_trace()
 blog1.save()
 
 blog2.tag = tag1
@@ -150,7 +195,7 @@ blog3.save()
 blog4 = Blog(tags=[tag1])
 blog4.save()
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
 
@@ -158,6 +203,7 @@ res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar')
 
 # todo: accept list of strings
 res = Tag.find_all().sort('misc2', '-misc')
+# import pdb; pdb.set_trace()
 print 'here', [(r.misc, r.misc2) for r in res]
 
 res = Tag.find(Q('count', 'eq', 'count_1'))

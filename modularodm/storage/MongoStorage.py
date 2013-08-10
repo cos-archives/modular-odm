@@ -120,6 +120,7 @@ class MongoStorage(Storage):
         return self.store.find_one(mongo_query)
 
     def get(self, schema, key):
+
         return self.store.find_one({schema._primary_name : key})
 
     def insert(self, schema, key, value):
