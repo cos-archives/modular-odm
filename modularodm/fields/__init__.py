@@ -135,27 +135,25 @@ class Field(object):
         # Success
         return True
 
-    # def to_storage(self, value, translator=DefaultTranslator()):
-    #     to_method = 'to_%s' % (self.translate_type.__name__)
-    #     if hasattr(translator, to_method):
-    #         return getattr(translator, to_method)(value)
-    #     return translator.to_default(value)
-    #     # return value
+    def _access_storage(self, direction, value, translator=None):
 
-    def _access_storage(self, direction, value):
-        translator = self._schema_class._translator()
+        # Use translator from storage backend if none provided
+        if translator is None:
+            translator = self._schema_class._translator()
+
         method_name = '%s_%s' % (direction, self.translate_type.__name__)
         if hasattr(translator, method_name):
             method = getattr(translator, method_name)
         else:
             method = getattr(translator, '%s_default' % (direction))
+
         return method(value)
 
-    def to_storage(self, value):
-        return self._access_storage('to', value)
+    def to_storage(self, value, translator=None):
+        return self._access_storage('to', value, translator)
 
-    def from_storage(self, value):
-        return self._access_storage('from', value)
+    def from_storage(self, value, translator=None):
+        return self._access_storage('from', value, translator)
 
     def __set__(self, instance, value):
         #self.do_validate(value)
