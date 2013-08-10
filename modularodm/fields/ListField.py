@@ -21,15 +21,17 @@ class ListField(Field):
 
         # Descriptor data is this type of list object, instantiated as our
         # default
-        # if self._field_instance._default and not hasattr(self._field_instance._default, '__iter__'):
         if self._default and not hasattr(self._default, '__iter__'):
             raise Exception(
                 'Default value for list fields must be a list; received <{0}>'.format(
                     repr(self._field_instance._default)
                 )
             )
-        # self._default = self._list_class(self._field_instance._default, field_instance=self._field_instance)
-        self._default = self._list_class(None, field_instance=self._field_instance)
+
+        # Default is a callable that returns an empty instance of the list class
+        # Avoids the need to deepcopy default values for lists, which will break
+        # e.g. when validators contain (un-copyable) regular expressions.
+        self._default = lambda: self._list_class(None, field_instance=self._field_instance)
 
     def __set__(self, instance, value):
         if isinstance(value, self._default.__class__):
@@ -61,18 +63,18 @@ class ListField(Field):
         # Success
         return True
 
-    def to_storage(self, value):
+    def to_storage(self, value, translator=None):
         '''
             value will come in as a List (MutableSequence)
         '''
         if value:
-            return [self._field_instance.to_storage(i) for i in value]
+            return [self._field_instance.to_storage(i, translator) for i in value]
         return []
 
-    def from_storage(self, value):
+    def from_storage(self, value, translator=None):
 
         if value:
-            return [self._field_instance.from_storage(i) for i in value]
+            return [self._field_instance.from_storage(i, translator) for i in value]
         return []
 
     def on_after_save(self, parent, old_stored_data, new_value):
