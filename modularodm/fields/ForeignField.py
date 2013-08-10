@@ -82,10 +82,21 @@ class ForeignField(Field):
         if new_value is not None:
             new_value._set_backref(self._backref_field_name, parent)
 
-    def to_storage(self, value):
+    def to_storage(self, value, translator=None):
+
         if '_primary_key' in dir(value):
-            return value._primary_key
-        return value #todo deal with not lazily getting references
+            value_to_store = value._primary_key
+        else:
+            value_to_store = value
+        _foreign_pn = self.base_class._primary_name
+        return self.base_class._fields[_foreign_pn].to_storage(value_to_store, translator)
+        # return value #todo deal with not lazily getting references
+
+    def from_storage(self, value, translator=None):
+
+        _foreign_pn = self.base_class._primary_name
+        _foreign_pk = self.base_class._fields[_foreign_pn].from_storage(value, translator)
+        return self.base_class.load(_foreign_pk)
 
     def to_primary_key(self, value):
         # todo do validation here so the list doesn't have to implement each time
