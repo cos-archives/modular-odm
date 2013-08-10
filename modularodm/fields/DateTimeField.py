@@ -23,10 +23,10 @@ class DateTimeField(Field):
         if self._auto_now:
             self.data[instance] = self.default()
 
-    # todo: abstract this as optional Field.transform() or Field.preprocess() method
-    def __set__(self, instance, value):
-        try:
-            self.do_validate(value)
-        except ValidationError:
-            value = parser.parse(value)
-        super(DateTimeField, self).__set__(instance, value)
+    # # todo: abstract this as optional Field.transform() or Field.preprocess() method
+    # def __set__(self, instance, value):
+    #     try:
+    #         self.do_validate(value)
+    #     except ValidationError:
+    #         value = parser.parse(value)
+    #     super(DateTimeField, self).__set__(instance, value)
