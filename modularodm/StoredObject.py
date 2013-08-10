@@ -244,7 +244,6 @@ class StoredObject(object):
 
         # todo rename to get?
 
-        # check the object cache
         cached_object = cls._load_from_cache(key)
 
         if cached_object is not None:
