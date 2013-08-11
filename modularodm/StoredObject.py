@@ -183,6 +183,9 @@ class StoredObject(object):
 
         result._is_loaded = True
 
+        # Add to cache
+        cls._set_cache(result._primary_key, result)
+
         return result
 
     def __getattribute__(self, name):
@@ -190,8 +193,6 @@ class StoredObject(object):
 
     def _remove_backref(self, backref_field_name, cls, primary_key):
         self._backrefs[backref_field_name][cls._name].remove(primary_key)
-        # self.save()
-        print repr(self), self._backrefs, self.to_storage()['_backrefs']
 
     def _set_backref(self, backref_key, backref_value):
         backref_value_class_name = backref_value.__class__._name
@@ -305,11 +306,8 @@ class StoredObject(object):
         if not data:
             return None
 
-        # Load from storage cache data
+        # Load from storage cache data and add to caches
         loaded_object = cls.from_storage(data)
-
-        # Add to caches
-        cls._set_cache(key, loaded_object)
 
         return loaded_object
 
@@ -367,6 +365,7 @@ class StoredObject(object):
 
     # Querying ######
 
+    #
     @classmethod
     @has_storage
     def _pk_to_storage(cls, key):
