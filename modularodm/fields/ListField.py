@@ -1,8 +1,6 @@
 from ..fields import Field, List
 from ..validators import validate_list
 
-import copy
-
 class ListField(Field):
 
     validate = validate_list

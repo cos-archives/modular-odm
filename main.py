@@ -53,6 +53,10 @@ ron2 = Ron()
 ron2._id = datetime.datetime.now() + datetime.timedelta(days=1)
 ron2.save()
 
+# import pdb; pdb.set_trace()
+
+# ron3 = Ron.from_storage({'_id' : str(datetime.datetime.now())})
+
 Ron._add_field('added_ron', StringField())
 
 import datetime
@@ -109,12 +113,12 @@ sheila1.sheila_foostop.append('endswithfoo')      # Works
 
 sheila1.save()
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 sheila1.sheila_ron = ron2
 sheila1.save()
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 sheila1.sheila_rons = []
 sheila1.save()
