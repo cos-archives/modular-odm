@@ -1,32 +1,14 @@
 import datetime as dt
-import os
-import unittest
 
-from modularodm import StoredObject
 from modularodm.fields.IntegerField import IntegerField
 from modularodm.fields.StringField import StringField
 from modularodm.fields.BooleanField import BooleanField
 from modularodm.fields.FloatField import FloatField
 from modularodm.fields.DateTimeField import DateTimeField
 
+from modularodm.tests.validators import TestObject, PickleStorageTestCase
+
 from modularodm.validators import ValidationTypeError
-
-from modularodm.storage.PickleStorage import PickleStorage
-
-
-class TestObject(StoredObject):
-    def __init__(self, *args, **kwargs):
-        self.set_storage(PickleStorage('Test'))
-        super(TestObject, self).__init__(*args, **kwargs)
-
-
-class PickleStorageTestCase(unittest.TestCase):
-
-    def tearDown(self):
-        try:
-            os.remove('db_Test.pkl')
-        except OSError:
-            pass
 
 
 class BooleanValidatorTestCase(PickleStorageTestCase):
@@ -51,7 +33,7 @@ class BooleanValidatorTestCase(PickleStorageTestCase):
 
     def test_integer(self):
 
-        self.test_object.field = 42
+        self.test_object.field = 1
         with self.assertRaises(ValidationTypeError):
             self.test_object.save()
 

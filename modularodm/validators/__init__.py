@@ -1,4 +1,8 @@
-from .exceptions import ValidationError, ValidationTypeError
+from .exceptions import (
+    ValidationError,
+    ValidationTypeError,
+    ValidationValueError,
+)
 
 
 class TypeValidator(object):
@@ -160,7 +164,7 @@ class BaseValidator(object):
         cleaned = self.clean(value)
         params = {'limit_value': self.limit_value, 'show_value': cleaned}
         if self.compare(cleaned, self.limit_value):
-            raise ValidationError(self.message.format(**params))
+            raise ValidationValueError(self.message.format(**params))
 
 
 class MaxValueValidator(BaseValidator):
