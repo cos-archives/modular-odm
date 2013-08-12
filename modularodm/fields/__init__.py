@@ -109,6 +109,7 @@ class Field(object):
         self._is_primary = kwargs.get('primary', False)
         self._list = kwargs.get('list', False)
         self._required = kwargs.get('required', False)
+        self._index = kwargs.get('index', self._is_primary)
 
     def do_validate(self, value):
 
