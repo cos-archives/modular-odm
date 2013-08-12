@@ -102,16 +102,18 @@ class MongoStorage(Storage):
 
     QuerySet = MongoQuerySet
 
+    def _ensure_index(self, key):
+        print 'IN ENSURE INDEX', key
+        self.store.ensure_index(key)
+
     def __init__(self, db, collection):
         self.collection = collection
         self.store = db[self.collection]
 
     def find_all(self):
-        # return {}
         return self.store.find()
 
     def find(self, *query):
-        # return self._translate_query(*query)
         mongo_query = self._translate_query(*query)
         return self.store.find(mongo_query)
 
@@ -120,7 +122,6 @@ class MongoStorage(Storage):
         return self.store.find_one(mongo_query)
 
     def get(self, schema, key):
-
         return self.store.find_one({schema._primary_name : key})
 
     def insert(self, schema, key, value):
