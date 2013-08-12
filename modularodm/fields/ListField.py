@@ -87,7 +87,7 @@ class ListField(Field):
             removes = old_stored_data
         elif old_stored_data and new_value:
             additions = [i for i in new_value if self._field_instance.to_storage(i) not in old_stored_data]
-            removes = [i for i in old_stored_data if i not in new_value]
+            removes = [i for i in old_stored_data if self._field_instance.from_storage(i) not in new_value]
         else:
             # raise Exception('There shouldn\'t be a diff in the first place.')
             # todo: discuss -- this point can be reached when the object is not loaded and the new value is an empty list

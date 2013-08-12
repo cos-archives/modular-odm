@@ -43,9 +43,9 @@ class SOMeta(type):
                 continue
 
             # Add field
-            cls._add_field(key, value)
+            cls._add_field(key, value, _ensure_indices=False)
 
-        # Must be a primary key
+        # Must have a primary key
         if cls._fields and not cls._found_primary:
             if '_id' not in cls._fields:
                 raise Exception('Schemas must either define a field named _id or specify exactly one field as primary.')
@@ -66,7 +66,7 @@ class StoredObject(object):
     _object_cache = {}
 
     @classmethod
-    def _add_field(cls, field_name, field_obj):
+    def _add_field(cls, field_name, field_obj, _ensure_indices=True):
 
         # Memorize parent references
         field_obj._schema_class = cls
@@ -95,6 +95,10 @@ class StoredObject(object):
         # Store descriptor to cls, cls._fields
         setattr(cls, field_name, field_obj)
         cls._fields[field_name] = field_obj
+
+        # Optionally ensure indices
+        if _ensure_indices:
+            cls._ensure_indices()
 
     def __init__(self, **kwargs):
 
@@ -209,12 +213,22 @@ class StoredObject(object):
         self.save()
 
     @classmethod
+    @has_storage
+    def _ensure_indices(cls, targets=None):
+        targets = targets or range(len(cls._storage))
+        for field_name, field_value in cls._fields.iteritems():
+            if field_value._index:
+                for idx in targets:
+                    cls._storage[idx]._ensure_index(field_name)
+
+    @classmethod
     def set_storage(cls, storage):
         if not isinstance(storage, Storage):
             raise Exception('Argument to set_storage must be an instance of Storage.')
         if not hasattr(cls, '_storage'):
             cls._storage = []
         cls._storage.append(storage)
+        cls._ensure_indices(targets=[-1])
         cls.register_collection()
 
     # Caching ################################################################
@@ -284,6 +298,21 @@ class StoredObject(object):
                 field_list.append(field_name)
 
         return field_list
+
+    # Cache clearing
+
+    @classmethod
+    def _clear_data_cache(cls):
+        cls._cache[cls._name] = {}
+
+    @classmethod
+    def _clear_object_cache(cls):
+        cls._object_cache[cls._name] = {}
+
+    @classmethod
+    def _clear_caches(cls):
+        cls._clear_data_cache()
+        cls._clear_object_cache()
 
     ###########################################################################
 
@@ -366,6 +395,13 @@ class StoredObject(object):
     # Querying ######
 
     #
+
+    @classmethod
+    def _parse_key_value(cls, value):
+        if isinstance(value, StoredObject):
+            return value._primary_key, value
+        return value, cls.load(cls._pk_to_storage(value))
+
     @classmethod
     @has_storage
     def _pk_to_storage(cls, key):
@@ -403,5 +439,21 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def remove(cls, key):
-        cls._storage[0].remove(cls._pk_to_storage(key))
+    def remove(cls, value):
+        key, value = cls._parse_key_value(value)
+        key_storage = cls._pk_to_storage(key)
+        # todo: add functionality to _clear_caches
+        del cls._cache[cls._name][key_storage]
+        del cls._object_cache[cls._name][key_storage]
+        # if hasattr(value, '_backrefs'):
+        #     for br_name, br_dict in getattr(value, '_backrefs').iteritems():
+        #         for br_schema, br_keys in br_dict.iteritems():
+        #             for br_key in br_keys:
+        #                 br_cls = StoredObject._collections[br_schema]
+        #                 br_key_store = br_cls._pk_to_storage(br_key)
+        #                 br_obj = br_cls.load(br_key_store)
+        #                 if br_obj._fields[br_name]._list:
+        #                     getattr(br_obj, br_name).remove(value)
+        #                 else:
+        #                     delattr(br_obj, br_name)
+        cls._storage[0].remove(key_storage)

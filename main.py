@@ -102,6 +102,23 @@ sheila1.sheila_urls = [
 sheila1.sheila_ints = [5, 3]
 sheila1.sheila_ron = ron1
 
+sheila1.sheila_rons = [ron1]
+sheila1.save()
+
+# import pdb; pdb.set_trace()
+
+sheila1.sheila_rons.append(ron2)
+sheila1.save()
+
+Ron.remove(ron1)
+
+import pdb; pdb.set_trace()
+
+sheila1.sheila_rons = []
+sheila1.save()
+
+# import pdb; pdb.set_trace()
+
 sheila1.sheila_rons = [ron1, ron2]
 
 # Regex example for Melissa
@@ -128,11 +145,11 @@ sheila1.save()
 sheila1_stored = sheila1.to_storage()
 sheila1_reloaded = Sheila.from_storage(sheila1_stored)
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 class Tag(StoredObject):
-    value = StringField(primary=True)
-    count = StringField(default='c', validate=True)
+    value = StringField(primary=True, index=False)
+    count = StringField(default='c', validate=True, index=True)
     misc = StringField(default='')
     misc2 = StringField(default='')
     created = DateTimeField(validate=True)
@@ -157,10 +174,10 @@ except:pass
 try:os.remove('db_tag.pkl')
 except:pass
 
-# Tag.set_storage(MongoStorage(db, 'tag'))
-# Blog.set_storage(MongoStorage(db, 'blog'))
-Tag.set_storage(PickleStorage('tag'))
-Blog.set_storage(PickleStorage('blog'))
+Tag.set_storage(MongoStorage(db, 'tag'))
+Blog.set_storage(MongoStorage(db, 'blog'))
+# Tag.set_storage(PickleStorage('tag'))
+# Blog.set_storage(PickleStorage('blog'))
 
 tag1 = Tag(value=str(random.randint(0, 1000)), count='count_1', keywords=['keywd1', 'keywd3', 'keywd4'])
 tag1.save()

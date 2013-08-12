@@ -20,6 +20,9 @@ class Storage(object):
     Translator = DefaultTranslator
     Translator = JSONTranslator
 
+    def _ensure_index(self, key):
+        pass
+
     def _generate_random_id(self, n=5):
         """Generated random alphanumeric key.
 
