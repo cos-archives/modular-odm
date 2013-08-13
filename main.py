@@ -110,21 +110,22 @@ sheila1.save()
 sheila1.sheila_rons.append(ron2)
 sheila1.save()
 
+# import pdb; pdb.set_trace()
 Ron.remove(ron1)
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 sheila1.sheila_rons = []
 sheila1.save()
 
 # import pdb; pdb.set_trace()
 
-sheila1.sheila_rons = [ron1, ron2]
+ron3 = Ron()
+ron3._id = datetime.datetime.now()
+ron3.save()
 
-# Regex example for Melissa
-sheila1.sheila_foostop.append('endswithfoo')      # Works
-# sheila1.sheila_foostop = 'endswithfood'     # Shouldn't work (validation fail)
-# sheila1.sheila_foostop = None               # Shouldn't work (required field)
+# sheila1.sheila_rons = [ron3, ron2]
+sheila1.sheila_rons = [ron2]
 
 # import pdb; pdb.set_trace()
 
@@ -133,6 +134,7 @@ sheila1.save()
 # import pdb; pdb.set_trace()
 
 sheila1.sheila_ron = ron2
+# import pdb; pdb.set_trace()
 sheila1.save()
 
 # import pdb; pdb.set_trace()
