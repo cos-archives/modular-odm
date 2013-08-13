@@ -157,10 +157,13 @@ class Field(object):
         return self._access_storage('from', value, translator)
 
     def __set__(self, instance, value):
-        #self.do_validate(value)
+        if instance._detached:
+            warnings.warn('Accessing a detached record.')
         self.data[instance] = value
 
     def __get__(self, instance, owner):
+        if instance._detached:
+            warnings.warn('Accessing a detached record.')
         return self.data.get(instance, None)
 
     def _get_underlying_data(self, instance):
@@ -169,5 +172,5 @@ class Field(object):
         """
         return self.data.get(instance, None)
 
-    def __delete__(self):
-        pass
+    def __delete__(self, instance):
+        self.data.pop(instance, None)
