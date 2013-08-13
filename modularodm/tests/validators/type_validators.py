@@ -6,7 +6,7 @@ from modularodm.fields.BooleanField import BooleanField
 from modularodm.fields.FloatField import FloatField
 from modularodm.fields.DateTimeField import DateTimeField
 
-from modularodm.tests.validators import TestObject, PickleStorageTestCase
+from modularodm.tests import TestObject, PickleStorageTestCase
 
 from modularodm.validators import ValidationTypeError
 

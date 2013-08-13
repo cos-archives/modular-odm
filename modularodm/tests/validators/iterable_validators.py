@@ -1,4 +1,4 @@
-from modularodm.tests.validators import TestObject, PickleStorageTestCase
+from modularodm.tests import TestObject, PickleStorageTestCase
 
 from modularodm.fields.StringField import StringField
 from modularodm.fields.IntegerField import IntegerField
