@@ -1,6 +1,7 @@
 import copy
 
 import logging
+import warnings
 
 from fields import Field
 from fields.ListField import ListField
@@ -103,6 +104,7 @@ class StoredObject(object):
     def __init__(self, **kwargs):
 
         self._backrefs = {}
+        self._detached = False
         self._is_loaded = False # this gets passed in via kwargs in self.load
         self._is_optimistic = hasattr(self, '_meta') and self._meta.get('optimistic', False)
 
@@ -122,6 +124,7 @@ class StoredObject(object):
 
     def __str__(self):
 
+        warnings.warn('Accessing a detached record.')
         return str({field : str(getattr(self, field)) for field in self._fields})
 
     @classmethod
@@ -195,10 +198,12 @@ class StoredObject(object):
     def __getattribute__(self, name):
         return super(StoredObject, self).__getattribute__(name)
 
-    def _remove_backref(self, backref_field_name, cls, primary_key):
-        self._backrefs[backref_field_name][cls._name].remove(primary_key)
+    def _remove_backref(self, backref_field_name, cls, parent_field_name, primary_key):
 
-    def _set_backref(self, backref_key, backref_value):
+        self._backrefs[backref_field_name][cls._name][parent_field_name].remove(primary_key)
+
+    def _set_backref(self, backref_key, parent_field_name, backref_value):
+
         backref_value_class_name = backref_value.__class__._name
         backref_value_primary_key = backref_value._primary_key
 
@@ -208,8 +213,11 @@ class StoredObject(object):
         if backref_key not in self._backrefs:
             self._backrefs[backref_key] = {}
         if backref_value_class_name not in self._backrefs[backref_key]:
-            self._backrefs[backref_key][backref_value_class_name] = []
-        self._backrefs[backref_key][backref_value_class_name].append(backref_value_primary_key)
+            self._backrefs[backref_key][backref_value_class_name] = {}
+        if parent_field_name not in self._backrefs[backref_key][backref_value_class_name]:
+            self._backrefs[backref_key][backref_value_class_name][parent_field_name] = []
+        self._backrefs[backref_key][backref_value_class_name][parent_field_name].append(backref_value_primary_key)
+
         self.save()
 
     @classmethod
@@ -302,17 +310,23 @@ class StoredObject(object):
     # Cache clearing
 
     @classmethod
-    def _clear_data_cache(cls):
-        cls._cache[cls._name] = {}
+    def _clear_data_cache(cls, key=None):
+        if key is not None:
+            cls._cache[cls._name].pop(key, None)
+        else:
+            cls._cache[cls._name] = {}
 
     @classmethod
-    def _clear_object_cache(cls):
-        cls._object_cache[cls._name] = {}
+    def _clear_object_cache(cls, key=None):
+        if key is not None:
+            cls._object_cache[cls._name].pop(key, None)
+        else:
+            cls._object_cache[cls._name] = {}
 
     @classmethod
-    def _clear_caches(cls):
-        cls._clear_data_cache()
-        cls._clear_object_cache()
+    def _clear_caches(cls, key=None):
+        cls._clear_data_cache(key)
+        cls._clear_object_cache(key)
 
     ###########################################################################
 
@@ -348,6 +362,9 @@ class StoredObject(object):
     @has_storage
     def save(self):
 
+        if self._detached:
+            raise Exception('Cannot save detached object.')
+
         for field_name, field_object in self._fields.iteritems():
             if hasattr(field_object, 'on_before_save'):
                 field_object.on_before_save(self)
@@ -380,7 +397,10 @@ class StoredObject(object):
                 cached_data = self._get_cached_data(self._primary_key)
                 if cached_data:
                     cached_data = cached_data.get(field_name, None)
-                field_object.on_after_save(self, cached_data, getattr(self, field_name))
+                try:
+                    field_object.on_after_save(self, field_name, cached_data, getattr(self, field_name))
+                except:
+                    import pdb; pdb.set_trace()
 
         self._set_cache(self._primary_key, self)
 
@@ -393,8 +413,6 @@ class StoredObject(object):
         raise AttributeError(item + ' not found')
 
     # Querying ######
-
-    #
 
     @classmethod
     def _parse_key_value(cls, value):
@@ -440,20 +458,26 @@ class StoredObject(object):
     @classmethod
     @has_storage
     def remove(cls, value):
+
         key, value = cls._parse_key_value(value)
         key_storage = cls._pk_to_storage(key)
-        # todo: add functionality to _clear_caches
-        del cls._cache[cls._name][key_storage]
-        del cls._object_cache[cls._name][key_storage]
-        # if hasattr(value, '_backrefs'):
-        #     for br_name, br_dict in getattr(value, '_backrefs').iteritems():
-        #         for br_schema, br_keys in br_dict.iteritems():
-        #             for br_key in br_keys:
-        #                 br_cls = StoredObject._collections[br_schema]
-        #                 br_key_store = br_cls._pk_to_storage(br_key)
-        #                 br_obj = br_cls.load(br_key_store)
-        #                 if br_obj._fields[br_name]._list:
-        #                     getattr(br_obj, br_name).remove(value)
-        #                 else:
-        #                     delattr(br_obj, br_name)
+
+        if hasattr(value, '_backrefs'):
+            for br_name, schema_info in getattr(value, '_backrefs').iteritems():
+                for schema_name, field_data in schema_info.iteritems():
+                    for field_name, br_keys in field_data.iteritems():
+                        br_cls = StoredObject._collections[schema_name]
+                        for br_key in br_keys:
+                            br_key_store = br_cls._pk_to_storage(br_key)
+                            br_obj = br_cls.load(br_key_store)
+                            if br_obj._fields[field_name]._list:
+                                getattr(br_obj, field_name).remove(value)
+                            else:
+                                setattr(br_obj, field_name, None)
+                            br_obj.save()
+
+        cls._clear_caches(key_storage)
+        value._detached = True
+
+        # Remove from database
         cls._storage[0].remove(key_storage)
