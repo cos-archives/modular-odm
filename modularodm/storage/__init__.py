@@ -10,6 +10,15 @@ from ..translators import JSONTranslator
 
 class KeyExistsException(Exception): pass
 
+# class StorageMeta(type):
+#
+#     def __init__(cls, name, bases, dct):
+#
+#         # Run super-metaclass __init__
+#         super(SOMeta, cls).__init__(name, bases, dct)
+#
+#
+
 class Storage(object):
     """Abstract base class for storage objects. Subclasses (e.g. PickleStorage,
     MongoStorage, etc.) must define insert, update, get, remove, flush, and

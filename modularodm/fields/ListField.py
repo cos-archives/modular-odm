@@ -75,7 +75,7 @@ class ListField(Field):
             return [self._field_instance.from_storage(i, translator) for i in value]
         return []
 
-    def on_after_save(self, parent, old_stored_data, new_value):
+    def on_after_save(self, parent, field_name, old_stored_data, new_value):
         if not hasattr(self._field_instance, 'on_after_save'):
             return
 
@@ -95,9 +95,9 @@ class ListField(Field):
             removes = []
 
         for i in additions:
-            self._field_instance.on_after_save(parent, None, i)
+            self._field_instance.on_after_save(parent, field_name, None, i)
         for i in removes:
-            self._field_instance.on_after_save(parent, i, None)
+            self._field_instance.on_after_save(parent, field_name, i, None)
 
     @property
     def base_class(self):

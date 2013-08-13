@@ -16,3 +16,17 @@ class JSONTranslator(DefaultTranslator):
 
     def from_datetime(self, value):
         return dateutil.parser.parse(value)
+
+class StringTranslator(JSONTranslator):
+
+    def to_default(self, value):
+        return str(value)
+
+    def from_integer(self, value):
+        return int(value)
+
+    def from_float(self, value):
+        return float(value)
+
+    def from_boolean(self, value):
+        return bool(value)
