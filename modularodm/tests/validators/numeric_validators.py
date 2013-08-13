@@ -42,3 +42,37 @@ class ValueValidatorTestCase(PickleStorageTestCase):
         test_object.int_field = 10
         with self.assertRaises(ValidationValueError):
             test_object.save()
+
+    def test_min_value_float_validator(self):
+
+        class Foo(TestObject):
+            _id = IntegerField()
+            float_field = FloatField(
+                list=False,
+                validate=[MinValueValidator(5.), ]
+            )
+
+        test_object = Foo()
+        test_object.float_field = 10.
+        test_object.save()
+
+        test_object.float_field = 0.
+        with self.assertRaises(ValidationValueError):
+            test_object.save()
+
+    def test_max_value_float_validator(self):
+
+        class Foo(TestObject):
+            _id = IntegerField()
+            float_field = FloatField(
+                list=False,
+                validate=[MaxValueValidator(5.), ]
+            )
+
+        test_object = Foo()
+        test_object.float_field = 0.
+        test_object.save()
+
+        test_object.float_field = 10.
+        with self.assertRaises(ValidationValueError):
+            test_object.save()
