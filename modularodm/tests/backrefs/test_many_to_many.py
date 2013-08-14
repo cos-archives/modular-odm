@@ -73,6 +73,14 @@ class ManyToManyFieldTestCase(PickleStorageTestCase):
             {'my_foo': {'foo': {'my_bar': [self.foo._id]}}}
         )
 
+    def test_contains(self):
+        """ Verify that the "in" operator works as expected """
+
+        self.assertIn(
+            self.bar,
+            self.foo.my_bar
+        )
+
     def test_delete_backref(self):
         """ Remove an element from a ForeignField, and verify that it was
         removed from the backref as well.
