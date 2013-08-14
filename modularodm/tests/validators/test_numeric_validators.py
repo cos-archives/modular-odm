@@ -1,10 +1,10 @@
+from modularodm.exceptions import ValidationValueError
 from modularodm.tests import TestObject, PickleStorageTestCase
 
 from modularodm.fields.IntegerField import IntegerField
 from modularodm.fields.FloatField import FloatField
 
 from modularodm.validators import MinValueValidator, MaxValueValidator
-from modularodm.validators.exceptions import ValidationValueError
 
 
 class ValueValidatorTestCase(PickleStorageTestCase):
