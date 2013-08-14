@@ -1,10 +1,11 @@
 from modularodm.tests import PickleStorageTestCase, TestObject
 
+from modularodm import exceptions as exc
 from modularodm.fields.IntegerField import IntegerField
 from modularodm.fields.ForeignField import ForeignField
 
 
-class OneToManyFieldTestCase(PickleStorageTestCase):
+class ManyToManyFieldTestCase(PickleStorageTestCase):
 
     def setUp(self):
         class Foo(TestObject):
@@ -34,7 +35,7 @@ class OneToManyFieldTestCase(PickleStorageTestCase):
         # save foo to persist changes
         self.foo.save()
 
-        super(OneToManyFieldTestCase, self).setUp()
+        super(ManyToManyFieldTestCase, self).setUp()
 
     def test_one_to_many_backref(self):
 
@@ -94,3 +95,47 @@ class OneToManyFieldTestCase(PickleStorageTestCase):
             first_bar.my_foo,
             {'foo': {'my_bar': []}}
         )
+
+    def test_delete_backref_attribute_from_remote_via_pop(self):
+        """ Delete a backref from its attribute on the remote object by calling
+        .pop().
+
+        Backref attributes on the remote object should be read-only.
+        """
+
+        with self.assertRaises(exc.ModularOdmException):
+            self.bar.my_foo['foo']['my_bar'].pop()
+
+    def test_delete_backref_attribute_from_remote_via_del(self):
+        """ Delete a backref from its attribute from the remote object directly.
+
+        Backref attributes on the remote object should be read-only.
+        """
+
+        with self.assertRaises(exc.ModularOdmException):
+            del self.bar.my_foo['foo']['my_bar'][0]
+
+    def test_assign_backref_attribute_from_remote(self):
+        """ Manually assign a backref to its attribute on the remote object.
+
+         Backref attributes on the remote object should be read-only.
+        """
+
+        with self.assertRaises(exc.ModularOdmException):
+            self.bar.my_foo = {'foo': {'my_bar': []}}
+
+    def test_del_key_from_backrefs_on_remote(self):
+        """ Manually remove a key from _backrefs on the remote object.
+
+        _backrefs on the remote object should be read-only.
+        """
+        with self.assertRaises(exc.ModularOdmException):
+            del self.bar._backrefs['my_foo']
+
+    def test_assign_backrefs_on_remote(self):
+        """ Manually assign a backref on the remote object directly.
+
+        _backrefs on the remote object should be read-only.
+        """
+        with self.assertRaises(exc.ModularOdmException):
+            self.bar._backrefs = {'my_foo': {'foo': {'my_bar': [self.foo._id]}}}
