@@ -1,3 +1,9 @@
+class ModularOdmException(Exception):
+    """ base class from which all exceptions raised by modularodm should inherit
+    """
+    pass
+
+
 class ValidationError(Exception):
     """ Base class for exceptions raised during validation. Should not raised
     directly. """

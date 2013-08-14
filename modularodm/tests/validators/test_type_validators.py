@@ -1,4 +1,5 @@
 import datetime as dt
+from modularodm.exceptions import ValidationTypeError
 
 from modularodm.fields.IntegerField import IntegerField
 from modularodm.fields.StringField import StringField
@@ -6,9 +7,7 @@ from modularodm.fields.BooleanField import BooleanField
 from modularodm.fields.FloatField import FloatField
 from modularodm.fields.DateTimeField import DateTimeField
 
-from modularodm.tests.validators import TestObject, PickleStorageTestCase
-
-from modularodm.validators import ValidationTypeError
+from modularodm.tests import TestObject, PickleStorageTestCase
 
 
 class BooleanValidatorTestCase(PickleStorageTestCase):
