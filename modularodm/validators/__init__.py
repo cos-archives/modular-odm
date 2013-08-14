@@ -1,13 +1,9 @@
-# todo: make this do something or use built-in exception?
-class ValidationError(Exception):
-    pass
+from .exceptions import (
+    ValidationError,
+    ValidationTypeError,
+    ValidationValueError,
+)
 
-class StringValidator(object):
-
-    def __call__(self, value):
-
-        if type(value) not in [str, unicode]:
-            raise ValidationError('Not a valid string: <{0}>'.format(value))
 
 class TypeValidator(object):
 
@@ -16,12 +12,19 @@ class TypeValidator(object):
 
     def __call__(self, value):
         if not isinstance(value, self._type):
-            raise Exception(
+            raise ValidationTypeError(
+                'Expected a value of type {}; received value {} of type {}'.format(
+                    self._type, value, type(value)
+                )
+            )
+        elif isinstance(value, bool) and self._type is int:
+            raise ValidationTypeError(
                 'Expected a value of type {}; received value {} of type {}'.format(
                     self._type, value, type(value)
                 )
             )
 
+validate_string = TypeValidator(basestring)
 validate_integer = TypeValidator(int)
 validate_float = TypeValidator(float)
 validate_boolean = TypeValidator(bool)
@@ -73,7 +76,7 @@ validate_datetime = TypeValidator(datetime.datetime)
 
 # Adapted from Django RegexValidator
 import re
-class RegexValidator(StringValidator):
+class RegexValidator(TypeValidator):
 
     def __init__(self, regex=None, flags=0):
 
@@ -161,7 +164,7 @@ class BaseValidator(object):
         cleaned = self.clean(value)
         params = {'limit_value': self.limit_value, 'show_value': cleaned}
         if self.compare(cleaned, self.limit_value):
-            raise ValidationError(self.message.format(**params))
+            raise ValidationValueError(self.message.format(**params))
 
 
 class MaxValueValidator(BaseValidator):
