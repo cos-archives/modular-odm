@@ -412,6 +412,12 @@ class StoredObject(object):
             return self._backrefs[item]
         raise AttributeError(item + ' not found')
 
+    def __setattr__(self, key, value):
+
+        if key not in self._fields and not key.startswith('_'):
+            warnings.warn('Setting an attribute that is neither a field nor a protected value.')
+        super(StoredObject, self).__setattr__(key, value)
+        
     # Querying ######
 
     @classmethod
