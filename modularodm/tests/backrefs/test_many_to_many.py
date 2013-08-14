@@ -104,6 +104,24 @@ class ManyToManyFieldTestCase(PickleStorageTestCase):
             {'foo': {'my_bar': []}}
         )
 
+    def test_remove(self):
+        """ Remove an object from a ForeignList field using the field's
+        .remove() method
+        """
+        self.foo.my_bar.remove(self.bar)
+
+        # the object should be removed from .my_bar
+        self.assertNotIn(
+            self.bar,
+            self.foo.my_bar
+        )
+
+        # the backref should be removed from the object
+        self.assertEqual(
+            self.bar.my_foo,
+            {'foo': {'my_bar': []}}
+        )
+
     def test_insert(self):
         """ Add a new object to the middle of a ForeignList field via .insert()
         """
