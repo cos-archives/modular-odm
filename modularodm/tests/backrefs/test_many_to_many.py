@@ -96,6 +96,34 @@ class ManyToManyFieldTestCase(PickleStorageTestCase):
             {'foo': {'my_bar': []}}
         )
 
+    def test_replace_backref(self):
+        """ Replace an existing item in the ForeignList field with another
+         remote object.
+        """
+
+        # create a new bar
+        new_bar = self.Bar(_id=9)
+        new_bar.save()
+
+        # replace the first bar in the list with it.
+        old_bar_id = self.foo.my_bar[0]._id
+        self.foo.my_bar[0] = new_bar
+        self.foo.save()
+
+        # the old Bar should no longer have a backref to foo
+        old_bar = self.Bar.load(old_bar_id)
+        self.assertEqual(
+            old_bar._backrefs,
+            {'my_foo': {'foo': {'my_bar': []}}}
+        )
+
+        # the new Bar should have a backref to foo
+        self.assertEqual(
+            new_bar._backrefs,
+            {'my_foo': {'foo': {'my_bar': [1]}}}
+        )
+        print new_bar._backrefs
+
     def test_delete_backref_attribute_from_remote_via_pop(self):
         """ Delete a backref from its attribute on the remote object by calling
         .pop().
