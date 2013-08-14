@@ -104,6 +104,30 @@ class ManyToManyFieldTestCase(PickleStorageTestCase):
             {'foo': {'my_bar': []}}
         )
 
+    def test_insert(self):
+        """ Add a new object to the middle of a ForeignList field via .insert()
+        """
+
+        # create a new bar
+        new_bar = self.Bar(_id=9)
+        new_bar.save()
+
+        # insert new_bar into foo's .my_bar
+        self.foo.my_bar.insert(1, new_bar)
+        self.foo.save()
+
+        # new_bar should now be in the list
+        self.assertIn(
+            new_bar,
+            self.foo.my_bar,
+        )
+
+        # new_bar should have a backref to foo
+        self.assertEqual(
+            new_bar.my_foo,
+            {'foo': {'my_bar': [1]}},
+        )
+
     def test_replace_backref(self):
         """ Replace an existing item in the ForeignList field with another
          remote object.
