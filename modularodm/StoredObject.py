@@ -397,10 +397,7 @@ class StoredObject(object):
                 cached_data = self._get_cached_data(self._primary_key)
                 if cached_data:
                     cached_data = cached_data.get(field_name, None)
-                try:
-                    field_object.on_after_save(self, field_name, cached_data, getattr(self, field_name))
-                except:
-                    import pdb; pdb.set_trace()
+                field_object.on_after_save(self, field_name, cached_data, getattr(self, field_name))
 
         self._set_cache(self._primary_key, self)
 
