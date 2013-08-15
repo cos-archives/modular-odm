@@ -78,7 +78,7 @@ class ForeignField(Field):
 
         if old_stored_data is not None:
             old_value = self.base_class.load(old_stored_data)
-            old_value._remove_backref(self._backref_field_name, parent.__class__, field_name, parent._primary_key)
+            old_value._remove_backref(self._backref_field_name, parent, field_name)
 
         if new_value is not None:
             new_value._set_backref(self._backref_field_name, field_name, parent)
