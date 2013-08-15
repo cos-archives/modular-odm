@@ -190,9 +190,6 @@ class StoredObject(object):
 
         result._is_loaded = True
 
-        # Add to cache
-        cls._set_cache(result._primary_key, result)
-
         return result
 
     def __getattribute__(self, name):
@@ -349,8 +346,11 @@ class StoredObject(object):
         if not data:
             return None
 
-        # Load from storage cache data and add to caches
+        # Load from storage cache data
         loaded_object = cls.from_storage(data)
+
+        # Add to cache
+        cls._set_cache(loaded_object._primary_key, loaded_object)
 
         return loaded_object
 
