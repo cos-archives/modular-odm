@@ -7,6 +7,17 @@ from fields import Field
 from fields.ListField import ListField
 from .storage import Storage
 
+def flatten_backrefs(data, stack=[]):
+
+    if isinstance(data, list):
+        return [(stack, item) for item in data]
+
+    out = []
+    for key, val in data.items():
+        out.extend(flatten_backrefs(val, stack + [key]))
+
+    return out
+
 from functools import wraps
 def has_storage(func):
     """ Ensure that self/cls contains a Storage backend. """
@@ -113,10 +124,7 @@ class StoredObject(object):
         # Set all instance-level field values to defaults
         if not self._is_loaded:
             for k, v in self._fields.items():
-                if hasattr(v._default, '__call__'):
-                    setattr(self, k, v._default())
-                else:
-                    setattr(self, k, copy.deepcopy(v._default))
+                setattr(self, k, v._gen_default())
 
         # Add kwargs to instance
         for k, v in kwargs.items():
@@ -149,15 +157,17 @@ class StoredObject(object):
         return self.__class__._translator
 
     @has_storage
-    def to_storage(self, translator=None):
+    def to_storage(self, translator=None, clone=False):
 
         data = {}
 
         for field_name, field_object in self._fields.iteritems():
+            if clone and field_object._is_primary:
+                continue
             field_value = field_object.to_storage(field_object._get_underlying_data(self), translator)
             data[field_name] = field_value
 
-        if self._backrefs:
+        if not clone and self._backrefs:
             data['_backrefs'] = self._backrefs
 
         return data
@@ -192,12 +202,21 @@ class StoredObject(object):
 
         return result
 
+    def clone(self):
+        return self.from_storage(self.to_storage(clone=True))
+
     def __getattribute__(self, name):
         return super(StoredObject, self).__getattribute__(name)
 
-    def _remove_backref(self, backref_field_name, cls, parent_field_name, primary_key):
+    # Backreferences
 
-        self._backrefs[backref_field_name][cls._name][parent_field_name].remove(primary_key)
+    @property
+    def _backrefs_flat(self):
+        return flatten_backrefs(self._backrefs)
+
+    def _remove_backref(self, backref_key, parent, parent_field_name):
+
+        self._backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
 
     def _set_backref(self, backref_key, parent_field_name, backref_value):
 
@@ -308,6 +327,8 @@ class StoredObject(object):
 
     @classmethod
     def _clear_data_cache(cls, key=None):
+        if not issubclass(cls, StoredObject):
+            cls._cache = {}
         if key is not None:
             cls._cache[cls._name].pop(key, None)
         else:
@@ -315,6 +336,8 @@ class StoredObject(object):
 
     @classmethod
     def _clear_object_cache(cls, key=None):
+        if not issubclass(cls, StoredObject):
+            cls._object_cache = {}
         if key is not None:
             cls._object_cache[cls._name].pop(key, None)
         else:
@@ -463,24 +486,53 @@ class StoredObject(object):
     def remove(cls, value):
 
         key, value = cls._parse_key_value(value)
-        key_storage = cls._pk_to_storage(key)
+        key_store = cls._pk_to_storage(key)
 
-        if hasattr(value, '_backrefs'):
-            for br_name, schema_info in getattr(value, '_backrefs').iteritems():
-                for schema_name, field_data in schema_info.iteritems():
-                    for field_name, br_keys in field_data.iteritems():
-                        br_cls = StoredObject._collections[schema_name]
-                        for br_key in br_keys:
-                            br_key_store = br_cls._pk_to_storage(br_key)
-                            br_obj = br_cls.load(br_key_store)
-                            if br_obj._fields[field_name]._list:
-                                getattr(br_obj, field_name).remove(value)
-                            else:
-                                setattr(br_obj, field_name, None)
-                            br_obj.save()
+        from .fields.ForeignField import ForeignField
 
-        cls._clear_caches(key_storage)
+        # Remove backrefs from linked fields
+        for field_name, field_object in cls._fields.iteritems():
+
+            to_deletes = []
+
+            if isinstance(field_object, ForeignField):
+                to_deletes = [getattr(value, field_name)]
+                field_instance = field_object
+            elif isinstance(field_object, ListField):
+                field_instance = field_object._field_instance
+                if isinstance(field_instance, ForeignField):
+                    to_deletes = getattr(value, field_name)
+
+            for to_delete in to_deletes:
+                to_delete._remove_backref(
+                    field_instance._backref_field_name,
+                    value,
+                    field_name,
+                )
+
+        # Remove backrefs to linked fields
+        for stack, key in value._backrefs_flat:
+
+            # Unpack stack
+            backref_key, parent_schema_name, parent_field_name = stack
+
+            # Get parent info
+            parent_schema = StoredObject._collections[parent_schema_name]
+            parent_key_store = parent_schema._pk_to_storage(key)
+            parent_object = parent_schema.load(parent_key_store)
+
+            # Remove backrefs
+            if parent_object._fields[parent_field_name]._list:
+                getattr(parent_object, parent_field_name).remove(value)
+            else:
+                parent_field_object = parent_object._fields[parent_field_name]
+                setattr(parent_object, parent_field_name, parent_field_object._gen_default())
+
+            parent_object.save()
+
+        # Detach record
         value._detached = True
 
-        # Remove from database
-        cls._storage[0].remove(key_storage)
+        # Remove record from cache and database
+        cls._clear_caches(key_store)
+        cls._storage[0].remove(key_store)
