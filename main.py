@@ -55,9 +55,11 @@ ron2.save()
 
 # import pdb; pdb.set_trace()
 
-# ron3 = Ron.from_storage({'_id' : str(datetime.datetime.now())})
+ron3 = Ron()
+ron3._id = datetime.datetime.now()
+ron3.save()
 
-Ron._add_field('added_ron', StringField())
+# Ron._add_field('added_ron', StringField())
 
 import datetime
 
@@ -102,27 +104,25 @@ sheila1.sheila_urls = [
 sheila1.sheila_ints = [5, 3]
 sheila1.sheila_ron = ron1
 
-sheila1.sheila_rons = [ron1]
+sheila1.sheila_rons = [ron2, ron3]
 sheila1.save()
 
 # import pdb; pdb.set_trace()
 
-sheila1.sheila_rons.append(ron2)
 sheila1.save()
 
 # import pdb; pdb.set_trace()
-Ron.remove(ron1)
+#
+# Ron.remove(ron1)
 
 # import pdb; pdb.set_trace()
+#
+# Sheila.remove(sheila1)
 
 sheila1.sheila_rons = []
 sheila1.save()
 
 # import pdb; pdb.set_trace()
-
-ron3 = Ron()
-ron3._id = datetime.datetime.now()
-ron3.save()
 
 # sheila1.sheila_rons = [ron3, ron2]
 sheila1.sheila_rons = [ron2]
