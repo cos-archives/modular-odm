@@ -1,6 +1,7 @@
 import weakref
 import collections
 import warnings
+import copy
 
 import logging
 
@@ -135,6 +136,11 @@ class Field(object):
 
         # Success
         return True
+
+    def _gen_default(self):
+        if callable(self._default):
+            return self._default()
+        return copy.deepcopy(self._default)
 
     def _access_storage(self, direction, value, translator=None):
 
