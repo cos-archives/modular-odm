@@ -9,21 +9,15 @@ class ForeignList(List):
     def __init__(self, *args, **kwargs):
         super(ForeignList, self).__init__(*args, **kwargs)
 
-    def as_primary_keys(self):
-        out = []
-        for i in self.data:
-            if isinstance(i, StoredObject):
-                out.append(i._primary_key)
-            else:
-                out.append(i)
-        return out
+    def _to_primary_keys(self):
+        return [self._field_instance._to_primary_key(item) for item in self.data]
 
     def __contains__(self, item):
         # todo needs to be tested
         if isinstance(item, str): # assume item is a primary key
-            return item in self.as_primary_keys()
+            return item in self._to_primary_keys()
         elif isinstance(item, StoredObject): # should do an object level comparison rather than
-            return item._primary_key in self.as_primary_keys()
+            return item._primary_key in self._to_primary_keys()
         else:
             return False
 
@@ -31,30 +25,24 @@ class ForeignList(List):
         del self.data[key]
 
     def __setitem__(self, key, value):
-        StoredObject._must_be_loaded(value)
-        # todo: do we need validation here?
-        #self._field_instance.do_validate(value)
-        super(ForeignList, self).__setitem__(key, self._field_instance.to_primary_key(value))
+        # StoredObject._must_be_loaded(value)
+        super(ForeignList, self).__setitem__(key, self._field_instance._to_primary_key(value))
 
     def __getitem__(self, item):
         # todo we could turn this into a generator, but that's really an interface question
         result = super(ForeignList, self).__getitem__(item) # we're really just dealing with self[item]
         if isinstance(result, list):
-            return [self._field_instance.base_class.load(primary_key) for i in result]
+            return [self._field_instance.base_class.load(i) for i in result]
         return self._field_instance.base_class.load(result)
 
     def insert(self, index, value):
-        StoredObject._must_be_loaded(value)
-        # todo: do we need validation here?
-        #self._field_instance.do_validate(value)
-        super(ForeignList, self).insert(index, self._field_instance.to_primary_key(value))
+        # StoredObject._must_be_loaded(value)
+        super(ForeignList, self).insert(index, self._field_instance._to_primary_key(value))
         # super(ForeignList, self).insert(index, value)
 
     def append(self, value):
-        StoredObject._must_be_loaded(value)
-        # todo: do we need validation here?
-        #self._field_instance.do_validate(value)
-        super(ForeignList, self).append(self._field_instance.to_primary_key(value))
+        # StoredObject._must_be_loaded(value)
+        super(ForeignList, self).append(self._field_instance._to_primary_key(value))
 
 class ForeignField(Field):
 
@@ -101,16 +89,17 @@ class ForeignField(Field):
             return None
         _foreign_pn = self.base_class._primary_name
         _foreign_pk = self.base_class._fields[_foreign_pn].from_storage(value, translator)
-        return self.base_class.load(_foreign_pk)
+        return _foreign_pk
 
-    def to_primary_key(self, value):
-        # todo do validation here so the list doesn't have to implement each time
+    def _to_primary_key(self, value):
         if value is None:
             return None
         if isinstance(value, self.base_class):
+            if not value._is_loaded:
+                raise Exception('Record must be loaded.')
             return value._primary_key
-        elif type(value) in [str, unicode]:
-            # todo: verify that value is a valid primary key for base_class
+        pk_type = self.base_class._fields[self.base_class._primary_name].translate_type
+        if isinstance(value, pk_type):
             return value
         else:
             raise TypeError('Type {actual} is not a primary key or object of {type}'.format(
@@ -125,8 +114,9 @@ class ForeignField(Field):
     def __set__(self, instance, value):
         if instance._detached:
             warnings.warn('Accessing a detached record.')
-        StoredObject._must_be_loaded(value)
-        super(ForeignField, self).__set__(instance, self.to_primary_key(value))
+        # if isinstance(value, StoredObject):
+        #     StoredObject._must_be_loaded(value)
+        super(ForeignField, self).__set__(instance, self._to_primary_key(value))
 
     def __get__(self, instance, owner):
         if instance._detached:

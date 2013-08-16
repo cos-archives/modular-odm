@@ -66,7 +66,9 @@ class ListField(Field):
             value will come in as a List (MutableSequence)
         '''
         if value:
-            return [self._field_instance.to_storage(i, translator) for i in value]
+            if hasattr(value, '_to_primary_keys'):
+                value = value._to_primary_keys()
+            return [self._field_instance.to_storage(item, translator) for item in value]
         return []
 
     def from_storage(self, value, translator=None):
