@@ -145,12 +145,12 @@ class StoredObject(object):
 
         # Set all instance-level field values to defaults
         if not self._is_loaded:
-            for k, v in self._fields.items():
-                setattr(self, k, v._gen_default())
+            for field_name, field_object in self._fields.items():
+                field_object.__safe_set__(self, field_object._gen_default())
 
         # Add kwargs to instance
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     def __str__(self):
 
@@ -208,13 +208,11 @@ class StoredObject(object):
 
                 data_value = data[key]
                 if data_value is None:
+                    value = None
                     setattr(result, key, None)
                 else:
-                    setattr(
-                        result,
-                        key,
-                        field_object.from_storage(data_value, translator)
-                    )
+                    value = field_object.from_storage(data_value, translator)
+                field_object.__safe_set__(result, value)
 
             else:
 
