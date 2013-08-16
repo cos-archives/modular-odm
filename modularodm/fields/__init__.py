@@ -15,7 +15,6 @@ class List(collections.MutableSequence):
         if value is None:
             return
 
-        # todo: where should this exception be raised
         if not hasattr(value, '__iter__'):
             raise Exception(
                 'Value to be assigned to list must be iterable; received <{0}>'.format(
@@ -23,10 +22,8 @@ class List(collections.MutableSequence):
                 )
             )
 
-        # todo: do these three lines do the same thing twice?
         for item in value:
             self.append(item)
-        self.data = list(value)
 
     def __delitem__(self, key):
         del self.data[key]
@@ -35,7 +32,6 @@ class List(collections.MutableSequence):
         return len(self.data)
 
     def __setitem__(self, key, value):
-        #self._field_instance.do_validate(value)
         self.data[key] = value
 
     def __getitem__(self, key):
@@ -45,11 +41,9 @@ class List(collections.MutableSequence):
         return self.data[key]
 
     def insert(self, index, value):
-        #self._field_instance.do_validate(value)
         self.data.insert(index, value)
 
     def append(self, value):
-        #self._field_instance.do_validate(value)
         self.data.append(value)
 
     def __str__(self):
@@ -110,6 +104,7 @@ class Field(object):
         self._is_primary = kwargs.get('primary', False)
         self._list = kwargs.get('list', False)
         self._required = kwargs.get('required', False)
+        self._editable = kwargs.get('editable', True)
         self._index = kwargs.get('index', self._is_primary)
 
     def do_validate(self, value):
@@ -142,13 +137,10 @@ class Field(object):
             return self._default()
         return copy.deepcopy(self._default)
 
-    def _access_storage(self, direction, value, translator=None):
+    def _access_storage(self, direction, value, translator):
 
-        # Use translator from storage backend if none provided
-        if translator is None:
-            translator = self._schema_class._translator()
+        method_name = '%s_%s' % (direction, self.data_type.__name__)
 
-        method_name = '%s_%s' % (direction, self.translate_type.__name__)
         if hasattr(translator, method_name):
             method = getattr(translator, method_name)
         else:
@@ -157,14 +149,31 @@ class Field(object):
         return method(value)
 
     def to_storage(self, value, translator=None):
+
+        translator = translator or self._schema_class._translator()
+
+        if value is None:
+            return translator.null_value
+
         return self._access_storage('to', value, translator)
 
     def from_storage(self, value, translator=None):
+
+        translator = translator or self._schema_class._translator()
+
+        if value == translator.null_value:
+            return None
+
         return self._access_storage('from', value, translator)
 
     def __set__(self, instance, value):
+        if not self._editable:
+            raise Exception('Field cannot be edited.')
         if instance._detached:
             warnings.warn('Accessing a detached record.')
+        self.data[instance] = value
+
+    def __safe_set__(self, instance, value):
         self.data[instance] = value
 
     def __get__(self, instance, owner):

@@ -17,7 +17,7 @@ from modularodm.storage.MongoStorage import MongoStorage
 from modularodm.validators import *
 from modularodm.query.querydialect import DefaultQueryDialect as Q
 
-from modularodm.translators import DefaultTranslator, JSONTranslator
+from modularodm.translators import DefaultTranslator, JSONTranslator, StringTranslator
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -36,8 +36,6 @@ db.blog.remove()
 class Ron(StoredObject):
 
     _id = DateTimeField(primary=True)
-    # _id = StringField(primary=True)
-    # _meta = {'optimistic' : True}
 
     ron_str = StringField()
     ron_int = IntegerField()
@@ -75,6 +73,9 @@ class Sheila(StoredObject):
     sheila_url = StringField(validate=URLValidator())
     sheila_foostop = StringField(required=True, validate=RegexValidator(r'foo$'), list=True)
 
+    created = DateTimeField(auto_now_add=True)
+    modified = DateTimeField(auto_now=True)
+
     # List fields
     sheila_strs = StringField(list=True, validate=MinLengthValidator(5), list_validate=MinLengthValidator(3))
     sheila_nows = DateTimeField(list=True)#, default=[])
@@ -106,8 +107,6 @@ sheila1.sheila_ron = ron1
 
 sheila1.sheila_rons = [ron2, ron3]
 sheila1.save()
-
-# import pdb; pdb.set_trace()
 
 sheila1.save()
 
@@ -144,10 +143,10 @@ sheila1.save()
 
 
 
-sheila1_stored = sheila1.to_storage()
+sheila1_stored = sheila1.to_storage(clone=True)
 sheila1_reloaded = Sheila.from_storage(sheila1_stored)
 
-# import pdb; pdb.set_trace()
+import pdb; pdb.set_trace()
 
 class Tag(StoredObject):
     value = StringField(primary=True, index=False)
@@ -200,15 +199,15 @@ blog1 = Blog(title='blogtitle1')
 blog2 = Blog(title='blogtitle2')
 blog3 = Blog(title='blogtitle3')
 
-blog1.tags = [tag1, tag2, tag3]
-blog1.save()
+# blog1.tags = [tag1, tag2, tag3]
+# blog1.save()
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
+#
+# StoredObject._clear_caches()
+# blog1_loaded = Blog.load(blog1._id)
 
-StoredObject._clear_caches()
-blog1_loaded = Blog.load(blog1._id)
-
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 blog1.tags.append(tag1)
 

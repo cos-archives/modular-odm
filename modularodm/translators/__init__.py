@@ -1,7 +1,8 @@
-
-import dateutil
+from dateutil import parser as dateparser
 
 class DefaultTranslator(object):
+
+    null_value = None
 
     def to_default(self, value):
         return value
@@ -15,9 +16,11 @@ class JSONTranslator(DefaultTranslator):
         return str(value)
 
     def from_datetime(self, value):
-        return dateutil.parser.parse(value)
+        return dateparser.parse(value)
 
 class StringTranslator(JSONTranslator):
+
+    null_value = 'none'
 
     def to_default(self, value):
         return str(value)
