@@ -2,12 +2,15 @@ import copy
 
 import logging
 import warnings
+import pprint
 
 from fields import Field
 from fields.ListField import ListField
 from .storage import Storage
 
-def flatten_backrefs(data, stack=[]):
+def flatten_backrefs(data, stack=None):
+
+    stack = stack or []
 
     if isinstance(data, list):
         return [(stack, item) for item in data]
@@ -19,10 +22,29 @@ def flatten_backrefs(data, stack=[]):
     return out
 
 from functools import wraps
+
+def log_storage(func):
+
+    @wraps(func)
+    def wrapped(this, *args, **kwargs):
+
+        logger = this._storage[0].logger
+        listening = logger.listen()
+
+        out = func(this, *args, **kwargs)
+
+        if listening:
+            logging.debug(pprint.pprint(logger.report()))
+            logger.clear()
+
+        return out
+
+    return wrapped
+
 def has_storage(func):
     """ Ensure that self/cls contains a Storage backend. """
     @wraps(func)
-    def wrapped_func(*args, **kwargs):
+    def wrapped(*args, **kwargs):
         me = args[0]
         if not hasattr(me, '_storage') or \
                 not me._storage:
@@ -30,7 +52,7 @@ def has_storage(func):
                 me._name.upper())
             )
         return func(*args, **kwargs)
-    return wrapped_func
+    return wrapped
 
 class SOMeta(type):
 
@@ -327,7 +349,7 @@ class StoredObject(object):
 
     @classmethod
     def _clear_data_cache(cls, key=None):
-        if not issubclass(cls, StoredObject):
+        if cls is StoredObject:
             cls._cache = {}
         if key is not None:
             cls._cache[cls._name].pop(key, None)
@@ -336,7 +358,7 @@ class StoredObject(object):
 
     @classmethod
     def _clear_object_cache(cls, key=None):
-        if not issubclass(cls, StoredObject):
+        if cls is StoredObject:
             cls._object_cache = {}
         if key is not None:
             cls._object_cache[cls._name].pop(key, None)
@@ -352,24 +374,22 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
+    @log_storage
     def load(cls, key):
-
-        # todo rename to get?
 
         # Try loading from object cache
         cached_object = cls._load_from_cache(key)
         if cached_object is not None:
             return cached_object
 
-        # Try loading from storage cache
-        data = copy.deepcopy(cls._storage[0].get(cls, cls._pk_to_storage(key))) # better way to do this? Otherwise on load, the Storage.store
-                                                            #  look just like changed object
+        # Try loading from backend
+        data = copy.deepcopy(cls._storage[0].get(cls, cls._pk_to_storage(key)))
 
-        # if not found in either cache, return None
+        # if not found, return None
         if not data:
             return None
 
-        # Load from storage cache data
+        # Load from backend data
         loaded_object = cls.from_storage(data)
 
         # Add to cache
@@ -383,6 +403,7 @@ class StoredObject(object):
             raise Exception('Record must be loaded.')
 
     @has_storage
+    @log_storage
     def save(self):
 
         if self._detached:
