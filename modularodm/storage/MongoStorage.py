@@ -103,7 +103,6 @@ class MongoStorage(Storage):
     QuerySet = MongoQuerySet
 
     def _ensure_index(self, key):
-        print 'IN ENSURE INDEX', key
         self.store.ensure_index(key)
 
     def __init__(self, db, collection):
