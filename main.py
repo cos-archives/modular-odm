@@ -139,7 +139,7 @@ sheila1.save()
 
 # import pdb; pdb.set_trace()
 
-sheila1.sheila_rons = []
+sheila1.sheila_rons = [ron1, ron2, ron3]
 sheila1.save()
 
 
@@ -176,10 +176,10 @@ except:pass
 try:os.remove('db_tag.pkl')
 except:pass
 
-Tag.set_storage(MongoStorage(db, 'tag'))
-Blog.set_storage(MongoStorage(db, 'blog'))
-# Tag.set_storage(PickleStorage('tag'))
-# Blog.set_storage(PickleStorage('blog'))
+# Tag.set_storage(MongoStorage(db, 'tag'))
+# Blog.set_storage(MongoStorage(db, 'blog'))
+Tag.set_storage(PickleStorage('tag'))
+Blog.set_storage(PickleStorage('blog'))
 
 tag1 = Tag(value=str(random.randint(0, 1000)), count='count_1', keywords=['keywd1', 'keywd3', 'keywd4'])
 tag1.save()
@@ -199,6 +199,16 @@ tag5.save()
 blog1 = Blog(title='blogtitle1')
 blog2 = Blog(title='blogtitle2')
 blog3 = Blog(title='blogtitle3')
+
+blog1.tags = [tag1, tag2, tag3]
+blog1.save()
+
+import pdb; pdb.set_trace()
+
+StoredObject._clear_caches()
+blog1_loaded = Blog.load(blog1._id)
+
+import pdb; pdb.set_trace()
 
 blog1.tags.append(tag1)
 
