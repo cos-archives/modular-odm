@@ -98,7 +98,7 @@ class ForeignField(Field):
             if not value._is_loaded:
                 raise Exception('Record must be loaded.')
             return value._primary_key
-        pk_type = self.base_class._fields[self.base_class._primary_name].translate_type
+        pk_type = self.base_class._fields[self.base_class._primary_name].data_type
         if isinstance(value, pk_type):
             return value
         else:
