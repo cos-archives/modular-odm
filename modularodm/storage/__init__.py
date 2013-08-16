@@ -12,6 +12,7 @@ import operator
 
 from ..translators import DefaultTranslator
 from ..translators import JSONTranslator
+from ..translators import StringTranslator
 
 class KeyExistsException(Exception): pass
 
@@ -117,7 +118,7 @@ class Storage(object):
     """
 
     __metaclass__ = StorageMeta
-    Translator = JSONTranslator
+    Translator = StringTranslator
 
     def _ensure_index(self, key):
         pass
