@@ -387,7 +387,7 @@ class StoredObject(object):
         if not data:
             return None
 
-        self._metadata(data)
+        self._migrate(data)
 
         # Load from backend data
         loaded_object = cls.from_storage(data)
@@ -558,9 +558,9 @@ class StoredObject(object):
         cls._clear_caches(key_store)
         cls._storage[0].remove(key_store)
 
-    @classmethod
     def _migrate(self, data):
-       print get(attr, _metadata)
+        print 'data', data
+        print 'metadata', get(attr, _metadata)
        # # TODO What if a backref name is changed; it should go to those objects and rename field
        # migrated = False
        # if data and '_version' in data and 'version' in data['_doc']:
