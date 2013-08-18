@@ -118,7 +118,7 @@ class Storage(object):
     """
 
     __metaclass__ = StorageMeta
-    Translator = StringTranslator
+    Translator = DefaultTranslator
 
     def _ensure_index(self, key):
         pass

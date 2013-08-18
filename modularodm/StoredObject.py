@@ -154,7 +154,7 @@ class StoredObject(object):
 
     def __str__(self):
 
-        warnings.warn('Accessing a detached record.')
+        warnings.warn('Accessing a detached record.') # was there something above this?
         return str({field : str(getattr(self, field)) for field in self._fields})
 
     @classmethod
@@ -163,7 +163,7 @@ class StoredObject(object):
 
     @classmethod
     def get_collection(cls, name):
-        return cls._collections[name.lower()]
+        return cls._collections.get(name.lower(), None)
 
     @property
     def _primary_key(self):
@@ -387,7 +387,7 @@ class StoredObject(object):
         if not data:
             return None
 
-        self._migrate(data)
+        data = cls._migrate(data)
 
         # Load from backend data
         loaded_object = cls.from_storage(data)
@@ -558,9 +558,19 @@ class StoredObject(object):
         cls._clear_caches(key_store)
         cls._storage[0].remove(key_store)
 
-    def _migrate(self, data):
-        print 'data', data
-        print 'metadata', get(attr, _metadata)
+    @classmethod
+    def _migrate(cls, data):
+        if '_metadata' in data and 'version' in data['_metadata']:
+            data_version = int(data['_metadata']['version'])
+            schema_version = int(cls._fields['_metadata']._default['version'])
+            schema_version_of_string = cls._fields['_metadata']._default['version_of']
+            if data_version != schema_version:
+                print 'collections', cls._collections, schema_version_of_string
+                schema_version_of = cls.get_collection(schema_version_of_string)
+                new_data = cls.process_migration(new_data=copy.deepcopy(data), old_data=data, version_of=schema_version_of)
+                del new_data['_metadata']
+                return new_data
+
        # # TODO What if a backref name is changed; it should go to those objects and rename field
        # migrated = False
        # if data and '_version' in data and 'version' in data['_doc']:
