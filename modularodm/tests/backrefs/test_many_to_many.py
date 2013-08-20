@@ -1,8 +1,7 @@
 from modularodm.tests import PickleStorageTestCase, TestObject
 
 from modularodm import exceptions as exc
-from modularodm.fields.IntegerField import IntegerField
-from modularodm.fields.ForeignField import ForeignField
+from modularodm.fields import ForeignField, IntegerField
 
 
 class ManyToManyFieldTestCase(PickleStorageTestCase):

@@ -2,7 +2,7 @@ import os
 import unittest
 
 from modularodm import StoredObject
-from modularodm.storage.PickleStorage import PickleStorage
+from modularodm.storage import PickleStorage
 
 
 class TestObject(StoredObject):

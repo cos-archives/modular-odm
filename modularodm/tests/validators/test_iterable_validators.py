@@ -1,8 +1,7 @@
 from modularodm.exceptions import ValidationValueError
 from modularodm.tests import TestObject, PickleStorageTestCase
 
-from modularodm.fields.StringField import StringField
-from modularodm.fields.IntegerField import IntegerField
+from modularodm.fields import IntegerField, StringField
 
 from modularodm.validators import MaxLengthValidator, MinLengthValidator
 

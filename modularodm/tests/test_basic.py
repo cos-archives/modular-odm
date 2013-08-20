@@ -4,17 +4,14 @@ import time
 import os
 
 from modularodm import StoredObject
-from modularodm.exceptions import ValidationError
-from modularodm.fields.StringField import StringField
-from modularodm.fields.DateTimeField import DateTimeField
+from modularodm.fields import DateTimeField, StringField
 from modularodm.validators import MinLengthValidator
-from modularodm.storage.PickleStorage import PickleStorage
-from modularodm.storage.MongoStorage import MongoStorage
-from modularodm.query.query import RawQuery as Q
+from modularodm.storage import PickleStorage
+
 
 class Tag(StoredObject):
     _id = StringField(primary=True)
-    date_created = DateTimeField(validate=True)
+    date_created = DateTimeField(validate=True, auto_now_add=True)
     date_modified = DateTimeField(validate=True, auto_now=True)
     value = StringField(default='default', validate=MinLengthValidator(5))
     keywords = StringField(default=['keywd1', 'keywd2'], validate=MinLengthValidator(5), list=True)
@@ -66,15 +63,16 @@ class BasicTests(unittest.TestCase):
 
     # Datetime tests
 
-    def _times_approx_equal(self, first, second, tolerance=0.01):
-        diff_obj = first - second
-        diff_sec = abs(diff_obj.total_seconds())
-        self.assertTrue(diff_sec < tolerance)
+    def _times_approx_equal(self, first, second=None, tolerance=0.01):
+        self.assertLess(
+            abs((second or datetime.datetime.now()) - first),
+            datetime.timedelta(seconds=tolerance)
+        )
 
     def test_default_datetime(self):
         tag = Tag()
-        now = datetime.datetime.utcnow()
-        self._times_approx_equal(tag.date_created, now)
+        tag.save()
+        self._times_approx_equal(tag.date_created)
 
     @unittest.skip('needs review')
     def test_parse_datetime(self):
@@ -91,10 +89,8 @@ class BasicTests(unittest.TestCase):
 
     def test_auto_now(self):
         tag = Tag()
-        time.sleep(0.5)
         tag.save()
-        now = datetime.datetime.utcnow()
-        self._times_approx_equal(tag.date_modified, now)
+        self._times_approx_equal(tag.date_modified)
 
     # Foreign tests
     def test_foreign_many_to_one_set(self):

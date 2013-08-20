@@ -40,9 +40,12 @@ class TypeValidator(object):
         )
 
 validate_string = TypeValidator(basestring)
-validate_integer = TypeValidator(int)
+validate_integer = TypeValidator(
+    allowed_types=int,
+    forbidden_types=bool
+)
 validate_float = TypeValidator(float)
-validate_boolean = TypeValidator(bool, int)
+validate_boolean = TypeValidator(bool)
 validate_objectid = TypeValidator(ObjectId)
 
 from ..fields.lists import List
