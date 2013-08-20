@@ -1,4 +1,5 @@
-from ..fields import Field, List
+from ..fields import Field
+from ..fields.lists import List
 from ..validators import validate_list
 
 class ListField(Field):
@@ -31,7 +32,8 @@ class ListField(Field):
         # e.g. when validators contain (un-copyable) regular expressions.
         self._default = lambda: self._list_class(None, field_instance=self._field_instance)
 
-    def __set__(self, instance, value):
+    def __set__(self, instance, value, safe=False):
+        self._pre_set(instance, safe=safe)
         if isinstance(value, self._default.__class__):
             self.data[instance] = value
         elif hasattr(value, '__iter__'):
@@ -50,7 +52,7 @@ class ListField(Field):
         if hasattr(self.__class__, 'validate'):
             self.__class__.validate(value)
 
-        # # Schema-level list validation
+        # Schema-level list validation
         if self._list_validate:
             if hasattr(self.list_validate, '__iter__'):
                 for validator in self.list_validate:
