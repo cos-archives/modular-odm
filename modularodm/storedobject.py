@@ -4,8 +4,7 @@ import logging
 import warnings
 import pprint
 
-from fields import Field
-from fields.ListField import ListField
+from fields import Field, ListField, ForeignField
 from .storage import Storage
 
 def flatten_backrefs(data, stack=None):
@@ -41,6 +40,17 @@ def log_storage(func):
 
     return wrapped
 
+def warn_if_detached(func):
+    """ Warn if self / cls is detached. """
+    @wraps(func)
+    def wrapped(mcs, *args, **kwargs):
+        # Check for _detached in __dict__ instead of using hasattr
+        # to avoid infinite loop in __getattr__
+        if '_detached' in mcs.__dict__ and mcs._detached:
+            warnings.warn('here')
+        return func(mcs, *args, **kwargs)
+    return wrapped
+
 def has_storage(func):
     """ Ensure that self/cls contains a Storage backend. """
     @wraps(func)
@@ -54,23 +64,21 @@ def has_storage(func):
         return func(*args, **kwargs)
     return wrapped
 
-class SOMeta(type):
+class ObjectMeta(type):
 
     def __init__(cls, name, bases, dct):
 
         # Run super-metaclass __init__
-        super(SOMeta, cls).__init__(name, bases, dct)
+        super(ObjectMeta, cls).__init__(name, bases, dct)
 
         # Store prettified name
         cls._name = name.lower()
 
         # Prepare fields
         cls._fields = {}
-        cls._primary_name = '_id'
+        cls._primary_name = None
 
-        cls._found_primary = False
-
-        for key, value in cls.__dict__.iteritems():
+        for key, value in cls.__dict__.items():
 
             # Skip if not descriptor
             if not isinstance(value, Field):
@@ -80,23 +88,24 @@ class SOMeta(type):
             cls._add_field(key, value, _ensure_indices=False)
 
         # Must have a primary key
-        if cls._fields and not cls._found_primary:
-            if '_id' not in cls._fields:
-                raise Exception('Schemas must either define a field named _id or specify exactly one field as primary.')
-
-        # Delete temporary attribute
-        del cls._found_primary
+        if cls._fields:
+            if cls._primary_name is None:
+                if '_id' in cls._fields:
+                    cls._fields['_id']._primary = True
+                    cls._primary_name = '_id'
+                else:
+                    raise Exception('Schemas must either define a field named _id or specify exactly one field as primary.')
 
     @property
     def _translator(cls):
-        return cls._storage[0].Translator
+        return cls._storage[0].translator
 
 class StoredObject(object):
 
-    __metaclass__ = SOMeta
+    __metaclass__ = ObjectMeta
 
     _collections = {}
-    _cache = {} # todo implement this with save and load
+    _cache = {}
     _object_cache = {}
 
     @classmethod
@@ -108,9 +117,9 @@ class StoredObject(object):
 
         # Check for primary key
         if field_obj._is_primary:
-            if not cls._found_primary:
+            if cls._primary_name is None:
                 cls._primary_name = field_name
-                cls._found_primary = True
+                cls._primary_type = field_obj.data_type
             else:
                 raise Exception('Multiple primary keys are not supported.')
 
@@ -146,16 +155,19 @@ class StoredObject(object):
         # Set all instance-level field values to defaults
         if not self._is_loaded:
             for field_name, field_object in self._fields.items():
-                field_object.__safe_set__(self, field_object._gen_default())
+                field_object.__set__(self, field_object._gen_default(), safe=True)
 
         # Add kwargs to instance
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    def __str__(self):
+    @warn_if_detached
+    def __unicode__(self):
+        return unicode({field : unicode(getattr(self, field)) for field in self._fields})
 
-        warnings.warn('Accessing a detached record.')
-        return str({field : str(getattr(self, field)) for field in self._fields})
+    @warn_if_detached
+    def __str__(self):
+        return unicode(self).decode('ascii', 'replace')
 
     @classmethod
     def register_collection(cls, **kwargs):
@@ -212,7 +224,7 @@ class StoredObject(object):
                     setattr(result, key, None)
                 else:
                     value = field_object.from_storage(data_value, translator)
-                field_object.__safe_set__(result, value)
+                field_object.__set__(result, value, safe=True)
 
             else:
 
@@ -224,9 +236,6 @@ class StoredObject(object):
 
     def clone(self):
         return self.from_storage(self.to_storage(clone=True))
-
-    def __getattribute__(self, name):
-        return super(StoredObject, self).__getattribute__(name)
 
     # Backreferences
 
@@ -252,7 +261,10 @@ class StoredObject(object):
             self._backrefs[backref_key][backref_value_class_name] = {}
         if parent_field_name not in self._backrefs[backref_key][backref_value_class_name]:
             self._backrefs[backref_key][backref_value_class_name][parent_field_name] = []
-        self._backrefs[backref_key][backref_value_class_name][parent_field_name].append(backref_value_primary_key)
+
+        append_to = self._backrefs[backref_key][backref_value_class_name][parent_field_name]
+        if backref_value_primary_key not in append_to:
+            append_to.append(backref_value_primary_key)
 
         self.save()
 
@@ -313,7 +325,6 @@ class StoredObject(object):
 
     @classmethod
     def _get_cached_data(cls, key):
-        # todo once object cache is renamed we may need to fiddle with _is_cahed and others
         if cls._is_cached(key):
             return cls._cache[cls._name][key]
         return None
@@ -371,9 +382,35 @@ class StoredObject(object):
     ###########################################################################
 
     @classmethod
+    def _check_pk_type(cls, key):
+
+        if isinstance(key, cls._primary_type):
+            return key
+
+        try:
+            cls._primary_type()
+            cast_type = cls._primary_type
+        except:
+            cast_type = str
+
+        try:
+            key = cast_type(key)
+        except:
+            raise Exception(
+                'Invalid key type: {key}, {type}, {ptype}.'.format(
+                    key=key, type=type(key), ptype=cast_type
+                )
+            )
+
+        return key
+
+
+    @classmethod
     @has_storage
     @log_storage
     def load(cls, key):
+
+        key = cls._check_pk_type(key)
 
         # Try loading from object cache
         cached_object = cls._load_from_cache(key)
@@ -423,7 +460,7 @@ class StoredObject(object):
         if self._is_loaded:
             self.update(self._primary_key, self.to_storage())
         elif self._is_optimistic:
-            self._primary_key = self._storage[0].optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
+            self._primary_key = self._storage[0]._optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
         else:
             self.insert(self._primary_key, self.to_storage())
 
@@ -445,14 +482,15 @@ class StoredObject(object):
 
         return True # todo raise exception on not save
 
+    @warn_if_detached
     def __getattr__(self, item):
         # TODO: on remove, kill empty lists of backrefs
         if item in self._backrefs:
             return self._backrefs[item]
         raise AttributeError(item + ' not found')
 
+    @warn_if_detached
     def __setattr__(self, key, value):
-
         if key not in self._fields and not key.startswith('_'):
             warnings.warn('Setting an attribute that is neither a field nor a protected value.')
         super(StoredObject, self).__setattr__(key, value)
@@ -482,8 +520,8 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def find_one(cls, **kwargs):
-        return cls.load(cls._storage[0].find_one(cls, **kwargs))
+    def find_one(cls, *args):
+        return cls.from_storage(cls._storage[0].find_one(*args))
 
     @classmethod
     @has_storage
@@ -506,8 +544,6 @@ class StoredObject(object):
 
         key, value = cls._parse_key_value(value)
         key_store = cls._pk_to_storage(key)
-
-        from .fields.ForeignField import ForeignField
 
         # Remove backrefs from linked fields
         for field_name, field_object in cls._fields.iteritems():
