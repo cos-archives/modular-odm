@@ -1,7 +1,7 @@
-from modularodm import StoredObject
-from modularodm.storage.PickleStorage import PickleStorage
-from modularodm.fields.IntegerField import IntegerField
+from modularodm import exceptions, StoredObject
+from modularodm.fields import IntegerField
 from modularodm.query.query import RawQuery as Q
+from modularodm.storage import PickleStorage
 
 import unittest
 import os
@@ -16,8 +16,8 @@ class BasicQueryBase(unittest.TestCase):
         self.set_up_objects()
 
     def tearDown(self):
-        super(BasicQueryBase, self).tearDown()
         self.tear_down_objects()
+        super(BasicQueryBase, self).tearDown()
 
     def set_up_objects(self):
         class Foo(StoredObject):
@@ -63,22 +63,23 @@ class BasicQueryBase(unittest.TestCase):
         return that object.
         """
         self.assertEqual(
-            self.Foo.find_one(Q('_id', 'eq', '0')),
-            self.foos[0]
+            self.Foo.find_one(Q('_id', 'eq', 0))._id,
+            self.foos[0]._id
         )
 
     def test_find_one_return_zero(self):
         """ Given a query with zero result records, ``.find_one()`` should raise
          an appropriate error.
         """
-
-        self.Foo.find_one(Q('_id', 'eq', '-1'))
+        with self.assertRaises(exceptions.NoResultsFound):
+            self.Foo.find_one(Q('_id', 'eq', -1))
 
     def test_find_on_return_many(self):
         """ Given a query with >1 result record, ``.find_one()`` should raise
           and appropriate error.
         """
-        pass
+        with self.assertRaises(exceptions.MultipleResultsFound):
+            self.Foo.find_one()
 
 
 
