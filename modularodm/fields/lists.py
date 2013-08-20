@@ -53,3 +53,6 @@ class ForeignList(List):
     def extend(self, iterable):
         for item in iterable:
             self.append(item)
+
+    def remove(self, value):
+        super(ForeignList, self).remove(self._pk(value))
