@@ -4,32 +4,48 @@ from modularodm.exceptions import (
     ValidationValueError,
 )
 
+from bson import ObjectId
 
 class TypeValidator(object):
 
-    def __init__(self, _type):
-        self._type = _type
+    def _as_list(self, value):
+
+        if isinstance(value, list):
+            return value
+        return [value]
+
+    def __init__(self, allowed_types, forbidden_types=None):
+        self.allowed_types = self._as_list(allowed_types)
+        self.forbidden_types = self._as_list(forbidden_types) if forbidden_types else []
 
     def __call__(self, value):
-        if not isinstance(value, self._type):
-            raise ValidationTypeError(
-                'Expected a value of type {}; received value {} of type {}'.format(
-                    self._type, value, type(value)
-                )
+
+        for ftype in self.forbidden_types:
+            if isinstance(value, ftype):
+                self._raise(value)
+
+        for atype in self.allowed_types:
+            if isinstance(value, atype):
+                allowed = True
+                return
+
+        self._raise(value)
+
+    def _raise(self, value):
+
+        raise ValidationTypeError(
+            'Received invalid value {} of type {}'.format(
+                value, type(value)
             )
-        elif isinstance(value, bool) and self._type is int:
-            raise ValidationTypeError(
-                'Expected a value of type {}; received value {} of type {}'.format(
-                    self._type, value, type(value)
-                )
-            )
+        )
 
 validate_string = TypeValidator(basestring)
 validate_integer = TypeValidator(int)
 validate_float = TypeValidator(float)
-validate_boolean = TypeValidator(bool)
+validate_boolean = TypeValidator(bool, int)
+validate_objectid = TypeValidator(ObjectId)
 
-from ..fields import List
+from ..fields.lists import List
 validate_list = TypeValidator(List)
 
 import datetime

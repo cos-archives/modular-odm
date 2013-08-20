@@ -1,4 +1,5 @@
 from dateutil import parser as dateparser
+from bson import ObjectId
 
 class DefaultTranslator(object):
 
@@ -9,6 +10,12 @@ class DefaultTranslator(object):
 
     def from_default(self, value):
         return value
+
+    def to_ObjectId(self, value):
+        return str(value)
+
+    def from_ObjectId(self, value):
+        return ObjectId(value)
 
 class JSONTranslator(DefaultTranslator):
 

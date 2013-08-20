@@ -1,5 +1,4 @@
-from ..storage import Storage
-from ..storage import KeyExistsException
+from .base import Storage, KeyExistsException
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
@@ -30,7 +29,6 @@ operators = {
     'endswith' : lambda data, test: data.endswith(test),
     'contains' : lambda data, test: test in data,
     'icontains' : lambda data, test: test.lower() in data.lower(),
-
 
 }
 
@@ -172,8 +170,10 @@ class PickleStorage(Storage):
                 return all(matches)
             elif query.operator == 'or':
                 return any(matches)
+            elif query.operator == 'not':
+                return not any(matches)
             else:
-                raise Exception('QueryGroup operator must be <and> or <or>.')
+                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
 
         elif isinstance(query, RawQuery):
 
