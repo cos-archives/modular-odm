@@ -77,22 +77,52 @@ class ObjectMeta(type):
         # Prepare fields
         cls._fields = {}
         cls._primary_name = None
+        cls._primary_type = None
 
-        for key, value in cls.__dict__.items():
+        for key, value in cls.__dict__.iteritems():
 
             # Skip if not descriptor
             if not isinstance(value, Field):
                 continue
 
-            # Add field
-            cls._add_field(key, value, _ensure_indices=False)
+            # Memorize parent references
+            value._schema_class = cls
+            value._field_name = key
+
+            # Check for primary key
+            if value._is_primary:
+                if cls._primary_name is None:
+                    cls._primary_name = key
+                    cls._primary_type = value.data_type
+                else:
+                    raise Exception('Multiple primary keys are not supported.')
+
+            # Wrap in list
+            if value._list:
+                value = ListField(
+                    value,
+                    **value._kwargs
+                )
+                # Memorize parent references
+                value._schema_class = cls
+                value._field_name = key
+                # Set parent pointer of child field to list field
+                value._field_instance._list_container = value
+
+            # Store descriptor to cls, cls._fields
+            setattr(cls, key, value)
+            cls._fields[key] = value
 
         # Must have a primary key
         if cls._fields:
             if cls._primary_name is None:
                 if '_id' in cls._fields:
-                    cls._fields['_id']._primary = True
+                    primary_field = cls._fields['_id']
+                    primary_field._primary = True
+                    if 'index' not in primary_field._kwargs or not primary_field._kwargs['index']:
+                        primary_field._index = True
                     cls._primary_name = '_id'
+                    cls._primary_type = cls._fields['_id'].data_type
                 else:
                     raise Exception('Schemas must either define a field named _id or specify exactly one field as primary.')
 
@@ -107,41 +137,6 @@ class StoredObject(object):
     _collections = {}
     _cache = {}
     _object_cache = {}
-
-    @classmethod
-    def _add_field(cls, field_name, field_obj, _ensure_indices=True):
-
-        # Memorize parent references
-        field_obj._schema_class = cls
-        field_obj._field_name = field_name
-
-        # Check for primary key
-        if field_obj._is_primary:
-            if cls._primary_name is None:
-                cls._primary_name = field_name
-                cls._primary_type = field_obj.data_type
-            else:
-                raise Exception('Multiple primary keys are not supported.')
-
-        # Wrap in list
-        if field_obj._list:
-            field_obj = ListField(
-                field_obj,
-                **field_obj._kwargs
-            )
-            # Memorize parent references
-            field_obj._schema_class = cls
-            field_obj._field_name = field_name
-            # Set parent pointer of child field to list field
-            field_obj._field_instance._list_container = field_obj
-
-        # Store descriptor to cls, cls._fields
-        setattr(cls, field_name, field_obj)
-        cls._fields[field_name] = field_obj
-
-        # Optionally ensure indices
-        if _ensure_indices:
-            cls._ensure_indices()
 
     def __init__(self, **kwargs):
 
@@ -269,22 +264,18 @@ class StoredObject(object):
         self.save()
 
     @classmethod
-    @has_storage
-    def _ensure_indices(cls, targets=None):
-        targets = targets or range(len(cls._storage))
-        for field_name, field_value in cls._fields.iteritems():
-            if field_value._index:
-                for idx in targets:
-                    cls._storage[idx]._ensure_index(field_name)
-
-    @classmethod
     def set_storage(cls, storage):
+
         if not isinstance(storage, Storage):
             raise Exception('Argument to set_storage must be an instance of Storage.')
         if not hasattr(cls, '_storage'):
             cls._storage = []
+
+        for field_name, field_object in cls._fields.iteritems():
+            if field_object._index:
+                storage._ensure_index(field_name)
+
         cls._storage.append(storage)
-        cls._ensure_indices(targets=[-1])
         cls.register_collection()
 
     # Caching ################################################################
