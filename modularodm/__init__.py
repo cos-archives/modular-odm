@@ -1,1 +1,1 @@
-from StoredObject import *
+from storedobject import StoredObject
