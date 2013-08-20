@@ -2,6 +2,7 @@ from .base import Storage, KeyExistsException
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
+from modularodm.exceptions import MultipleResultsFound, NoResultsFound
 
 import os
 try:
@@ -187,16 +188,19 @@ class PickleStorage(Storage):
             raise Exception('Query must be a QueryGroup or Query object.')
 
     def find(self, *query):
-
-        if len(query) > 1:
-            query = QueryGroup('and', *query)
-        else:
-            query = query[0]
-
-        for key, value in self.store.iteritems():
-
-            if self._match(value, query):
+        if len(query) == 0:
+            for key, value in self.store.iteritems():
                 yield value
+        else:
+            if len(query) > 1:
+                query = QueryGroup('and', *query)
+            else:
+                query = query[0]
+
+            for key, value in self.store.iteritems():
+
+                if self._match(value, query):
+                    yield value
 
     def __repr__(self):
         return str(self.store)
