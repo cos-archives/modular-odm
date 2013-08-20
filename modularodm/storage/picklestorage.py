@@ -148,17 +148,17 @@ class PickleStorage(Storage):
     def find_all(self):
         return self.store.values()
 
-    def find_one(self, **kwargs):
-
-        results = list(self.find(**kwargs))
+    def find_one(self, *query):
+        results = list(self.find(*query))
         if len(results) == 1:
             return results[0]
-
-        raise Exception(
-            'Query for find_one must return exactly one result; returned {0}'.format(
-                len(results)
+        elif len(results) == 0:
+            raise NoResultsFound()
+        else:
+            raise MultipleResultsFound(
+                'Query for find_one must return exactly one result; '
+                'returned {0}'.format(len(results))
             )
-        )
 
     def _match(self, value, query):
 
