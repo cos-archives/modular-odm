@@ -4,17 +4,14 @@ import time
 import os
 
 from modularodm import StoredObject
-from modularodm.exceptions import ValidationError
-from modularodm.fields.StringField import StringField
-from modularodm.fields.DateTimeField import DateTimeField
+from modularodm.fields import DateTimeField, StringField
 from modularodm.validators import MinLengthValidator
-from modularodm.storage.PickleStorage import PickleStorage
-from modularodm.storage.MongoStorage import MongoStorage
-from modularodm.query.query import RawQuery as Q
+from modularodm.storage import PickleStorage
+
 
 class Tag(StoredObject):
     _id = StringField(primary=True)
-    date_created = DateTimeField(validate=True)
+    date_created = DateTimeField(validate=True, auto_now_add=True)
     date_modified = DateTimeField(validate=True, auto_now=True)
     value = StringField(default='default', validate=MinLengthValidator(5))
     keywords = StringField(default=['keywd1', 'keywd2'], validate=MinLengthValidator(5), list=True)
