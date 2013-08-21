@@ -7,6 +7,7 @@ import os
 import pymongo
 import unittest
 
+
 class BasicQueryPickleTestCase(unittest.TestCase):
 
     make_storage = lambda x: PickleStorage('Test')
@@ -25,7 +26,6 @@ class BasicQueryPickleTestCase(unittest.TestCase):
 
         Foo.set_storage(self.make_storage())
         Foo._clear_caches()
-
 
         self.Foo = Foo
         self.foos = []
@@ -98,9 +98,3 @@ class BasicQueryMongoTestCase(BasicQueryPickleTestCase):
             self.mongo_client.drop_collection('test_collection')
         except OSError:
             pass
-
-
-
-# TODO: MongoStorageTestCase not yet implemented
-# class BasicQueryMongoTestCase(BasicQueryBase, MongoStorageTestCase):
-#     pass

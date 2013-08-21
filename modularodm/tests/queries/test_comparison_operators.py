@@ -1,11 +1,12 @@
 import datetime as dt
 import os
 import unittest
+import pymongo
 
 
 from modularodm import fields, StoredObject
 from modularodm.query.query import RawQuery as Q
-from modularodm.storage import PickleStorage
+from modularodm.storage import MongoStorage, PickleStorage
 
 # TODO: The following are defined in MongoStorage, but not PickleStorage:
 #   'mod',
@@ -127,9 +128,19 @@ class ComparisonOperatorsPickleTestCase(unittest.TestCase):
         self.assertEqual(len(result), 2)
 
 
-# TODO: MongoStorageTestCase not yet implemented
-# class ComparisonOperatorsMongoTestCase(
-#   ComparisonOperatorsBase,
-#   MongoStorageTestCase
-# ):
-#     pass
+class ComparisonOperatorsMongoTestCase(ComparisonOperatorsPickleTestCase):
+    def make_storage(self):
+        db = pymongo.MongoClient('mongodb://localhost:20771/').modm_test
+
+        self.mongo_client = db
+
+        return MongoStorage(
+            db=db,
+            collection='test_collection'
+        )
+
+    def tear_down_objects(self):
+        try:
+            self.mongo_client.drop_collection('test_collection')
+        except OSError:
+            pass

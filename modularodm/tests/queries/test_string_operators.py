@@ -1,4 +1,3 @@
-import datetime as dt
 import os
 import unittest
 import pymongo
@@ -7,6 +6,13 @@ import pymongo
 from modularodm import fields, StoredObject
 from modularodm.query.query import RawQuery as Q
 from modularodm.storage import MongoStorage, PickleStorage
+
+
+# TODO: The following are defined in MongoStorage, but not PickleStorage:
+#   'istartswith'
+#   'iendswith',
+#   'exact',
+#   'iexact'
 
 
 class StringComparisonPickleTestCase(unittest.TestCase):
@@ -97,14 +103,3 @@ class StringComparisonMongoTestCase(StringComparisonPickleTestCase):
             self.mongo_client.drop_collection('test_collection')
         except OSError:
             pass
-
-# TODO: The following are defined in MongoStorage, but not PickleStorage:
-#   'istartswith'
-#   'iendswith',
-#   'exact',
-#   'iexact'
-
-
-# TODO: MongoStorageTestCase not yet implemented
-# class StringComparisonMongoTestCase(BasicQueryBase, MongoStorageTestCase):
-#     pass
