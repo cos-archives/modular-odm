@@ -1,5 +1,4 @@
 from ..fields import Field
-from ..fields.lists import List
 from ..validators import validate_list
 
 class ListField(Field):
@@ -30,14 +29,14 @@ class ListField(Field):
         # Default is a callable that returns an empty instance of the list class
         # Avoids the need to deepcopy default values for lists, which will break
         # e.g. when validators contain (un-copyable) regular expressions.
-        self._default = lambda: self._list_class(None, field_instance=self._field_instance)
+        self._default = lambda: self._list_class(None, base_class=self._field_instance.base_class)
 
     def __set__(self, instance, value, safe=False):
         self._pre_set(instance, safe=safe)
         if isinstance(value, self._default.__class__):
             self.data[instance] = value
         elif hasattr(value, '__iter__'):
-            self.data[instance] = self._list_class(field_instance=self._field_instance)
+            self.data[instance] = self._list_class(base_class=self._field_instance.base_class)
             self.data[instance].extend(value)
         else:
             self.data[instance] = value
