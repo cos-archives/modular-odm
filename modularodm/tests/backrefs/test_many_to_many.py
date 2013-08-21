@@ -108,6 +108,7 @@ class ManyToManyFieldTestCase(PickleStorageTestCase):
         .remove() method
         """
         self.foo.my_bar.remove(self.bar)
+        self.foo.save()
 
         # the object should be removed from .my_bar
         self.assertNotIn(
