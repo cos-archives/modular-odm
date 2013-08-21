@@ -7,6 +7,7 @@ from .lists import List
 class Field(object):
 
     default = None
+    base_class = None
     _list_class = List
 
     def _prepare_validators(self, _validate):
@@ -101,21 +102,15 @@ class Field(object):
         return method(value)
 
     def to_storage(self, value, translator=None):
-
         translator = translator or self._schema_class._translator
-
         if value is None:
             return translator.null_value
-
         return self._access_storage('to', value, translator)
 
     def from_storage(self, value, translator=None):
-
         translator = translator or self._schema_class._translator
-
         if value == translator.null_value:
             return None
-
         return self._access_storage('from', value, translator)
 
     def _pre_set(self, instance, safe=False):
