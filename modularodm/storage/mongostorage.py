@@ -109,10 +109,6 @@ class MongoStorage(Storage):
         self.collection = collection
         self.store = db[self.collection]
 
-    # todo kill this
-    def find_all(self):
-        return self.store.find()
-
     def find(self, *query):
         mongo_query = self._translate_query(*query)
         return self.store.find(mongo_query)
@@ -166,7 +162,7 @@ class MongoStorage(Storage):
         pass
 
     def __repr__(self):
-        return self.find_all()
+        return self.find()
 
     def _translate_query(self, *query):
 

@@ -146,9 +146,6 @@ class PickleStorage(Storage):
         with open(self.filename, 'wb') as fp:
             pickle.dump(self.store, fp, -1)
 
-    def find_all(self):
-        return self.store.values()
-
     def find_one(self, *query):
         results = list(self.find(*query))
         if len(results) == 1:
