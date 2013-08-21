@@ -4,7 +4,7 @@ import logging
 import warnings
 import pprint
 
-from fields import Field, ListField, ForeignField
+from fields import Field, ListField, ForeignField, ForeignList
 from .storage import Storage
 
 def flatten_backrefs(data, stack=None):
@@ -74,6 +74,10 @@ class ObjectMeta(type):
         # Store prettified name
         cls._name = name.lower()
 
+        # Store optimism
+        cls._is_optimistic = hasattr(cls, '_meta') and \
+            cls._meta.get('optimistic', False)
+
         # Prepare fields
         cls._fields = {}
         cls._primary_name = None
@@ -126,6 +130,9 @@ class ObjectMeta(type):
                 else:
                     raise Exception('Schemas must either define a field named _id or specify exactly one field as primary.')
 
+        # Register
+        cls.register_collection()
+
     @property
     def _translator(cls):
         return cls._storage[0].translator
@@ -142,9 +149,6 @@ class StoredObject(object):
 
         self._backrefs = {}
         self._detached = False
-        self._is_loaded = False # this gets passed in via kwargs in self.load
-        self._is_optimistic = hasattr(self, '_meta') and self._meta.get('optimistic', False)
-
         self._is_loaded = kwargs.pop('_is_loaded', False)
 
         # Set all instance-level field values to defaults
@@ -165,7 +169,7 @@ class StoredObject(object):
         return unicode(self).decode('ascii', 'replace')
 
     @classmethod
-    def register_collection(cls, **kwargs):
+    def register_collection(cls):
         cls._collections[cls._name] = cls
 
     @classmethod
@@ -193,7 +197,10 @@ class StoredObject(object):
         for field_name, field_object in self._fields.iteritems():
             if clone and field_object._is_primary:
                 continue
-            field_value = field_object.to_storage(field_object._get_underlying_data(self), translator)
+            field_value = field_object.to_storage(
+                field_object._get_underlying_data(self),
+                translator
+            )
             data[field_name] = field_value
 
         if not clone and self._backrefs:
@@ -212,7 +219,6 @@ class StoredObject(object):
             field_object = cls._fields.get(key, None)
 
             if isinstance(field_object, Field):
-
                 data_value = data[key]
                 if data_value is None:
                     value = None
@@ -222,7 +228,6 @@ class StoredObject(object):
                 field_object.__set__(result, value, safe=True)
 
             else:
-
                 setattr(result, key, value)
 
         result._is_loaded = True
@@ -239,7 +244,6 @@ class StoredObject(object):
         return flatten_backrefs(self._backrefs)
 
     def _remove_backref(self, backref_key, parent, parent_field_name):
-
         self._backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
 
     def _set_backref(self, backref_key, parent_field_name, backref_value):
@@ -276,7 +280,6 @@ class StoredObject(object):
                 storage._ensure_index(field_name)
 
         cls._storage.append(storage)
-        cls.register_collection()
 
     # Caching ################################################################
 
@@ -335,12 +338,7 @@ class StoredObject(object):
         current_data = self.to_storage()
 
         for field_name in self._fields:
-            # if current_data[field_name] != cached_data[field_name]:
-            # Diff exists current and cached data don't match OR if
-            # field not present in cached data; this can happen on
-            # dynamic column addition
-            if field_name not in cached_data \
-                    or current_data[field_name] != cached_data[field_name]:
+            if current_data[field_name] != cached_data[field_name]:
                 field_list.append(field_name)
 
         return field_list
@@ -371,6 +369,17 @@ class StoredObject(object):
         cls._clear_object_cache(key)
 
     ###########################################################################
+
+    @classmethod
+    def _to_primary_key(cls, value):
+
+        if value is None:
+            return value
+
+        if isinstance(value, cls):
+            return value._primary_key
+
+        return cls._check_pk_type(value)
 
     @classmethod
     def _check_pk_type(cls, key):
@@ -478,6 +487,20 @@ class StoredObject(object):
         # TODO: on remove, kill empty lists of backrefs
         if item in self._backrefs:
             return self._backrefs[item]
+        if '__' in item:
+            item_split = item.split('__')
+            if len(item_split) == 2:
+                parent_schema_name, backref_key = item_split
+                ids = sum(
+                    [_ids for _, _ids in self._backrefs[backref_key][parent_schema_name].items()],
+                    []
+                )
+            elif len(item_split) == 3:
+                parent_schema_name, backref_key, parent_field_name = item_split
+                ids = self._backrefs[backref_key][parent_schema_name][parent_field_name]
+            else:
+                raise Exception('uh oh')
+            return ForeignList(ids, base_class=StoredObject.get_collection(parent_schema_name))
         raise AttributeError(item + ' not found')
 
     @warn_if_detached
