@@ -125,15 +125,17 @@ class MongoStorage(Storage):
         """
         mongo_query = self._translate_query(*query)
         matches = self.store.find(mongo_query).limit(2)
+
         if matches.count() == 1:
             return matches[0]
-        elif matches.count() == 0:
+
+        if matches.count() == 0:
             raise NoResultsFound()
-        else:
-            raise MultipleResultsFound(
-                'Query for find_one must return exactly one result; '
-                'returned {0}'.format(matches.count())
-            )
+
+        raise MultipleResultsFound(
+            'Query for find_one must return exactly one result; '
+            'returned {0}'.format(matches.count())
+        )
 
     def get(self, schema, key):
         return self.store.find_one({schema._primary_name : key})
