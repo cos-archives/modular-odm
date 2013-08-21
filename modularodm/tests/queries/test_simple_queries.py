@@ -1,45 +1,28 @@
 from modularodm import exceptions, StoredObject
 from modularodm.fields import IntegerField
 from modularodm.query.query import RawQuery as Q
-from modularodm.storage import MongoStorage, PickleStorage
+from modularodm.tests import ModularOdmTestCase
 
 import os
 import pymongo
 import unittest
 
 
-class BasicQueryPickleTestCase(unittest.TestCase):
+class BasicQueryPickleTestCase(ModularOdmTestCase):
 
-    make_storage = lambda x: PickleStorage('Test')
-
-    def setUp(self):
-        super(BasicQueryPickleTestCase, self).setUp()
-        self.set_up_objects()
-
-    def tearDown(self):
-        self.tear_down_objects()
-        super(BasicQueryPickleTestCase, self).tearDown()
-
-    def set_up_objects(self):
+    def define_test_objects(self):
         class Foo(StoredObject):
             _id = IntegerField(primary=True)
 
-        Foo.set_storage(self.make_storage())
-        Foo._clear_caches()
+        return Foo,
 
-        self.Foo = Foo
+    def set_up_test_objects(self):
         self.foos = []
 
         for idx in xrange(3):
-            foo = Foo(_id=idx)
+            foo = self.Foo(_id=idx)
             foo.save()
             self.foos.append(foo)
-
-    def tear_down_objects(self):
-        try:
-            os.remove('db_Test.pkl')
-        except OSError:
-            pass
 
     @unittest.skip('Not sure yet if this should be .get() or .load()')
     def test_get_by_pk(self):
@@ -80,21 +63,3 @@ class BasicQueryPickleTestCase(unittest.TestCase):
         """
         with self.assertRaises(exceptions.MultipleResultsFound):
             print self.Foo.find_one()
-
-
-class BasicQueryMongoTestCase(BasicQueryPickleTestCase):
-    def make_storage(self):
-        db = pymongo.MongoClient('mongodb://localhost:20771/').modm_test
-
-        self.mongo_client = db
-
-        return MongoStorage(
-            db=db,
-            collection='test_collection'
-        )
-
-    def tear_down_objects(self):
-        try:
-            self.mongo_client.drop_collection('test_collection')
-        except OSError:
-            pass

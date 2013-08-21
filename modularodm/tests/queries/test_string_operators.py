@@ -5,7 +5,7 @@ import pymongo
 
 from modularodm import fields, StoredObject
 from modularodm.query.query import RawQuery as Q
-from modularodm.storage import MongoStorage, PickleStorage
+from modularodm.tests import ModularOdmTestCase
 
 
 # TODO: The following are defined in MongoStorage, but not PickleStorage:
@@ -15,27 +15,16 @@ from modularodm.storage import MongoStorage, PickleStorage
 #   'iexact'
 
 
-class StringComparisonPickleTestCase(unittest.TestCase):
+class StringComparisonTestCase(ModularOdmTestCase):
 
-    make_storage = lambda x: PickleStorage('Test')
-
-    def setUp(self):
-        super(StringComparisonPickleTestCase, self).setUp()
-        self.set_up_objects()
-
-    def tearDown(self):
-        self.tear_down_objects()
-        super(StringComparisonPickleTestCase, self).tearDown()
-
-    def set_up_objects(self):
+    def define_test_objects(self):
         class Foo(StoredObject):
             _id = fields.IntegerField(primary=True)
             string_field = fields.StringField()
 
-        Foo.set_storage(self.make_storage())
-        Foo._clear_caches()
+        return Foo,
 
-        self.Foo = Foo
+    def set_up_test_objects(self):
         self.foos = []
 
         field_values = (
@@ -45,7 +34,7 @@ class StringComparisonPickleTestCase(unittest.TestCase):
         )
 
         for idx in xrange(len(field_values)):
-            foo = Foo(
+            foo = self.Foo(
                 _id=idx,
                 string_field=field_values[idx],
             )
@@ -85,21 +74,3 @@ class StringComparisonPickleTestCase(unittest.TestCase):
             Q('string_field', 'endswith', 'value')
         )
         self.assertEqual(len(result), 3)
-
-
-class StringComparisonMongoTestCase(StringComparisonPickleTestCase):
-    def make_storage(self):
-        db = pymongo.MongoClient('mongodb://localhost:20771/').modm_test
-
-        self.mongo_client = db
-
-        return MongoStorage(
-            db=db,
-            collection='test_collection'
-        )
-
-    def tear_down_objects(self):
-        try:
-            self.mongo_client.drop_collection('test_collection')
-        except OSError:
-            pass

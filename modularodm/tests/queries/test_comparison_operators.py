@@ -1,12 +1,9 @@
 import datetime as dt
-import os
-import unittest
-import pymongo
 
 
 from modularodm import fields, StoredObject
 from modularodm.query.query import RawQuery as Q
-from modularodm.storage import MongoStorage, PickleStorage
+from modularodm.tests import ModularOdmTestCase
 
 # TODO: The following are defined in MongoStorage, but not PickleStorage:
 #   'mod',
@@ -19,19 +16,9 @@ from modularodm.storage import MongoStorage, PickleStorage
 # iterative approach?
 
 
-class ComparisonOperatorsPickleTestCase(unittest.TestCase):
+class ComparisonOperatorsTestCase(ModularOdmTestCase):
 
-    make_storage = lambda x: PickleStorage('Test')
-
-    def setUp(self):
-        super(ComparisonOperatorsPickleTestCase, self).setUp()
-        self.set_up_objects()
-
-    def tearDown(self):
-        self.tear_down_objects()
-        super(ComparisonOperatorsPickleTestCase, self).tearDown()
-
-    def set_up_objects(self):
+    def define_test_objects(self):
         class Foo(StoredObject):
             _id = fields.IntegerField(primary=True)
             integer_field = fields.IntegerField()
@@ -40,14 +27,13 @@ class ComparisonOperatorsPickleTestCase(unittest.TestCase):
             float_field = fields.FloatField()
             list_field = fields.IntegerField(list=True)
 
-        Foo.set_storage(self.make_storage())
-        Foo._clear_caches()
+        return Foo,
 
-        self.Foo = Foo
+    def set_up_test_objects(self):
         self.foos = []
 
         for idx in xrange(3):
-            foo = Foo(
+            foo = self.Foo(
                 _id=idx,
                 integer_field = idx,
                 string_field = 'Value: {}'.format(idx),
@@ -57,12 +43,6 @@ class ComparisonOperatorsPickleTestCase(unittest.TestCase):
             )
             foo.save()
             self.foos.append(foo)
-
-    def tear_down_objects(self):
-        try:
-            os.remove('db_Test.pkl')
-        except OSError:
-            pass
 
     def test_eq(self):
         """ Finds objects with the attribute equal to the parameter."""
@@ -126,21 +106,3 @@ class ComparisonOperatorsPickleTestCase(unittest.TestCase):
             Q('integer_field', 'nin', [1, 11, 21, ])
         )
         self.assertEqual(len(result), 2)
-
-
-class ComparisonOperatorsMongoTestCase(ComparisonOperatorsPickleTestCase):
-    def make_storage(self):
-        db = pymongo.MongoClient('mongodb://localhost:20771/').modm_test
-
-        self.mongo_client = db
-
-        return MongoStorage(
-            db=db,
-            collection='test_collection'
-        )
-
-    def tear_down_objects(self):
-        try:
-            self.mongo_client.drop_collection('test_collection')
-        except OSError:
-            pass

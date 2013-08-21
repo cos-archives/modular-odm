@@ -1,7 +1,7 @@
-from modularodm.tests import PickleStorageTestCase
+from modularodm.tests import ModularOdmTestCase
 
 
-class LogicalOperatorsBase(object):
+class LogicalOperatorsBase(ModularOdmTestCase):
     def test_and(self):
         """ Finds the intersection of two or more queries."""
         pass
@@ -13,18 +13,3 @@ class LogicalOperatorsBase(object):
     def test_not(self):
         """ Finds the inverse of a query."""
         pass
-
-
-class LogicalOperatorsPickleTestCase(
-    LogicalOperatorsBase,
-    PickleStorageTestCase,
-):
-    pass
-
-
-# TODO: MongoStorageTestCase not yet implemented
-# class LogicalOperatorsMongoTestCase(
-#   LogicalOperatorsBase,
-#   MongoStorageTestCase
-# ):
-#     pass

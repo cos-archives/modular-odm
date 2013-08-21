@@ -1,90 +1,85 @@
+from modularodm import StoredObject
 from modularodm.exceptions import ValidationValueError
-from modularodm.tests import TestObject, PickleStorageTestCase
-
 from modularodm.fields import IntegerField, StringField
-
+from modularodm.tests import ModularOdmTestCase
 from modularodm.validators import MaxLengthValidator, MinLengthValidator
 
 
-class IterableValidatorTestCase(PickleStorageTestCase):
+class StringValidatorTestCase(ModularOdmTestCase):
 
-    def test_max_length_string_validator(self):
-        class Foo(TestObject):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             test_field = StringField(
                 list=False,
                 validate=[MaxLengthValidator(5), ]
             )
-        obj = Foo()
+        self.test_object = Foo(_id=0)
+        return Foo,
 
-        obj.test_field = 'abc'
-        obj.save()
+    def test_max_length_string_validator(self):
+        
+        self.test_object.test_field = 'abc'
+        self.test_object.save()
 
-        obj.test_field = 'abcdefg'
+        self.test_object.test_field = 'abcdefg'
         with self.assertRaises(ValidationValueError):
-            obj.save()
+            self.test_object.save()
 
     def test_min_length_string_validator(self):
-        class Foo(TestObject):
-            _id = IntegerField()
-            test_field = StringField(
-                list=False,
-                validate=[MinLengthValidator(5), ]
-            )
-        obj = Foo()
 
-        obj.test_field = 'abc'
+        self.test_object.test_field = 'abc'
         with self.assertRaises(ValidationValueError):
-            obj.save()
+            self.test_object.save()
 
-        obj.test_field = 'abcdefg'
-        obj.save()
+        self.test_object.test_field = 'abcdefg'
+        self.test_object.save()
 
-    def test_min_length_list_validator(self):
-        # This test fails.
-        class Foo(TestObject):
-            _id = IntegerField()
-            test_field = IntegerField(
-                list=True,
-                list_validate=[MinLengthValidator(5), ]
-            )
-        obj = Foo()
 
-        obj.test_field = [1, 2, 3]
-        with self.assertRaises(ValidationValueError):
-            obj.save()
+class ListValidatorTestCase(ModularOdmTestCase):
 
-        obj.test_field = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
-        obj.save()
-
-    def test_max_length_list_validator(self):
-        # This test fails.
-        class Foo(TestObject):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             test_field = IntegerField(
                 list=True,
                 list_validate=[MaxLengthValidator(5), ]
             )
-        obj = Foo()
+        self.test_object = Foo(_id=0)
+        return Foo,
 
-        obj.test_field = [1, 2, 3]
-        obj.save()
+    def test_min_length_list_validator(self):
+        # This test fails.
 
-        obj.test_field = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        self.test_object.test_field = [1, 2, 3]
         with self.assertRaises(ValidationValueError):
-            obj.save()
+            self.test_object.save()
+
+        self.test_object.test_field = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        self.test_object.save()
+
+    def test_max_length_list_validator(self):
+        # This test fails.
+
+        self.test_object.test_field = [1, 2, 3]
+        self.test_object.save()
+
+        self.test_object.test_field = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        with self.assertRaises(ValidationValueError):
+            self.test_object.save()
 
 
-class IterableValidatorCombinationTestCase(PickleStorageTestCase):
-    def setUp(self):
-        class Foo(TestObject):
+class IterableValidatorCombinationTestCase(ModularOdmTestCase):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             test_field = StringField(
                 list=True,
                 validate=MaxLengthValidator(3),
                 list_validate=MinLengthValidator(3)
             )
-        self.test_object = Foo()
+        self.test_object = Foo(_id=0)
+        return Foo,
 
     def test_child_pass_list_fail(self):
         self.test_object.test_field = ['ab', 'abc']

@@ -1,7 +1,7 @@
-from modularodm.tests import PickleStorageTestCase
+from modularodm.tests import ModularOdmTestCase
 
 
-class UpdateQueryBase(object):
+class UpdateQueryTestCase(ModularOdmTestCase):
     def test_update(self):
         """ Given a query, and an update clause, update all (and only) object
         returned by query.
@@ -21,12 +21,3 @@ class UpdateQueryBase(object):
     def test_remove_one(self):
         """ Given a primary key, remove the referenced object. """
         pass
-
-
-class UpdateQueryPickleTestCase(UpdateQueryBase, PickleStorageTestCase):
-    pass
-
-
-# TODO: MongoStorageTestCase not yet implemented
-# class UpdateQueryMongoTestCase(UpdateQueryBase, MongoStorageTestCase):
-#     pass
