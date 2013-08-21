@@ -1,23 +1,23 @@
 from modularodm import exceptions, StoredObject
 from modularodm.fields import IntegerField
 from modularodm.query.query import RawQuery as Q
-from modularodm.storage import PickleStorage
+from modularodm.storage import MongoStorage, PickleStorage
 
-import unittest
 import os
+import pymongo
+import unittest
 
-
-class BasicQueryBase(unittest.TestCase):
+class BasicQueryPickleTestCase(unittest.TestCase):
 
     make_storage = lambda x: PickleStorage('Test')
 
     def setUp(self):
-        super(BasicQueryBase, self).setUp()
+        super(BasicQueryPickleTestCase, self).setUp()
         self.set_up_objects()
 
     def tearDown(self):
         self.tear_down_objects()
-        super(BasicQueryBase, self).tearDown()
+        super(BasicQueryPickleTestCase, self).tearDown()
 
     def set_up_objects(self):
         class Foo(StoredObject):
@@ -74,13 +74,30 @@ class BasicQueryBase(unittest.TestCase):
         with self.assertRaises(exceptions.NoResultsFound):
             self.Foo.find_one(Q('_id', 'eq', -1))
 
-    def test_find_on_return_many(self):
+    def test_find_one_return_many(self):
         """ Given a query with >1 result record, ``.find_one()`` should raise
           and appropriate error.
         """
         with self.assertRaises(exceptions.MultipleResultsFound):
-            self.Foo.find_one()
+            print self.Foo.find_one()
 
+
+class BasicQueryMongoTestCase(BasicQueryPickleTestCase):
+    def make_storage(self):
+        db = pymongo.MongoClient('mongodb://localhost:20771/').modm_test
+
+        self.mongo_client = db
+
+        return MongoStorage(
+            db=db,
+            collection='test_collection'
+        )
+
+    def tear_down_objects(self):
+        try:
+            self.mongo_client.drop_collection('test_collection')
+        except OSError:
+            pass
 
 
 
