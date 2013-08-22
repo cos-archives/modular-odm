@@ -168,6 +168,8 @@ class StoredObject(object):
             setattr(self, key, value)
 
     def __eq__(self, other):
+        if self is other:
+            return True
         return self.to_storage() == other.to_storage()
 
     @warn_if_detached
