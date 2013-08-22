@@ -5,6 +5,7 @@ from .base import Storage
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
+from modularodm.exceptions import NoResultsFound, MultipleResultsFound
 
 # From mongoengine.queryset.transform
 COMPARISON_OPERATORS = ('ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'mod',
@@ -108,17 +109,33 @@ class MongoStorage(Storage):
         self.collection = collection
         self.store = db[self.collection]
 
-    # todo kill this
-    def find_all(self):
-        return self.store.find()
-
     def find(self, *query):
         mongo_query = self._translate_query(*query)
         return self.store.find(mongo_query)
 
     def find_one(self, *query):
+        """ Gets a single object from the collection.
+
+        If no matching documents are found, raises ``NoResultsFound``.
+        If >1 matching documents are found, raises ``MultipleResultsFound``.
+
+        :params: One or more ``Query`` or ``QuerySet`` objects may be passed
+
+        :returns: The selected document
+        """
         mongo_query = self._translate_query(*query)
-        return self.store.find_one(mongo_query)
+        matches = self.store.find(mongo_query).limit(2)
+
+        if matches.count() == 1:
+            return matches[0]
+
+        if matches.count() == 0:
+            raise NoResultsFound()
+
+        raise MultipleResultsFound(
+            'Query for find_one must return exactly one result; '
+            'returned {0}'.format(matches.count())
+        )
 
     def get(self, schema, key):
         return self.store.find_one({schema._primary_name : key})
@@ -147,14 +164,17 @@ class MongoStorage(Storage):
         pass
 
     def __repr__(self):
-        return self.find_all()
+        return self.find()
 
     def _translate_query(self, *query):
 
-        if len(query) > 1:
+        if len(query) == 1:
+            query = query[0]
+        elif len(query) > 1:
             query = QueryGroup('and', *query)
         else:
-            query = query[0]
+            query = None
+
 
         mongo_query = {}
 
@@ -190,6 +210,9 @@ class MongoStorage(Storage):
 
             else:
                 raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
+
+        elif query is None:
+            return {}
 
         else:
             raise Exception('Query must be a QueryGroup or Query object.')

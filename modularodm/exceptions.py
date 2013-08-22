@@ -4,7 +4,24 @@ class ModularOdmException(Exception):
     pass
 
 
-class ValidationError(Exception):
+class QueryException(ModularOdmException):
+    """ base class for exceptions raised from query parsing or execution"""
+    pass
+
+
+class MultipleResultsFound(QueryException):
+    """ Raised when multiple results match the passed query, and only a single
+    object may be returned """
+    pass
+
+
+class NoResultsFound(QueryException):
+    """ Raised when no results match the passed query, but one or more results
+    must be returned. """
+    pass
+
+
+class ValidationError(ModularOdmException):
     """ Base class for exceptions raised during validation. Should not raised
     directly. """
     pass

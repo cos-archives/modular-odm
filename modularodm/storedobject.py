@@ -558,8 +558,8 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def find_one(cls, *args):
-        return cls.from_storage(cls._storage[0].find_one(*args))
+    def find_one(cls, *query):
+        return cls.from_storage(cls._storage[0].find_one(*query))
 
     @classmethod
     @has_storage
