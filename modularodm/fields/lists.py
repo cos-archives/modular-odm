@@ -26,6 +26,12 @@ class ForeignList(List):
             return (self[idx] for idx in range(len(self)))
         return iter([])
 
+    def __reversed__(self):
+        return ForeignList(
+            super(ForeignList, self).__reversed__(),
+            base_class=self._base_class
+        )
+
     def __getitem__(self, item):
         result = super(ForeignList, self).__getitem__(item)
         if isinstance(result, list):
