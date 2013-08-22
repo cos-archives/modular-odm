@@ -7,6 +7,13 @@ import pprint
 from fields import Field, ListField, ForeignField, ForeignList
 from .storage import Storage
 
+def deref(data, keys, missing=None):
+    if keys[0] in data:
+        if len(keys) == 1:
+            return data[keys[0]]
+        return deref(data[keys[0]], keys[1:], missing=missing)
+    return missing
+
 def flatten_backrefs(data, stack=None):
 
     stack = stack or []
@@ -83,7 +90,7 @@ class ObjectMeta(type):
         cls._primary_name = None
         cls._primary_type = None
 
-        for key, value in cls.__dict__.iteritems():
+        for key, value in cls.__dict__.items():
 
             # Skip if not descriptor
             if not isinstance(value, Field):
@@ -160,6 +167,9 @@ class StoredObject(object):
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    def __eq__(self, other):
+        return self.to_storage() == other.to_storage()
+
     @warn_if_detached
     def __unicode__(self):
         return unicode({field : unicode(getattr(self, field)) for field in self._fields})
@@ -194,7 +204,7 @@ class StoredObject(object):
 
         data = {}
 
-        for field_name, field_object in self._fields.iteritems():
+        for field_name, field_object in self._fields.items():
             if clone and field_object._is_primary:
                 continue
             field_value = field_object.to_storage(
@@ -214,7 +224,7 @@ class StoredObject(object):
 
         result = cls()
 
-        for key, value in data.iteritems():
+        for key, value in data.items():
 
             field_object = cls._fields.get(key, None)
 
@@ -275,7 +285,7 @@ class StoredObject(object):
         if not hasattr(cls, '_storage'):
             cls._storage = []
 
-        for field_name, field_object in cls._fields.iteritems():
+        for field_name, field_object in cls._fields.items():
             if field_object._index:
                 storage._ensure_index(field_name)
 
@@ -439,28 +449,41 @@ class StoredObject(object):
 
     @has_storage
     @log_storage
+    def _optimistic_insert(self):
+        self._primary_key = self._storage[0]._optimistic_insert(
+            self.__class__,
+            self.to_storage()
+        )
+
+    @has_storage
+    @log_storage
     def save(self):
 
         if self._detached:
             raise Exception('Cannot save detached object.')
 
-        for field_name, field_object in self._fields.iteritems():
+        for field_name, field_object in self._fields.items():
             if hasattr(field_object, 'on_before_save'):
                 field_object.on_before_save(self)
-
-        # Validate
-        for field_name, field_obj in self._fields.iteritems():
-            field_obj.do_validate(getattr(self, field_name))
 
         if self._primary_key is not None and self._is_cached(self._primary_key):
             list_on_save_after_fields = self._get_list_of_differences_from_cache()
         else:
             list_on_save_after_fields = self._fields.keys()
 
+        # Validate
+        # for field_name, field_object in self._fields.items():
+        # todo: TEST THIS!
+        # todo: only save modified fields?
+        for field_name in list_on_save_after_fields:
+            field_object = self._fields[field_name]
+            field_object.do_validate(getattr(self, field_name))
+
         if self._is_loaded:
             self.update(self._primary_key, self.to_storage())
         elif self._is_optimistic:
-            self._primary_key = self._storage[0]._optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
+            self._optimistic_insert()
+            # self._primary_key = self._storage[0]._optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
         else:
             self.insert(self._primary_key, self.to_storage())
 
@@ -491,13 +514,14 @@ class StoredObject(object):
             item_split = item.split('__')
             if len(item_split) == 2:
                 parent_schema_name, backref_key = item_split
+                backrefs = deref(self._backrefs, [backref_key, parent_schema_name], missing={})
                 ids = sum(
-                    [_ids for _, _ids in self._backrefs[backref_key][parent_schema_name].items()],
+                    backrefs.values(),
                     []
                 )
             elif len(item_split) == 3:
                 parent_schema_name, backref_key, parent_field_name = item_split
-                ids = self._backrefs[backref_key][parent_schema_name][parent_field_name]
+                ids = deref(self._backrefs, [backref_key, parent_schema_name, parent_field_name], missing=[])
             else:
                 raise Exception('uh oh')
             return ForeignList(ids, base_class=StoredObject.get_collection(parent_schema_name))
@@ -560,7 +584,7 @@ class StoredObject(object):
         key_store = cls._pk_to_storage(key)
 
         # Remove backrefs from linked fields
-        for field_name, field_object in cls._fields.iteritems():
+        for field_name, field_object in cls._fields.items():
 
             to_deletes = []
 
