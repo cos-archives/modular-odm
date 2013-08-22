@@ -26,7 +26,6 @@ class TypeValidator(object):
 
         for atype in self.allowed_types:
             if isinstance(value, atype):
-                allowed = True
                 return
 
         self._raise(value)
