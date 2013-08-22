@@ -1,11 +1,11 @@
-from modularodm.tests import PickleStorageTestCase, TestObject
+from modularodm.tests import ModularOdmTestCase, TestObject
 
 from modularodm.fields import ForeignField, IntegerField
 
 
-class OneToManyFieldTestCase(PickleStorageTestCase):
+class OneToManyFieldTestCase(ModularOdmTestCase):
 
-    def setUp(self):
+    def define_test_objects(self):
 
         class Foo(TestObject):
             _id = IntegerField()
@@ -14,15 +14,17 @@ class OneToManyFieldTestCase(PickleStorageTestCase):
         class Bar(TestObject):
             _id = IntegerField()
 
-        self.foo = Foo(_id=1)
-        self.bar = Bar(_id=2)
+        return Foo, Bar
+
+    def set_up_test_objects(self):
+
+        self.foo = self.Foo(_id=1)
+        self.bar = self.Bar(_id=2)
 
         self.bar.save()
 
         self.foo.my_bar = self.bar
         self.foo.save()
-
-        super(OneToManyFieldTestCase, self).setUp()
 
     def test_one_to_one_backref(self):
 

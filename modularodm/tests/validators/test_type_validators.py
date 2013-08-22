@@ -1,6 +1,7 @@
 import datetime as dt
-from modularodm.exceptions import ValidationTypeError
 
+from modularodm import StoredObject
+from modularodm.exceptions import ValidationTypeError
 from modularodm.fields import (
     BooleanField,
     DateTimeField,
@@ -8,19 +9,17 @@ from modularodm.fields import (
     IntegerField,
     StringField,
 )
+from modularodm.tests import ModularOdmTestCase
 
-from modularodm.tests import TestObject, PickleStorageTestCase
 
-
-class BooleanValidatorTestCase(PickleStorageTestCase):
-    def setUp(self):
-        class Foo(TestObject):
+class BooleanValidatorTestCase(ModularOdmTestCase):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             field = BooleanField(list=False, validate=True)
 
         self.test_object = Foo()
-
-        super(BooleanValidatorTestCase, self).setUp()
+        return Foo,
 
     def test_bool(self):
 
@@ -57,15 +56,15 @@ class BooleanValidatorTestCase(PickleStorageTestCase):
             self.test_object.save()
 
 
-class DateTimeValidatorTestCase(PickleStorageTestCase):
-    def setUp(self):
-        class Foo(TestObject):
+class DateTimeValidatorTestCase(ModularOdmTestCase):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             field = DateTimeField(list=False, validate=True)
 
         self.test_object = Foo()
 
-        super(DateTimeValidatorTestCase, self).setUp()
+        return Foo,
 
     def test_bool(self):
 
@@ -102,15 +101,15 @@ class DateTimeValidatorTestCase(PickleStorageTestCase):
             self.test_object.save()
 
 
-class FloatValidatorTestCase(PickleStorageTestCase):
-    def setUp(self):
-        class Foo(TestObject):
+class FloatValidatorTestCase(ModularOdmTestCase):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             field = FloatField(list=False, validate=True)
 
         self.test_object = Foo()
 
-        super(FloatValidatorTestCase, self).setUp()
+        return Foo,
 
     def test_bool(self):
 
@@ -147,15 +146,15 @@ class FloatValidatorTestCase(PickleStorageTestCase):
             self.test_object.save()
 
 
-class IntegerValidatorTestCase(PickleStorageTestCase):
-    def setUp(self):
-        class Foo(TestObject):
+class IntegerValidatorTestCase(ModularOdmTestCase):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             field = IntegerField(list=False, validate=True)
 
         self.test_object = Foo()
 
-        super(IntegerValidatorTestCase, self).setUp()
+        return Foo,
 
     def test_bool(self):
 
@@ -192,15 +191,15 @@ class IntegerValidatorTestCase(PickleStorageTestCase):
             self.test_object.save()
 
 
-class StringValidatorTestCase(PickleStorageTestCase):
-    def setUp(self):
-        class Foo(TestObject):
+class StringValidatorTestCase(ModularOdmTestCase):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             field = StringField(list=False, validate=True)
 
         self.test_object = Foo()
 
-        super(StringValidatorTestCase, self).setUp()
+        return Foo,
 
     def test_bool(self):
 
@@ -236,15 +235,15 @@ class StringValidatorTestCase(PickleStorageTestCase):
         self.test_object.save()
 
 
-class ListValidatorTestCase(PickleStorageTestCase):
-    def setUp(self):
-        class Foo(TestObject):
+class ListValidatorTestCase(ModularOdmTestCase):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             field = StringField(list=True, validate=True)
 
         self.test_object = Foo()
 
-        super(ListValidatorTestCase, self).setUp()
+        return Foo,
 
     def test_bool(self):
 

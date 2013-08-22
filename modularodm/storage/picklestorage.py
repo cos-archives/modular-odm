@@ -2,6 +2,7 @@ from .base import Storage, KeyExistsException
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
+from modularodm.exceptions import MultipleResultsFound, NoResultsFound
 
 import os
 try:
@@ -145,20 +146,17 @@ class PickleStorage(Storage):
         with open(self.filename, 'wb') as fp:
             pickle.dump(self.store, fp, -1)
 
-    def find_all(self):
-        return self.store.values()
-
-    def find_one(self, **kwargs):
-
-        results = list(self.find(**kwargs))
+    def find_one(self, *query):
+        results = list(self.find(*query))
         if len(results) == 1:
             return results[0]
-
-        raise Exception(
-            'Query for find_one must return exactly one result; returned {0}'.format(
-                len(results)
+        elif len(results) == 0:
+            raise NoResultsFound()
+        else:
+            raise MultipleResultsFound(
+                'Query for find_one must return exactly one result; '
+                'returned {0}'.format(len(results))
             )
-        )
 
     def _match(self, value, query):
 
@@ -187,16 +185,19 @@ class PickleStorage(Storage):
             raise Exception('Query must be a QueryGroup or Query object.')
 
     def find(self, *query):
-
-        if len(query) > 1:
-            query = QueryGroup('and', *query)
-        else:
-            query = query[0]
-
-        for key, value in self.store.iteritems():
-
-            if self._match(value, query):
+        if len(query) == 0:
+            for key, value in self.store.iteritems():
                 yield value
+        else:
+            if len(query) > 1:
+                query = QueryGroup('and', *query)
+            else:
+                query = query[0]
+
+            for key, value in self.store.iteritems():
+
+                if self._match(value, query):
+                    yield value
 
     def __repr__(self):
         return str(self.store)

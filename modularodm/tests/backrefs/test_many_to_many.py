@@ -1,27 +1,29 @@
-from modularodm.tests import PickleStorageTestCase, TestObject
+from modularodm.tests import ModularOdmTestCase
 
-from modularodm import exceptions as exc
+from modularodm import (
+    exceptions as exc,
+    StoredObject,
+)
 from modularodm.fields import ForeignField, IntegerField
 
+class ManyToManyFieldTestCase(ModularOdmTestCase):
 
-class ManyToManyFieldTestCase(PickleStorageTestCase):
-
-    def setUp(self):
-        class Foo(TestObject):
+    def define_test_objects(self):
+        class Foo(StoredObject):
             _id = IntegerField()
             my_bar = ForeignField('Bar', list=True, backref='my_foo')
 
-        class Bar(TestObject):
+        class Bar(StoredObject):
             _id = IntegerField()
 
-        # Assign classes ot the test fixture
-        self.Foo = Foo
-        self.Bar = Bar
+        return Foo, Bar
+
+    def set_up_test_objects(self):
 
         # create a Foo and two Bars
-        self.foo = Foo(_id=1)
-        self.bar = Bar(_id=2)
-        self.baz = Bar(_id=3)
+        self.foo = self.Foo(_id=1)
+        self.bar = self.Bar(_id=2)
+        self.baz = self.Bar(_id=3)
 
         # save the bars so they're in the storage
         self.bar.save()
@@ -33,8 +35,6 @@ class ManyToManyFieldTestCase(PickleStorageTestCase):
 
         # save foo to persist changes
         self.foo.save()
-
-        super(ManyToManyFieldTestCase, self).setUp()
 
     def test_one_to_many_backref(self):
 
@@ -216,3 +216,5 @@ class ManyToManyFieldTestCase(PickleStorageTestCase):
         """
         with self.assertRaises(exc.ModularOdmException):
             self.bar._backrefs = {'my_foo': {'foo': {'my_bar': [self.foo._id]}}}
+
+#print ModularOdmTestCasePickle.__dict__.keys()
