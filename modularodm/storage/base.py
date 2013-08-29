@@ -98,8 +98,8 @@ class StorageMeta(type):
 
             dct[key] = logify(value)
 
-        # if not issubclass(mcs, Storage):
-        dct['logger'] = Logger()
+        # # if not issubclass(mcs, Storage):
+        # dct['logger'] = Logger()
 
         # Run super-metaclass __new__
         return super(StorageMeta, mcs).__new__(mcs, name, bases, dct)
@@ -113,6 +113,7 @@ class Storage(object):
 
     __metaclass__ = StorageMeta
     translator = DefaultTranslator()
+    logger = Logger()
 
     def _ensure_index(self, key):
         pass
