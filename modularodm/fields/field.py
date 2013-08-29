@@ -59,6 +59,7 @@ class Field(object):
         self._required = kwargs.get('required', False)
         self._editable = kwargs.get('editable', True)
         self._index = kwargs.get('index', self._is_primary)
+        self._is_foreign = False
 
     def do_validate(self, value):
 
