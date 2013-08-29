@@ -56,20 +56,30 @@ class MongoQuerySet(BaseQuerySet):
         super(MongoQuerySet, self).__init__(schema)
         self.data = cursor
 
-    def __getitem__(self, index):
-
+    def __getitem__(self, index, raw=False):
         super(MongoQuerySet, self).__getitem__(index)
-        return self.schema.load(self.data[index][self.primary])
+        key = self.data[index][self.primary]
+        if raw:
+            return key
+        return self.schema.load(key)
 
-    def __iter__(self):
-
-        return (self.schema.load(obj[self.primary]) for obj in self.data.clone())
+    def __iter__(self, raw=False):
+        keys = [obj[self.primary] for obj in self.data.clone()]
+        if raw:
+            return keys
+        return (self.schema.load(key) for key in keys)
 
     def __len__(self):
 
         return self.data.count(with_limit_and_skip=True)
 
     count = __len__
+
+    def get_key(self, index):
+        return self.__getitem__(index, raw=True)
+
+    def get_keys(self):
+        return list(self.__iter__(raw=True))
 
     def sort(self, *keys):
 
@@ -146,15 +156,23 @@ class MongoStorage(Storage):
             value[schema._primary_name] = key
         self.store.insert(value)
 
-    # todo: add mongo-style updating (allow updating multiple records at once)
-    # todo: -> update_one
-    def update(self, schema, key, value):
-        self.store.update(
-            {schema._primary_name : key},
-            value
-        )
+    # # todo: add mongo-style updating (allow updating multiple records at once)
+    # # todo: -> update_one
+    # def update(self, schema, key, value):
+    #     self.store.update(
+    #         {schema._primary_name : key},
+    #         value
+    #     )
 
-    # todo add remove_one
+    def update(self, query, data):
+        mongo_query = self._translate_query(query)
+        update_query = {'$set' : data}
+        self.store.update(
+            mongo_query,
+            update_query,
+            upsert=False,
+            multi=True
+        )
 
     def remove(self, *query):
         mongo_query = self._translate_query(*query)
