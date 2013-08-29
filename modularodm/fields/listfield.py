@@ -1,4 +1,4 @@
-from ..fields import Field
+from ..fields import Field, ForeignField
 from ..validators import validate_list
 
 class ListField(Field):
@@ -13,6 +13,7 @@ class ListField(Field):
 
         # ListField is a list of the following (e.g., ForeignFields)
         self._field_instance = field_instance
+        self._is_foreign = isinstance(field_instance, ForeignField)
 
         # Descriptor data is this type of list
         self._list_class = self._field_instance._list_class
