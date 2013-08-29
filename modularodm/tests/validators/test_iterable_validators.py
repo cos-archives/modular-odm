@@ -10,29 +10,33 @@ class StringValidatorTestCase(ModularOdmTestCase):
     def define_test_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
-            test_field = StringField(
+            test_field_max = StringField(
                 list=False,
                 validate=[MaxLengthValidator(5), ]
+            )
+            test_field_min = StringField(
+                list=False,
+                validate=[MinLengthValidator(5), ]
             )
         self.test_object = Foo(_id=0)
         return Foo,
 
     def test_max_length_string_validator(self):
         
-        self.test_object.test_field = 'abc'
+        self.test_object.test_field_max = 'abc'
         self.test_object.save()
 
-        self.test_object.test_field = 'abcdefg'
+        self.test_object.test_field_max = 'abcdefg'
         with self.assertRaises(ValidationValueError):
             self.test_object.save()
 
     def test_min_length_string_validator(self):
 
-        self.test_object.test_field = 'abc'
+        self.test_object.test_field_min = 'abc'
         with self.assertRaises(ValidationValueError):
             self.test_object.save()
 
-        self.test_object.test_field = 'abcdefg'
+        self.test_object.test_field_min = 'abcdefg'
         self.test_object.save()
 
 
@@ -41,9 +45,13 @@ class ListValidatorTestCase(ModularOdmTestCase):
     def define_test_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
-            test_field = IntegerField(
+            test_field_max = IntegerField(
                 list=True,
                 list_validate=[MaxLengthValidator(5), ]
+            )
+            test_field_min = IntegerField(
+                list=True,
+                list_validate=[MinLengthValidator(3), ]
             )
         self.test_object = Foo(_id=0)
         return Foo,
@@ -51,20 +59,21 @@ class ListValidatorTestCase(ModularOdmTestCase):
     def test_min_length_list_validator(self):
         # This test fails.
 
-        self.test_object.test_field = [1, 2, 3]
+        self.test_object.test_field_min = [1, 2]
         with self.assertRaises(ValidationValueError):
             self.test_object.save()
 
-        self.test_object.test_field = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        self.test_object.test_field_min = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
         self.test_object.save()
 
     def test_max_length_list_validator(self):
         # This test fails.
 
-        self.test_object.test_field = [1, 2, 3]
+        self.test_object.test_field_min = [1, 2, 3]
+        self.test_object.test_field_max = [1, 2, 3]
         self.test_object.save()
 
-        self.test_object.test_field = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        self.test_object.test_field_max = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
         with self.assertRaises(ValidationValueError):
             self.test_object.save()
 
