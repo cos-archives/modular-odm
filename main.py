@@ -1,11 +1,11 @@
 # todo: warn on no default, or something
 # todo: get default collection name for picklestorage, mongostorage constructors
 # todo: requirements.txt
-# todo: distutils
 
 import pprint
 
 from modularodm import StoredObject
+from modularodm.storedobject import ContextLogger
 from modularodm import fields
 from modularodm import storage
 from modularodm.validators import *
@@ -141,7 +141,7 @@ sheila1.save()
 sheila1_stored = sheila1.to_storage(clone=True)
 sheila1_reloaded = Sheila.from_storage(sheila1_stored)
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 class Tag(StoredObject):
     value = fields.StringField(primary=True, index=False)
@@ -170,10 +170,10 @@ except:pass
 try:os.remove('db_tag.pkl')
 except:pass
 
-# Tag.set_storage(storage.MongoStorage(db, 'tag'))
-# Blog.set_storage(storage.MongoStorage(db, 'blog'))
-Tag.set_storage(storage.PickleStorage('tag'))
-Blog.set_storage(storage.PickleStorage('blog'))
+Tag.set_storage(storage.MongoStorage(db, 'tag'))
+Blog.set_storage(storage.MongoStorage(db, 'blog'))
+# Tag.set_storage(storage.PickleStorage('tag'))
+# Blog.set_storage(storage.PickleStorage('blog'))
 
 tag1 = Tag(value=str(random.randint(0, 1000)), count='count_1', keywords=['keywd1', 'keywd3', 'keywd4'])
 tag1.save()
@@ -184,10 +184,10 @@ tag2.save()
 tag3 = Tag(value=str(random.randint(0, 1000)), count="count_3", misc="foobaz", misc2="b")
 tag3.save()
 
-tag4 = Tag(value=str(random.randint(0, 1000)), count="count_4", misc="bar", misc2="a")
+tag4 = Tag(value=str(random.randint(0, 1000)), count="mycount_4", misc="bar", misc2="a")
 tag4.save()
 
-tag5 = Tag(value=str(random.randint(0, 1000)), count="count_5", misc="baz", misc2="b")
+tag5 = Tag(value=str(random.randint(0, 1000)), count="mycount_5", misc="baz", misc2="b")
 tag5.save()
 
 blog1 = Blog(title='blogtitle1')
@@ -219,26 +219,42 @@ blog1.save()
 
 # import pdb; pdb.set_trace()
 
-blog2.tag = tag1
-# blog2.tags.append(tag1)
+logging.debug("foo")
 
-blog2.save()
+with ContextLogger():
 
-blog3.tag = tag1
+    blog2.tag = tag1
+    # blog2.tags.append(tag1)
 
-blog3.save()
+    blog2.save()
 
-blog4 = Blog(tags=[tag1])
-blog4.save()
+    blog3.tag = tag1
 
-# import pdb; pdb.set_trace()
+    blog3.save()
 
-res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+    blog4 = Blog(title='tbdtbdtbd', tags=[tag1, tag2, tag3, tag4, tag5])
+    blog4.save()
 
-# todo: accept list of strings
-res = Tag.find_all().sort('misc2', '-misc')
-# import pdb; pdb.set_trace()
-print 'here', [(r.misc, r.misc2) for r in res]
+logging.debug("bar")
+
+import pdb; pdb.set_trace()
+
+Blog.remove(Q('title', 'startswith', 'tbd'))
+
+# res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+# print 'before rm', res.count()
+#
+# Tag.remove(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+#
+# res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+# print 'after rm', res.count()
+
+Tag.update(Q('count', 'startswith', 'count_'), {'count' : 'shutup'})
+print tag1.count
+
+import pdb; pdb.set_trace()
+
+# print 'here', [(r.misc, r.misc2) for r in res]
 
 res = Tag.find(Q('count', 'eq', 'count_1'))
 print 'here', res.count(), list(res)
