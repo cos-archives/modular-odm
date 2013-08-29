@@ -6,6 +6,16 @@ import pprint
 
 from fields import Field, ListField, ForeignField, ForeignList
 from .storage import Storage
+from .query import QueryBase, RawQuery
+
+class ContextLogger(object):
+
+    def __enter__(self):
+        Storage.logger.listen()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        logging.debug(('report', pprint.pformat(Storage.logger.report())))
+        Storage.logger.clear()
 
 def deref(data, keys, missing=None):
     if keys[0] in data:
@@ -34,14 +44,13 @@ def log_storage(func):
     @wraps(func)
     def wrapped(this, *args, **kwargs):
 
-        logger = this._storage[0].logger
-        listening = logger.listen()
+        listening = Storage.logger.listen()
 
         out = func(this, *args, **kwargs)
 
         if listening:
-            logging.debug(pprint.pprint(logger.report()))
-            logger.clear()
+            logging.debug(pprint.pprint(Storage.logger.report()))
+            Storage.logger.clear()
 
         return out
 
@@ -50,12 +59,12 @@ def log_storage(func):
 def warn_if_detached(func):
     """ Warn if self / cls is detached. """
     @wraps(func)
-    def wrapped(mcs, *args, **kwargs):
+    def wrapped(this, *args, **kwargs):
         # Check for _detached in __dict__ instead of using hasattr
         # to avoid infinite loop in __getattr__
-        if '_detached' in mcs.__dict__ and mcs._detached:
+        if '_detached' in this.__dict__ and this._detached:
             warnings.warn('here')
-        return func(mcs, *args, **kwargs)
+        return func(this, *args, **kwargs)
     return wrapped
 
 def has_storage(func):
@@ -151,6 +160,7 @@ class StoredObject(object):
     _collections = {}
     _cache = {}
     _object_cache = {}
+    _dirty = {}
 
     def __init__(self, **kwargs):
 
@@ -195,6 +205,11 @@ class StoredObject(object):
     @_primary_key.setter
     def _primary_key(self, value):
         setattr(self, self._primary_name, value)
+
+    @property
+    def _storage_key(self):
+        """ Primary key passed through translator. """
+        return self._pk_to_storage(self._primary_key)
 
     @property
     @has_storage
@@ -257,6 +272,7 @@ class StoredObject(object):
 
     def _remove_backref(self, backref_key, parent, parent_field_name):
         self._backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
+        self.save()
 
     def _set_backref(self, backref_key, parent_field_name, backref_value):
 
@@ -383,6 +399,18 @@ class StoredObject(object):
     ###########################################################################
 
     @classmethod
+    def _add_dirty(cls, storage_key):
+        if cls._name not in cls._dirty:
+            cls._dirty[cls._name] = []
+        cls._dirty[cls._name].append(storage_key)
+
+    @classmethod
+    def _rm_dirty(cls, storage_key):
+        if cls._name not in cls._dirty:
+            return
+        cls._dirty[cls._name].remove(storage_key)
+
+    @classmethod
     def _to_primary_key(cls, value):
 
         if value is None:
@@ -415,7 +443,6 @@ class StoredObject(object):
             )
 
         return key
-
 
     @classmethod
     @has_storage
@@ -482,7 +509,8 @@ class StoredObject(object):
             field_object.do_validate(getattr(self, field_name))
 
         if self._is_loaded:
-            self.update(self._primary_key, self.to_storage())
+            # self.update(self._primary_key, self.to_storage())
+            self.update_one(self._primary_key, self.to_storage(), saved=True)
         elif self._is_optimistic:
             self._optimistic_insert()
             # self._primary_key = self._storage[0]._optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
@@ -506,6 +534,36 @@ class StoredObject(object):
         self._set_cache(self._primary_key, self)
 
         return True # todo raise exception on not save
+
+    def __getattribute__(self, item):
+        cls = object.__getattribute__(self, '__class__')
+        if hasattr(cls, '_storage') and cls._storage:
+            field_object = cls._fields[cls._primary_name]
+            key = field_object.data.get(self)
+            storage_key = cls._pk_to_storage(key)
+            dirty = cls._name in cls._dirty \
+                and storage_key in cls._dirty[cls._name]
+            if dirty:
+                cls._rm_dirty(storage_key)
+                object.__getattribute__(self, 'reload')()
+        return object.__getattribute__(self, item)
+
+    def reload(self):
+
+        storage_data = self._storage[0].get(self.__class__, self._storage_key)
+
+        for key, value in storage_data.items():
+            field_object = self._fields.get(key, None)
+            if isinstance(field_object, Field):
+                data_value = storage_data[key]
+                if data_value is None:
+                    value = None
+                    setattr(self, key, None)
+                else:
+                    value = field_object.from_storage(data_value)
+                field_object.__set__(self, value, safe=True)
+
+        self._set_cache(self._storage_key, self)
 
     @warn_if_detached
     def __getattr__(self, item):
@@ -534,7 +592,7 @@ class StoredObject(object):
         if key not in self._fields and not key.startswith('_'):
             warnings.warn('Setting an attribute that is neither a field nor a protected value.')
         super(StoredObject, self).__setattr__(key, value)
-        
+
     # Querying ######
 
     @classmethod
@@ -547,11 +605,6 @@ class StoredObject(object):
     @has_storage
     def _pk_to_storage(cls, key):
         return cls._fields[cls._primary_name].to_storage(key)
-
-    @classmethod
-    @has_storage
-    def find_all(cls):
-        return cls._storage[0].QuerySet(cls, cls._storage[0].find_all())
 
     @classmethod
     @has_storage
@@ -573,61 +626,162 @@ class StoredObject(object):
     def insert(cls, key, val):
         cls._storage[0].insert(cls, cls._pk_to_storage(key), val)
 
-    @classmethod
-    @has_storage
-    def update(cls, key, val):
-        cls._storage[0].update(cls, cls._pk_to_storage(key), val)
+    # @classmethod
+    # @has_storage
+    # def update(cls, key, data):
+    #     cls._storage[0].update(cls, cls._pk_to_storage(key), data)
 
     @classmethod
-    @has_storage
-    def remove(cls, value):
+    def _prepare_update(cls, data):
 
-        key, value = cls._parse_key_value(value)
-        key_store = cls._pk_to_storage(key)
+        storage_data = {}
+        includes_foreign = False
 
-        # Remove backrefs from linked fields
-        for field_name, field_object in cls._fields.items():
-
-            to_deletes = []
-
-            if isinstance(field_object, ForeignField):
-                to_deletes = [getattr(value, field_name)]
-                field_instance = field_object
-            elif isinstance(field_object, ListField):
-                field_instance = field_object._field_instance
-                if isinstance(field_instance, ForeignField):
-                    to_deletes = getattr(value, field_name)
-
-            for to_delete in to_deletes:
-                to_delete._remove_backref(
-                    field_instance._backref_field_name,
-                    value,
-                    field_name,
-                )
-
-        # Remove backrefs to linked fields
-        for stack, key in value._backrefs_flat:
-
-            # Unpack stack
-            backref_key, parent_schema_name, parent_field_name = stack
-
-            # Get parent info
-            parent_schema = StoredObject._collections[parent_schema_name]
-            parent_key_store = parent_schema._pk_to_storage(key)
-            parent_object = parent_schema.load(parent_key_store)
-
-            # Remove backrefs
-            if parent_object._fields[parent_field_name]._list:
-                getattr(parent_object, parent_field_name).remove(value)
+        for key, value in data.items():
+            if key in cls._fields:
+                field_object = cls._fields[key]
+                if field_object._is_foreign and not includes_foreign:
+                    includes_foreign = True
+                if key == cls._primary_name:
+                    continue
+                storage_data[key] = field_object.to_storage(value)
             else:
-                parent_field_object = parent_object._fields[parent_field_name]
-                setattr(parent_object, parent_field_name, parent_field_object._gen_default())
+                storage_data[key] = value
 
-            parent_object.save()
+        return storage_data, includes_foreign
 
-        # Detach record
-        value._detached = True
+    @classmethod
+    def _update_in_memory(cls, obj, storage_data):
+        for field_name, data_value in storage_data.items():
+            field_object = obj._fields[field_name]
+            field_object.__set__(obj, data_value, safe=True)
+        obj.save()
 
-        # Remove record from cache and database
-        cls._clear_caches(key_store)
-        cls._storage[0].remove(key_store)
+    @classmethod
+    def _which_to_obj(cls, which):
+        if isinstance(which, list) and isinstance(which[0], QueryBase):
+            return cls.find_one(which)
+        if isinstance(which, StoredObject):
+            return which
+        return cls.load(cls._pk_to_storage(which))
+
+    @classmethod
+    @has_storage
+    def update_one(cls, which, data, saved=False):
+
+        storage_data, includes_foreign = cls._prepare_update(data)
+        obj = cls._which_to_obj(which)
+
+        if saved or not includes_foreign:
+            cls._storage[0].update(
+                RawQuery(
+                    cls._primary_name, 'eq', obj._primary_key
+                ),
+                storage_data,
+            )
+            if not saved:
+                cls._clear_caches(obj._storage_key)
+        else:
+            cls._update_in_memory(obj, storage_data)
+
+    @classmethod
+    @has_storage
+    def update(cls, query, data):
+
+        storage_data, includes_foreign = cls._prepare_update(data)
+
+        objs = cls.find(query)
+        keys = objs.get_keys()
+
+        if not includes_foreign:
+            cls._storage[0].update(query, storage_data)
+            for key in keys:
+                cls._add_dirty(key)
+                cls._clear_caches(key)
+
+        else:
+            for obj in objs:
+                cls._update_in_memory(obj, storage_data)
+
+    @classmethod
+    @has_storage
+    def remove_one(cls, which, rm=True):
+
+        # Look up object
+        obj = cls._which_to_obj(which)
+
+        # Remove references
+        rm_fwd_refs(obj)
+        rm_back_refs(obj)
+
+        # Detach and remove from backend
+        obj._detached = True
+        cls._clear_caches(obj._storage_key)
+
+        # Remove from backend
+        if rm:
+            cls._storage[0].remove(
+                RawQuery(obj._primary_name, 'eq', obj._storage_key)
+            )
+
+    @classmethod
+    @has_storage
+    def remove(cls, *query):
+
+        objs = cls.find(*query)
+
+        for obj in objs:
+            cls.remove_one(obj, rm=False)
+
+        cls._storage[0].remove(*query)
+
+def rm_fwd_refs(obj):
+    """ Remove forward references to linked fields. """
+
+    for stack, key in obj._backrefs_flat:
+
+        # Unpack stack
+        backref_key, parent_schema_name, parent_field_name = stack
+
+        # Get parent info
+        parent_schema = StoredObject._collections[parent_schema_name]
+        parent_key_store = parent_schema._pk_to_storage(key)
+        parent_object = parent_schema.load(parent_key_store)
+
+        # Remove forward references
+        if parent_object._fields[parent_field_name]._list:
+            getattr(parent_object, parent_field_name).remove(obj)
+        else:
+            parent_field_object = parent_object._fields[parent_field_name]
+            setattr(parent_object, parent_field_name, parent_field_object._gen_default())
+
+        # Save
+        parent_object.save()
+
+def rm_back_refs(obj):
+    """ Remove backward references from linked fields. """
+
+    for field_name, field_object in obj._fields.items():
+
+        delete_queue = []
+
+        if isinstance(field_object, ForeignField):
+            value = getattr(obj, field_name)
+            if value:
+                delete_queue.append(value)
+            field_instance = field_object
+
+        elif isinstance(field_object, ListField):
+            field_instance = field_object._field_instance
+            if isinstance(field_instance, ForeignField):
+                delete_queue = getattr(obj, field_name)
+
+        else:
+            continue
+
+        for obj_to_delete in delete_queue:
+            obj_to_delete._remove_backref(
+                field_instance._backref_field_name,
+                obj,
+                field_name,
+            )
