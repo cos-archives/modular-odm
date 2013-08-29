@@ -10,6 +10,7 @@ class ForeignField(Field):
         self._backref_field_name = kwargs.get('backref', None)
         self._base_class_name = args[0] # todo allow class references / callable?
         self._base_class = None
+        self._is_foreign = True
 
     def on_after_save(self, parent, field_name, old_stored_data, new_value):
         '''
@@ -60,7 +61,8 @@ class ForeignField(Field):
                 raise Exception('Record must be loaded.')
             return value._primary_key
 
-        return self.base_class._check_pk_type(value)
+        return self.base_class._to_primary_key(value)
+        # return self.base_class._check_pk_type(value)
 
     @property
     def base_class(self):
