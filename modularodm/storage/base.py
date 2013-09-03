@@ -16,8 +16,11 @@ class Logger(object):
 
         self.listening = False
         self.events = []
+        self.xtra = []
 
-    def listen(self):
+    def listen(self, xtra=None):
+
+        self.xtra.append(xtra)
 
         if self.listening:
             return False
@@ -31,19 +34,26 @@ class Logger(object):
         if self.listening:
             self.events.append(event)
 
-    def report(self):
+    def report(self, sort_func=None):
 
         out = {}
 
-        comparator = operator.attrgetter('func_name')
-        heard = sorted(self.events, key=comparator)
-        for key, group in itertools.groupby(heard, comparator):
+        if sort_func is None:
+            sort_func = lambda e: e.func.__name__
+
+        heard = sorted(self.events, key=sort_func)
+
+        for key, group in itertools.groupby(heard, sort_func):
             group = list(group)
             num_events = len(group)
             total_time = sum([event.elapsed_time for event in group])
             out[key] = (num_events, total_time)
 
         return out
+
+    def pop(self):
+
+        self.xtra.pop()
 
     def clear(self):
 
@@ -52,16 +62,17 @@ class Logger(object):
 
 class LogEvent(object):
 
-    def __init__(self, func_name, start_time, stop_time):
+    def __init__(self, func, start_time, stop_time, xtra=None):
 
-        self.func_name = func_name
+        self.func = func
         self.start_time = start_time
         self.stop_time = stop_time
         self.elapsed_time = stop_time - start_time
+        self.xtra = xtra
 
     def __repr__(self):
 
-        return 'LogEvent("{func_name}", {start_time}, {stop_time})'.format(
+        return 'LogEvent("{func}", {start_time}, {stop_time}, {xtra})'.format(
             **self.__dict__
         )
 
@@ -77,7 +88,15 @@ def logify(func):
 
         if this.logger.listening:
             stop_time = time.time()
-            this.logger.record_event(LogEvent(func.__name__, start_time, stop_time))
+            xtra = this.logger.xtra[-1]
+            this.logger.record_event(
+                LogEvent(
+                    func,
+                    start_time,
+                    stop_time,
+                    xtra
+                )
+            )
 
         return out
 
@@ -87,19 +106,12 @@ class StorageMeta(type):
 
     def __new__(mcs, name, bases, dct):
 
+        # Decorate methods
         for key, value in dct.items():
-
-            if not hasattr(value, '__call__'):
-                continue
-            if isinstance(value, type):
-                continue
-            if key.startswith('_') or key.endswith('_'):
-                continue
-
-            dct[key] = logify(value)
-
-        # # if not issubclass(mcs, Storage):
-        # dct['logger'] = Logger()
+            if hasattr(value, '__call__') \
+                    and not isinstance(value, type) \
+                    and not key.startswith('_'):
+                dct[key] = logify(value)
 
         # Run super-metaclass __new__
         return super(StorageMeta, mcs).__new__(mcs, name, bases, dct)
