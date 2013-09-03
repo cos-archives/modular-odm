@@ -2,20 +2,41 @@ import copy
 
 import logging
 import warnings
-import pprint
 
 from fields import Field, ListField, ForeignField, ForeignList
 from .storage import Storage
 from .query import QueryBase, RawQuery
+from .frozen import FrozenDict
+from .exceptions import ModularOdmException
 
 class ContextLogger(object):
 
+    @staticmethod
+    def sort_func(e):
+        return (e.xtra._name, e.func.__name__)
+
+    def report(self, sort_func=None):
+        return self.logger.report(sort_func or self.sort_func)
+
+    def __init__(self, log_level=None, xtra=None, sort_func=None):
+        self.log_level = log_level
+        self.xtra = xtra
+        self.sort_func = sort_func or self.sort_func
+        self.logger = Storage.logger
+
     def __enter__(self):
-        Storage.logger.listen()
+        self.listening = self.logger.listen(self.xtra)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        logging.debug(('report', pprint.pformat(Storage.logger.report())))
-        Storage.logger.clear()
+        if self.listening:
+            report = self.logger.report(
+                lambda e: (e.xtra._name, e.func.__name__)
+            )
+            if self.log_level is not None:
+                logging.log(self.log_level, report)
+            self.logger.clear()
+        self.logger.pop()
 
 def deref(data, keys, missing=None):
     if keys[0] in data:
@@ -44,15 +65,10 @@ def log_storage(func):
     @wraps(func)
     def wrapped(this, *args, **kwargs):
 
-        listening = Storage.logger.listen()
+        cls = this if isinstance(this, type) else type(this)
 
-        out = func(this, *args, **kwargs)
-
-        if listening:
-            logging.debug(pprint.pprint(Storage.logger.report()))
-            Storage.logger.clear()
-
-        return out
+        with ContextLogger(log_level=this._log_level, xtra=cls):
+            return func(this, *args, **kwargs)
 
     return wrapped
 
@@ -93,6 +109,8 @@ class ObjectMeta(type):
         # Store optimism
         cls._is_optimistic = hasattr(cls, '_meta') and \
             cls._meta.get('optimistic', False)
+        cls._log_level = hasattr(cls, '_meta') and \
+            cls._meta.get('log_level', None)
 
         # Prepare fields
         cls._fields = {}
@@ -164,7 +182,7 @@ class StoredObject(object):
 
     def __init__(self, **kwargs):
 
-        self._backrefs = {}
+        self.__backrefs = {}
         self._detached = False
         self._is_loaded = kwargs.pop('_is_loaded', False)
 
@@ -231,7 +249,7 @@ class StoredObject(object):
             data[field_name] = field_value
 
         if not clone and self._backrefs:
-            data['_backrefs'] = self._backrefs
+            data['__backrefs'] = self.__backrefs
 
         return data
 
@@ -239,7 +257,8 @@ class StoredObject(object):
     @has_storage
     def from_storage(cls, data, translator=None):
 
-        result = cls()
+        # result = cls()
+        result = {}
 
         for key, value in data.items():
 
@@ -249,29 +268,43 @@ class StoredObject(object):
                 data_value = data[key]
                 if data_value is None:
                     value = None
-                    setattr(result, key, None)
+                    # setattr(result, key, None)
+                    result[key] = None
                 else:
                     value = field_object.from_storage(data_value, translator)
-                field_object.__set__(result, value, safe=True)
+                # field_object.__set__(result, value, safe=True)
+                result[key] = value
 
             else:
-                setattr(result, key, value)
+                # setattr(result, key, value)
+                result[key] = value
 
-        result._is_loaded = True
+        # result._is_loaded = False
 
         return result
 
     def clone(self):
-        return self.from_storage(self.to_storage(clone=True))
+        return self.load_from_data(
+            self.to_storage(clone=True),
+            _is_loaded=False
+        )
 
     # Backreferences
+
+    @property
+    def _backrefs(self):
+        return FrozenDict(**self.__backrefs)
+
+    @_backrefs.setter
+    def _backrefs(self, _):
+        raise ModularOdmException('Cannot modify backrefs.')
 
     @property
     def _backrefs_flat(self):
         return flatten_backrefs(self._backrefs)
 
     def _remove_backref(self, backref_key, parent, parent_field_name):
-        self._backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
+        self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
         self.save()
 
     def _set_backref(self, backref_key, parent_field_name, backref_value):
@@ -283,13 +316,13 @@ class StoredObject(object):
             raise Exception('backref object\'s primary key must be saved first')
 
         if backref_key not in self._backrefs:
-            self._backrefs[backref_key] = {}
+            self.__backrefs[backref_key] = {}
         if backref_value_class_name not in self._backrefs[backref_key]:
-            self._backrefs[backref_key][backref_value_class_name] = {}
+            self.__backrefs[backref_key][backref_value_class_name] = {}
         if parent_field_name not in self._backrefs[backref_key][backref_value_class_name]:
-            self._backrefs[backref_key][backref_value_class_name][parent_field_name] = []
+            self.__backrefs[backref_key][backref_value_class_name][parent_field_name] = []
 
-        append_to = self._backrefs[backref_key][backref_value_class_name][parent_field_name]
+        append_to = self.__backrefs[backref_key][backref_value_class_name][parent_field_name]
         if backref_value_primary_key not in append_to:
             append_to.append(backref_value_primary_key)
 
@@ -365,7 +398,7 @@ class StoredObject(object):
 
         current_data = self.to_storage()
 
-        for field_name in self._fields:
+        for field_name, field_object in self._fields.items():
             if current_data[field_name] != cached_data[field_name]:
                 field_list.append(field_name)
 
@@ -463,11 +496,25 @@ class StoredObject(object):
         if not data:
             return None
 
-        # Load from backend data
-        loaded_object = cls.from_storage(data)
+        return cls.load_from_data(data, _is_loaded=True)
 
-        # Add to cache
-        cls._set_cache(loaded_object._primary_key, loaded_object)
+    @classmethod
+    def load_from_data(cls, data, _is_loaded):
+
+        loaded_object = cls()
+
+        loaded_data = cls.from_storage(data)
+        for key, value in loaded_data.items():
+            if key in loaded_object._fields:
+                field_object = loaded_object._fields[key]
+                field_object.__set__(loaded_object, value, safe=True)
+            else:
+                setattr(loaded_object, key, value)
+
+        loaded_object._is_loaded = _is_loaded
+
+        if _is_loaded and loaded_object._primary_key:
+            cls._set_cache(loaded_object._primary_key, loaded_object)
 
         return loaded_object
 
@@ -509,11 +556,9 @@ class StoredObject(object):
             field_object.do_validate(getattr(self, field_name))
 
         if self._is_loaded:
-            # self.update(self._primary_key, self.to_storage())
             self.update_one(self._primary_key, self.to_storage(), saved=True)
-        elif self._is_optimistic:
+        elif self._is_optimistic and self._primary_key is None:
             self._optimistic_insert()
-            # self._primary_key = self._storage[0]._optimistic_insert(self.__class__, self.to_storage()) # do a local update; no dirty
         else:
             self.insert(self._primary_key, self.to_storage())
 
@@ -567,9 +612,12 @@ class StoredObject(object):
 
     @warn_if_detached
     def __getattr__(self, item):
-        # TODO: on remove, kill empty lists of backrefs
         if item in self._backrefs:
             return self._backrefs[item]
+        errmsg = '{cls} object has no attribute {item}'.format(
+            self.__class__.__name__,
+            item
+        )
         if '__' in item:
             item_split = item.split('__')
             if len(item_split) == 2:
@@ -583,9 +631,9 @@ class StoredObject(object):
                 parent_schema_name, backref_key, parent_field_name = item_split
                 ids = deref(self._backrefs, [backref_key, parent_schema_name, parent_field_name], missing=[])
             else:
-                raise Exception('uh oh')
+                raise AttributeError(errmsg)
             return ForeignList(ids, base_class=StoredObject.get_collection(parent_schema_name))
-        raise AttributeError(item + ' not found')
+        raise AttributeError(errmsg)
 
     @warn_if_detached
     def __setattr__(self, key, value):
@@ -614,7 +662,7 @@ class StoredObject(object):
     @classmethod
     @has_storage
     def find_one(cls, *query):
-        return cls.from_storage(cls._storage[0].find_one(*query))
+        return cls.load_from_data(cls._storage[0].find_one(*query), _is_loaded=True)
 
     @classmethod
     @has_storage
@@ -650,12 +698,11 @@ class StoredObject(object):
 
         return storage_data, includes_foreign
 
-    @classmethod
-    def _update_in_memory(cls, obj, storage_data):
+    def _update_in_memory(self, storage_data):
         for field_name, data_value in storage_data.items():
-            field_object = obj._fields[field_name]
-            field_object.__set__(obj, data_value, safe=True)
-        obj.save()
+            field_object = self._fields[field_name]
+            field_object.__set__(self, data_value, safe=True)
+        self.save()
 
     @classmethod
     def _which_to_obj(cls, which):
@@ -682,7 +729,7 @@ class StoredObject(object):
             if not saved:
                 cls._clear_caches(obj._storage_key)
         else:
-            cls._update_in_memory(obj, storage_data)
+            obj._update_in_memory(storage_data)
 
     @classmethod
     @has_storage
@@ -701,7 +748,7 @@ class StoredObject(object):
 
         else:
             for obj in objs:
-                cls._update_in_memory(obj, storage_data)
+                obj._update_in_memory(storage_data)
 
     @classmethod
     @has_storage
@@ -714,7 +761,7 @@ class StoredObject(object):
         rm_fwd_refs(obj)
         rm_back_refs(obj)
 
-        # Detach and remove from backend
+        # Detach and remove from cache
         obj._detached = True
         cls._clear_caches(obj._storage_key)
 
