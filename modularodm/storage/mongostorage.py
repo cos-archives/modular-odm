@@ -156,14 +156,6 @@ class MongoStorage(Storage):
             value[schema._primary_name] = key
         self.store.insert(value)
 
-    # # todo: add mongo-style updating (allow updating multiple records at once)
-    # # todo: -> update_one
-    # def update(self, schema, key, value):
-    #     self.store.update(
-    #         {schema._primary_name : key},
-    #         value
-    #     )
-
     def update(self, query, data):
         mongo_query = self._translate_query(query)
         update_query = {'$set' : data}
