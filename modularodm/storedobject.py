@@ -248,7 +248,7 @@ class StoredObject(object):
             )
             data[field_name] = field_value
 
-        if not clone and self._backrefs:
+        if not clone and self.__backrefs:
             data['__backrefs'] = self.__backrefs
 
         return data
@@ -297,7 +297,7 @@ class StoredObject(object):
 
     @_backrefs.setter
     def _backrefs(self, _):
-        raise ModularOdmException('Cannot modify backrefs.')
+        raise ModularOdmException('Cannot modify _backrefs.')
 
     @property
     def _backrefs_flat(self):
@@ -315,9 +315,9 @@ class StoredObject(object):
         if backref_value_primary_key is None:
             raise Exception('backref object\'s primary key must be saved first')
 
-        if backref_key not in self._backrefs:
+        if backref_key not in self.__backrefs:
             self.__backrefs[backref_key] = {}
-        if backref_value_class_name not in self._backrefs[backref_key]:
+        if backref_value_class_name not in self.__backrefs[backref_key]:
             self.__backrefs[backref_key][backref_value_class_name] = {}
         if parent_field_name not in self._backrefs[backref_key][backref_value_class_name]:
             self.__backrefs[backref_key][backref_value_class_name][parent_field_name] = []
@@ -508,6 +508,9 @@ class StoredObject(object):
             if key in loaded_object._fields:
                 field_object = loaded_object._fields[key]
                 field_object.__set__(loaded_object, value, safe=True)
+            elif key == '__backrefs':
+                mangled_key = '_StoredObject' + key
+                setattr(loaded_object, mangled_key, value)
             else:
                 setattr(loaded_object, key, value)
 
@@ -622,14 +625,14 @@ class StoredObject(object):
             item_split = item.split('__')
             if len(item_split) == 2:
                 parent_schema_name, backref_key = item_split
-                backrefs = deref(self._backrefs, [backref_key, parent_schema_name], missing={})
+                backrefs = deref(self.__backrefs, [backref_key, parent_schema_name], missing={})
                 ids = sum(
                     backrefs.values(),
                     []
                 )
             elif len(item_split) == 3:
                 parent_schema_name, backref_key, parent_field_name = item_split
-                ids = deref(self._backrefs, [backref_key, parent_schema_name, parent_field_name], missing=[])
+                ids = deref(self.__backrefs, [backref_key, parent_schema_name, parent_field_name], missing=[])
             else:
                 raise AttributeError(errmsg)
             return ForeignList(ids, base_class=StoredObject.get_collection(parent_schema_name))
