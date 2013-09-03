@@ -162,7 +162,10 @@ class Blog(StoredObject):
     title = fields.StringField(default='asdfasdfasdf', validate=MinLengthValidator(8))
     tag = fields.ForeignField('Tag', backref='tagged')
     tags = fields.ForeignField('Tag', list=True, backref='taggeds')
-    _meta = {'optimistic':True}
+    _meta = {
+        'optimistic' : True,
+        'log_level' : logging.DEBUG,
+    }
 
 import os
 try:os.remove('db_blog.pkl')
