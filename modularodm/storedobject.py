@@ -615,8 +615,8 @@ class StoredObject(object):
         if item in self._backrefs:
             return self._backrefs[item]
         errmsg = '{cls} object has no attribute {item}'.format(
-            self.__class__.__name__,
-            item
+            cls=self.__class__.__name__,
+            item=item
         )
         if '__' in item:
             item_split = item.split('__')
