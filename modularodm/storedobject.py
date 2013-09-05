@@ -1,5 +1,3 @@
-import copy
-
 import logging
 import warnings
 
@@ -301,7 +299,7 @@ class StoredObject(object):
 
     @property
     def _backrefs_flat(self):
-        return flatten_backrefs(self._backrefs)
+        return flatten_backrefs(self.__backrefs)
 
     def _remove_backref(self, backref_key, parent, parent_field_name):
         self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
@@ -490,7 +488,7 @@ class StoredObject(object):
             return cached_object
 
         # Try loading from backend
-        data = copy.deepcopy(cls._storage[0].get(cls, cls._pk_to_storage(key)))
+        data = cls._storage[0].get(cls, cls._pk_to_storage(key))
 
         # if not found, return None
         if not data:

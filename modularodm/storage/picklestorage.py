@@ -5,6 +5,8 @@ from ..query.query import RawQuery
 from modularodm.exceptions import MultipleResultsFound, NoResultsFound
 
 import os
+import copy
+
 try:
     import cpickle as pickle
 except ImportError:
@@ -144,7 +146,7 @@ class PickleStorage(Storage):
                 self.store[pk][key] = value
 
     def get(self, schema, key):
-        return self.store[key]
+        return copy.deepcopy(self.store[key])
 
     def _remove_by_pk(self, key, flush=True):
         """Retrieve value from store.
