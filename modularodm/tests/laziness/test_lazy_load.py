@@ -1,9 +1,7 @@
 from modularodm.tests import ModularOdmTestCase
 
-from modularodm import (
-    StoredObject,
-    ContextLogger,
-)
+from modularodm import StoredObject
+from modularodm.storedobject import ContextLogger
 from modularodm.fields import ForeignField, IntegerField
 
 class LazyLoadTestCase(ModularOdmTestCase):
