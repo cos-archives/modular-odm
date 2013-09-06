@@ -83,11 +83,27 @@ class BasicQueryTestCase(ModularOdmTestCase):
             {25, 26, 27, 28, 29}
         )
 
+    def test_sort(self):
+        results = self.Foo.find().sort('-_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            range(30)[::-1],
+        )
+
+    #limit_limit (order is irrelevant)
+
     def test_limit_offset(self):
         results = self.Foo.find().limit(10).offset(10)
         self.assertSetEqual(
             set([x._id for x in results]),
             set()
+        )
+
+    def test_limit_sort(self):
+        results = self.Foo.find().limit(10).sort('-_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            range(10)[::-1],
         )
 
     def test_offset_limit(self):
@@ -97,12 +113,42 @@ class BasicQueryTestCase(ModularOdmTestCase):
             {10, 11, 12, 13, 14}
         )
 
-    def test_offset_limit_offset(self):
-        results = self.Foo.find().offset(10).limit(5).offset(1)
-        self.assertSetEqual(
-            set([x._id for x in results]),
-            {11, 12, 13, 14}
+    def test_offset_offset(self):
+        results = self.Foo.find().offset(10).offset(17)
+        self.assertListEqual(
+            [x._id for x in results],
+            [27, 28, 29],
         )
+
+    def test_offset_sort(self):
+        results = self.Foo.find().offset(27).sort('-_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            [29, 28, 27],
+        )
+
+    def test_sort_limit(self):
+        results = self.Foo.find().sort('-_id').limit(3)
+        self.assertListEqual(
+            [x._id for x in results],
+            [29, 28, 27],
+        )
+
+    def test_sort_offset(self):
+        results = self.Foo.find().sort('-_id').offset(27)
+        self.assertListEqual(
+            [x._id for x in results],
+            [2, 1, 0],
+        )
+
+    def test_sort_sort(self):
+        results = self.Foo.find().sort('-_id').sort('_id')
+        self.assertListEqual(
+            [x._id for x in results][:3],
+            [0, 1, 2],
+        )
+
+    #limit_limit_* (order is irrelevant)
 
     def test_limit_offset_limit(self):
         results = self.Foo.find().limit(10).offset(5).limit(2)
@@ -110,3 +156,123 @@ class BasicQueryTestCase(ModularOdmTestCase):
             set([x._id for x in results]),
             {5, 6}
         )
+
+    def test_limit_offset_limit(self):
+        results = self.Foo.find().limit(10).offset(5).offset(2)
+        self.assertSetEqual(
+            set([x._id for x in results]),
+            {7, 8, 9}
+        )
+
+    def test_limit_offset_sort(self):
+        results = self.Foo.find().limit(10).offset(7).sort('-_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            [9, 8, 7],
+        )
+
+    def test_limit_sort_limit(self):
+        results = self.Foo.find().limit(10).sort('-_id').limit(3)
+        self.assertListEqual(
+            [x._id for x in results],
+            [9, 8, 7],
+        )
+
+    def test_limit_sort_offset(self):
+        results = self.Foo.find().limit(10).sort('-_id').offset(7)
+        self.assertListEqual(
+            [x._id for x in results],
+            [2, 1, 0],
+        )
+
+    def test_limit_sort_sort(self):
+        results = self.Foo.find().limit(3).sort('-_id').sort('_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            [0, 1, 2],
+        )
+
+    def test_offset_limit_offset(self):
+        results = self.Foo.find().offset(10).limit(5).offset(1)
+        self.assertSetEqual(
+            set([x._id for x in results]),
+            {11, 12, 13, 14}
+        )
+
+    def test_offset_limit_sort(self):
+        results = self.Foo.find().offset(10).limit(3).sort('-_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            [12, 11, 10]
+        )
+
+    def test_offset_offset_limit(self):
+        results = self.Foo.find().offset(10).offset(10).limit(3)
+        self.assertListEqual(
+            [x._id for x in results],
+            [20, 21, 22]
+        )
+
+    def test_offset_offset_sort(self):
+        results = self.Foo.find().offset(10).offset(17).sort('-_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            [29, 28, 27]
+        )
+
+    def test_offset_sort_limit(self):
+        results = self.Foo.find().offset(10).sort('-_id').limit(3)
+        self.assertListEqual(
+            [x._id for x in results],
+            [29, 28, 27]
+        )
+
+    def test_offset_sort_offset(self):
+        results = self.Foo.find().offset(10).sort('-_id').offset(17)
+        self.assertListEqual(
+            [x._id for x in results],
+            [12, 11, 10]
+        )
+
+    def test_sort_limit_offset(self):
+        results = self.Foo.find().sort('-_id').limit(10).offset(7)
+        self.assertListEqual(
+            [x._id for x in results],
+            [22, 21, 20]
+        )
+
+    def test_sort_limit_sort(self):
+        results = self.Foo.find().sort('-_id').limit(3).sort('_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            [27, 28, 29],
+        )
+
+    def test_sort_offset_limit(self):
+        results = self.Foo.find().sort('-_id').offset(10).limit(3)
+        self.assertListEqual(
+            [x._id for x in results],
+            [19, 18, 17]
+        )
+
+    def test_sort_offset_sort(self):
+        results = self.Foo.find().sort('-_id').offset(27).sort('_id')
+        self.assertListEqual(
+            [x._id for x in results],
+            [0, 1, 2]
+        )
+
+    def test_sort_sort_limit(self):
+        results = self.Foo.find().sort('-_id').sort('_id').limit(3)
+        self.assertListEqual(
+            [x._id for x in results],
+            [0, 1, 2]
+        )
+
+    def test_sort_sort_offset(self):
+        results = self.Foo.find().sort('-_id').sort('_id').offset(27)
+        self.assertListEqual(
+            [x._id for x in results],
+            [27, 28, 29]
+        )
+
