@@ -317,7 +317,7 @@ class StoredObject(object):
             self.__backrefs[backref_key] = {}
         if backref_value_class_name not in self.__backrefs[backref_key]:
             self.__backrefs[backref_key][backref_value_class_name] = {}
-        if parent_field_name not in self._backrefs[backref_key][backref_value_class_name]:
+        if parent_field_name not in self.__backrefs[backref_key][backref_value_class_name]:
             self.__backrefs[backref_key][backref_value_class_name][parent_field_name] = []
 
         append_to = self.__backrefs[backref_key][backref_value_class_name][parent_field_name]
@@ -613,8 +613,8 @@ class StoredObject(object):
 
     @warn_if_detached
     def __getattr__(self, item):
-        if item in self._backrefs:
-            return self._backrefs[item]
+        if item in self.__backrefs:
+            return self.__backrefs[item]
         errmsg = '{cls} object has no attribute {item}'.format(
             cls=self.__class__.__name__,
             item=item
