@@ -32,13 +32,16 @@ class ListField(Field):
         # e.g. when validators contain (un-copyable) regular expressions.
         self._default = lambda: self._list_class(None, base_class=self._field_instance.base_class)
 
-    def __set__(self, instance, value, safe=False):
+    def __set__(self, instance, value, safe=False, literal=False):
         self._pre_set(instance, safe=safe)
-        if isinstance(value, self._default.__class__):
-            self.data[instance] = value
-        elif hasattr(value, '__iter__'):
-            self.data[instance] = self._list_class(base_class=self._field_instance.base_class)
-            self.data[instance].extend(value)
+        # if isinstance(value, self._default.__class__):
+        #     self.data[instance] = value
+        if hasattr(value, '__iter__'):
+            if literal:
+                self.data[instance] = self._list_class(value, base_class=self._field_instance.base_class, literal=True)
+            else:
+                self.data[instance] = self._list_class(base_class=self._field_instance.base_class)
+                self.data[instance].extend(value)
         else:
             self.data[instance] = value
 
