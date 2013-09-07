@@ -1,3 +1,4 @@
+from modularodm.query.querydialect import DefaultQueryDialect as Q
 
 class List(list):
 
@@ -60,3 +61,16 @@ class ForeignList(List):
 
     def remove(self, value):
         super(ForeignList, self).remove(self._pk(value))
+
+    ### Query methods
+
+    def find(self, query=None):
+        """ Find backrefs matching a given query. """
+        combined_query = Q(
+            self._base_class._primary_name,
+            'in',
+            self._to_primary_keys()
+        )
+        if query is not None:
+            combined_query = combined_query & query
+        return self._base_class.find(combined_query)
