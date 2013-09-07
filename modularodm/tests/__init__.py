@@ -2,9 +2,24 @@ import inspect
 import os
 import pymongo
 import unittest
+from StringIO import StringIO
+try:
+    import cpickle as pickle
+except ImportError:
+    import pickle
+import uuid
 
 from modularodm import StoredObject
 from modularodm.storage import MongoStorage, PickleStorage
+
+
+class EphemeralStorage(PickleStorage):
+    def __init__(self, *args, **kwargs):
+        self.store = {}
+        self.fp = StringIO()
+
+    def flush(self):
+        pickle.dump(self.store, self.fp, -1)
 
 
 class TestObject(StoredObject):
@@ -13,17 +28,35 @@ class TestObject(StoredObject):
         super(TestObject, self).__init__(*args, **kwargs)
 
 
+class EphemeralStorageMixin(object):
+    fixture_suffix = 'Ephemeral'
+
+    def make_storage(self):
+        return EphemeralStorage()
+
+    def clean_up_storage(self):
+        pass
+
+
 class PickleStorageMixin(object):
     fixture_suffix = 'Pickle'
 
     def make_storage(self):
-        return PickleStorage('Test')
+        try:
+            self.pickle_files
+        except AttributeError:
+            self.pickle_files = []
+
+        filename = str(uuid.uuid4())[:8]
+        self.pickle_files.append(filename)
+        return PickleStorage(filename)
 
     def clean_up_storage(self):
-        try:
-            os.remove('db_Test.pkl')
-        except OSError:
-            pass
+        for f in self.pickle_files:
+            try:
+                os.remove('db_{}.pkl'.format(f))
+            except OSError:
+                pass
 
 
 class MongoStorageMixin(object):
@@ -34,13 +67,23 @@ class MongoStorageMixin(object):
 
         self.mongo_client = db
 
+        try:
+            self.mongo_collections
+        except AttributeError:
+            self.mongo_collections = []
+
+        collection = str(uuid.uuid4())[:8]
+        self.mongo_collections.append(collection)
+        print self.mongo_collections
+
         return MongoStorage(
             db=db,
-            collection='test_collection'
+            collection=collection
         )
 
     def clean_up_storage(self):
-        self.mongo_client.drop_collection('test_collection')
+        for c in self.mongo_collections:
+            self.mongo_client.drop_collection(c)
 
 
 class MultipleBackendMeta(type):
@@ -57,7 +100,11 @@ class MultipleBackendMeta(type):
 
         frame = inspect.currentframe().f_back
 
-        for mixin in (PickleStorageMixin, MongoStorageMixin):
+        for mixin in (
+            PickleStorageMixin,
+            MongoStorageMixin,
+            EphemeralStorageMixin,
+        ):
             new_name = '{}{}'.format(name, mixin.fixture_suffix)
             frame.f_globals[new_name] = type.__new__(
                 mcs,
@@ -77,10 +124,9 @@ class ModularOdmTestCase(unittest.TestCase):
     def setUp(self):
         super(ModularOdmTestCase, self).setUp()
         test_objects = self.define_test_objects() or tuple()
-        storage = self.make_storage()
 
         for obj in test_objects:
-            obj.set_storage(storage)
+            obj.set_storage(self.make_storage())
             self.__setattr__(obj.__name__, obj)
 
         StoredObject._clear_caches()
