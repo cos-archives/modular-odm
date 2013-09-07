@@ -43,6 +43,7 @@ class Field(object):
 
         self._args = args
         self._kwargs = kwargs
+        self._translators = {}
 
         # Pointer to containing ListField
         # Set in StoredObject.ObjectMeta
@@ -91,28 +92,32 @@ class Field(object):
             return self._default()
         return copy.deepcopy(self._default)
 
-    def _access_storage(self, direction, value, translator):
-
-        method_name = '%s_%s' % (direction, self.data_type.__name__)
-
-        if hasattr(translator, method_name):
-            method = getattr(translator, method_name)
-        else:
-            method = getattr(translator, '%s_default' % (direction))
-
-        return method(value)
+    def _get_translate_func(self, translator, direction):
+        try:
+            return self._translators[(translator, direction)]
+        except KeyError:
+            method_name = '%s_%s' % (direction, self.data_type.__name__)
+            default_name = '%s_default' % (direction,)
+            try:
+                method = getattr(translator, method_name)
+            except AttributeError:
+                method = getattr(translator, default_name)
+            self._translators[(translator, direction)] = method
+            return method
 
     def to_storage(self, value, translator=None):
         translator = translator or self._schema_class._translator
         if value is None:
             return translator.null_value
-        return self._access_storage('to', value, translator)
+        method = self._get_translate_func(translator, 'to')
+        return value if method is None else method(value)
 
     def from_storage(self, value, translator=None):
         translator = translator or self._schema_class._translator
         if value == translator.null_value:
             return None
-        return self._access_storage('from', value, translator)
+        method = self._get_translate_func(translator, 'from')
+        return value if method is None else method(value)
 
     def _pre_set(self, instance, safe=False):
         if not self._editable and not safe:

@@ -63,20 +63,47 @@ class ListField(Field):
         # Success
         return True
 
+    def _get_translate_func(self, translator, direction):
+        try:
+            return self._translators[(translator, direction)]
+        except KeyError:
+            if self._is_foreign:
+                base_class = self._field_instance.base_class
+                primary_field = base_class._fields[base_class._primary_name]
+                method = primary_field._get_translate_func(translator, direction)
+            else:
+                method = self._field_instance._get_translate_func(translator, direction)
+            self._translators[(translator, direction)] = method
+            return method
+
     def to_storage(self, value, translator=None):
-        '''
-            value will come in as a List (MutableSequence)
-        '''
+        translator = translator or self._schema_class._translator
         if value:
             if hasattr(value, '_to_primary_keys'):
                 value = value._to_primary_keys()
-            return [self._field_instance.to_storage(item, translator) for item in value]
+            method = self._get_translate_func(translator, 'to')
+            return [
+                translator.null_value if item is None
+                else
+                item if method is None
+                else
+                method(item)
+                for item in value
+            ]
         return []
 
     def from_storage(self, value, translator=None):
-
+        translator = translator or self._schema_class._translator
         if value:
-            return [self._field_instance.from_storage(i, translator) for i in value]
+            method = self._get_translate_func(translator, 'from')
+            return [
+                None if item is translator.null_value
+                else
+                item if method is None
+                else
+                method(item)
+                for item in value
+            ]
         return []
 
     def on_after_save(self, parent, field_name, old_stored_data, new_value):
