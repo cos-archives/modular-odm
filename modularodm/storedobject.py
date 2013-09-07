@@ -581,19 +581,6 @@ class StoredObject(object):
 
         return True # todo raise exception on not save
 
-    def __getattribute__(self, item):
-        cls = object.__getattribute__(self, '__class__')
-        if hasattr(cls, '_storage') and cls._storage:
-            field_object = cls._fields[cls._primary_name]
-            key = field_object.data.get(self)
-            storage_key = cls._pk_to_storage(key)
-            dirty = cls._name in cls._dirty \
-                and storage_key in cls._dirty[cls._name]
-            if dirty:
-                cls._rm_dirty(storage_key)
-                object.__getattribute__(self, 'reload')()
-        return object.__getattribute__(self, item)
-
     def reload(self):
 
         storage_data = self._storage[0].get(self.__class__, self._storage_key)
