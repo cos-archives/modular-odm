@@ -620,7 +620,7 @@ class StoredObject(object):
                 ids = deref(self.__backrefs, [backref_key, parent_schema_name, parent_field_name], missing=[])
             else:
                 raise AttributeError(errmsg)
-            return ForeignList(ids, base_class=StoredObject.get_collection(parent_schema_name))
+            return ForeignList(ids, literal=True, base_class=StoredObject.get_collection(parent_schema_name))
         raise AttributeError(errmsg)
 
     @warn_if_detached
