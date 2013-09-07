@@ -11,7 +11,7 @@ class ContextLogger(object):
 
     @staticmethod
     def sort_func(e):
-        return (e.xtra._name, e.func.__name__)
+        return (e.xtra._name if e.xtra else None, e.func.__name__)
 
     def report(self, sort_func=None):
         return self.logger.report(sort_func or self.sort_func)
@@ -29,7 +29,7 @@ class ContextLogger(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.listening:
             report = self.logger.report(
-                lambda e: (e.xtra._name, e.func.__name__)
+                lambda e: (e.xtra._name if e.xtra else None, e.func.__name__)
             )
             if self.log_level is not None:
                 logging.log(self.log_level, report)
@@ -657,11 +657,13 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
+    @log_storage
     def find(cls, *args, **kwargs):
         return cls._storage[0].QuerySet(cls, cls._storage[0].find(*args, **kwargs))
 
     @classmethod
     @has_storage
+    @log_storage
     def find_one(cls, *query):
         return cls.load_from_data(cls._storage[0].find_one(*query), _is_loaded=True)
 
