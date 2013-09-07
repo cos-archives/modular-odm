@@ -1,15 +1,19 @@
 import unittest
 
+# from modularodm import StoredObject
 from modularodm.fields import ForeignField, StringField, ForeignList
-from modularodm.tests import ModularOdmTestCase, TestObject
-
+from modularodm.storedobject import ContextLogger
+from modularodm.tests import (
+    ModularOdmTestCase
+)
+from modularodm import StoredObject
 
 
 class OneToManyFieldTestCase(ModularOdmTestCase):
 
     def define_test_objects(self):
 
-        class Foo(TestObject):
+        class Foo(StoredObject):
             _meta = {
                 'optimistic': True
             }
@@ -17,7 +21,7 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
             my_bar = ForeignField('Bar', backref='my_foos')
             my_other_bar = ForeignField('Bar', backref='my_foos')
 
-        class Bar(TestObject):
+        class Bar(StoredObject):
             _meta = {'optimistic': True}
             _id = StringField()
 
@@ -64,3 +68,27 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
             len(self.bar.foo__my_foos__my_other_bar),
             1
         )
+
+    def test_dunder_br_laziness(self):
+        StoredObject._clear_caches()
+
+        with ContextLogger() as c:
+            # get the Bar object
+            bar = self.Bar.find_one()
+            # access the ForeignList
+            bar.foo__my_foos
+
+            # Two calls so far - .find_one() and .find()
+            self.assertNotIn(
+                'foo',
+                [k[0] for k, v in c.report().iteritems()],
+            )
+
+            # access a member of the ForeignList, forcing that member to load
+            bar.foo__my_foos[0]
+
+            # now there should be a call to Foo.get()
+            self.assertEqual(
+                c.report()[('foo', 'get')][0],
+                1
+            )
