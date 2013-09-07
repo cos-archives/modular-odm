@@ -33,10 +33,14 @@ class ForeignField(Field):
 
         if value is None:
             return value
-        if '_primary_key' in dir(value):
+        try:
             value_to_store = value._primary_key
-        else:
+        except AttributeError:
             value_to_store = value
+        # if '_primary_key' in dir(value):
+        #     value_to_store = value._primary_key
+        # else:
+        #     value_to_store = value
         _foreign_pn = self.base_class._primary_name
         return self.base_class._fields[_foreign_pn].to_storage(value_to_store, translator)
 
