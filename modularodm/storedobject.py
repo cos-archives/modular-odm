@@ -505,7 +505,7 @@ class StoredObject(object):
         for key, value in loaded_data.items():
             if key in loaded_object._fields:
                 field_object = loaded_object._fields[key]
-                field_object.__set__(loaded_object, value, safe=True)
+                field_object.__set__(loaded_object, value, safe=True, literal=True)
             elif key == '__backrefs':
                 mangled_key = '_StoredObject' + key
                 setattr(loaded_object, mangled_key, value)

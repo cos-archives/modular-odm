@@ -2,17 +2,16 @@ from modularodm.query.querydialect import DefaultQueryDialect as Q
 
 class List(list):
 
-    def __init__(self, value=None, **kwargs):
+    def __init__(self, value=None, literal=False, **kwargs):
 
-        super(List, self).__init__()
-
+        value = value or []
         self._base_class = kwargs.get('base_class', None)
 
-        if value is None:
-            return
-
-        for item in value:
-            self.append(item)
+        if literal:
+            super(List, self).__init__(value)
+        else:
+            super(List, self).__init__()
+            self.extend(value)
 
 class ForeignList(List):
 

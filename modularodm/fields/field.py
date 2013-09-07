@@ -125,7 +125,7 @@ class Field(object):
         if instance._detached:
             warnings.warn('Accessing a detached record.')
 
-    def __set__(self, instance, value, safe=False):
+    def __set__(self, instance, value, safe=False, literal=False):
         self._pre_set(instance, safe=safe)
         self.data[instance] = value
 

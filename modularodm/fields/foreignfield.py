@@ -76,12 +76,14 @@ class ForeignField(Field):
             self._base_class = self._schema_class.get_collection(self._base_class_name)
         return self._base_class
 
-    def __set__(self, instance, value, safe=False):
+    def __set__(self, instance, value, safe=False, literal=False):
         # if instance._detached:
         #     warnings.warn('Accessing a detached record.')
+        value_to_set = value if literal else self._to_primary_key(value)
         super(ForeignField, self).__set__(
             instance,
-            self._to_primary_key(value), safe=safe
+            value_to_set,
+            safe=safe
         )
 
     def __get__(self, instance, owner):
