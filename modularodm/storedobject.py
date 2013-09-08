@@ -169,13 +169,74 @@ class ObjectMeta(type):
     def _translator(cls):
         return cls._storage[0].translator
 
+def deep_assign(dict, value, *keys):
+    if len(keys) == 1:
+        dict[keys[0]] = value
+    else:
+        if keys[0] not in dict:
+            dict[keys[0]] = {}
+        deep_assign(dict[keys[0]], value, *keys[1:])
+
+class Cache(object):
+
+    def __init__(self):
+        self.data = {}
+
+    def set(self, schema, key, value):
+        deep_assign(self.data, value, schema, key)
+
+    def get(self, schema, key):
+        try:
+            return self.data[schema][key]
+        except KeyError:
+            return None
+
+    def pop(self, schema, key):
+        self.data[schema].pop(key)
+
+    def clear(self):
+        self.__init__()
+
+    def clear_schema(self, schema):
+        self.data.pop(schema)
+
+from flask import request
+from weakref import WeakKeyDictionary
+
+class FlaskCache(Cache):
+
+    @property
+    def _request(self):
+        return request._get_current_object()
+
+    def __init__(self):
+        self.data = WeakKeyDictionary()
+
+    def set(self, schema, key, value):
+        deep_assign(self.data, value, self._request, schema, key)
+
+    def get(self, schema, key):
+        try:
+            return self.data[self._request][schema][key]
+        except KeyError:
+            return None
+
+    def pop(self, schema, key):
+        self.data[self._request][schema].pop(key)
+
+    def clear_schema(self, schema):
+        self.data[self._request].pop(schema)
+
 class StoredObject(object):
 
     __metaclass__ = ObjectMeta
 
     _collections = {}
-    _cache = {}
-    _object_cache = {}
+
+    _cache = Cache()
+    _object_cache = Cache()
+
+    # todo abstract or remove this
     _dirty = {}
 
     def __init__(self, **kwargs):
@@ -344,43 +405,28 @@ class StoredObject(object):
 
     @classmethod
     def _is_cached(cls, key):
-        if cls._name in cls._object_cache:
-            if key in cls._object_cache[cls._name]:
-                return True
-        return False
+        return cls._object_cache.get(cls._name, key) is not None
 
     @classmethod
     def _load_from_cache(cls, key):
         trans_key = cls._pk_to_storage(key)
-        if cls._name in cls._object_cache and trans_key in cls._object_cache[cls._name]:
-            return cls._object_cache[cls._name][trans_key]
+        return cls._object_cache.get(cls._name, trans_key)
 
     @classmethod
     def _set_cache(cls, key, obj):
 
         trans_key = cls._pk_to_storage(key)
-
-        if cls._name not in cls._object_cache:
-            cls._object_cache[cls._name] = {}
-
-        cls._object_cache[cls._name][trans_key] = obj
-
-        if cls._name not in cls._cache:
-            cls._cache[cls._name] = {}
-        cls._cache[cls._name][trans_key] = obj.to_storage()
+        cls._object_cache.set(cls._name, trans_key, obj)
+        cls._cache.set(cls._name, trans_key, obj.to_storage())
 
     @classmethod
     def _get_cache(cls, key):
         trans_key = cls._pk_to_storage(key)
-        if cls._name in cls._object_cache and trans_key in cls._object_cache[cls._name]:
-            return cls._object_cache[cls._name][trans_key].to_storage()
-        return None
+        return cls._object_cache.get(cls.name, trans_key)
 
     @classmethod
     def _get_cached_data(cls, key):
-        if cls._is_cached(key):
-            return cls._cache[cls._name][key]
-        return None
+        return cls._cache.get(cls._name, key)
 
     def _get_list_of_differences_from_cache(self):
 
@@ -389,7 +435,7 @@ class StoredObject(object):
         if not self._is_loaded:
             return field_list
 
-        cached_data = self._cache[self.__class__._name][self._primary_key]
+        cached_data = self._get_cached_data(self._primary_key)
 
         if cached_data is None:
             return field_list
@@ -407,20 +453,20 @@ class StoredObject(object):
     @classmethod
     def _clear_data_cache(cls, key=None):
         if cls is StoredObject:
-            cls._cache = {}
-        if key is not None:
-            cls._cache[cls._name].pop(key, None)
+            cls._cache.clear()
+        elif key is not None:
+            cls._cache.pop(cls._name, key)
         else:
-            cls._cache[cls._name] = {}
+            cls._cache.clear_schema(cls._name)
 
     @classmethod
     def _clear_object_cache(cls, key=None):
         if cls is StoredObject:
-            cls._object_cache = {}
-        if key is not None:
-            cls._object_cache[cls._name].pop(key, None)
+            cls._object_cache.clear()
+        elif key is not None:
+            cls._object_cache.pop(cls._name, key)
         else:
-            cls._object_cache[cls._name] = {}
+            cls._object_cache.clear_schema(cls._name)
 
     @classmethod
     def _clear_caches(cls, key=None):
