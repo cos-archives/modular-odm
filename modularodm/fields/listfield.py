@@ -85,28 +85,32 @@ class ListField(Field):
             if hasattr(value, '_to_primary_keys'):
                 value = value._to_primary_keys()
             method = self._get_translate_func(translator, 'to')
-            if method:
-                return [
-                    translator.null_value if item is None
-                    else
-                    method(item)
-                    for item in value
-                ]
-            return value
+            if method is None and translator.null_value is None:
+                return value
+            return [
+                translator.null_value if item is None
+                else
+                item if method is None
+                else
+                method(item)
+                for item in value
+            ]
         return []
 
     def from_storage(self, value, translator=None):
         translator = translator or self._schema_class._translator
         if value:
             method = self._get_translate_func(translator, 'from')
-            if method:
-                return [
-                    None if item is translator.null_value
-                    else
-                    method(item)
-                    for item in value
-                ]
-            return value
+            if method is None and translator.null_value is None:
+                return value
+            return [
+                None if item is translator.null_value
+                else
+                item if method is None
+                else
+                method(item)
+                for item in value
+            ]
         return []
 
     def on_after_save(self, parent, field_name, old_stored_data, new_value):
