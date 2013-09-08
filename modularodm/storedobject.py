@@ -245,11 +245,6 @@ class StoredObject(object):
         self._detached = False
         self._is_loaded = kwargs.pop('_is_loaded', False)
 
-        # Set all instance-level field values to defaults
-        if not self._is_loaded:
-            for field_name, field_object in self._fields.items():
-                field_object.__set__(self, field_object._gen_default(), safe=True)
-
         # Add kwargs to instance
         for key, value in kwargs.items():
             setattr(self, key, value)
