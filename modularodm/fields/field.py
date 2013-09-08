@@ -144,7 +144,15 @@ class Field(object):
                     instance.reload()
             except KeyError:
                 pass
-        return self.data.get(instance, None)
+            
+        # Impute default if field not populated
+        try:
+            return self.data[instance]
+        except KeyError:
+            default = self._gen_default()
+            self.data[instance] = default
+            return default
+
 
     def _get_underlying_data(self, instance):
         """Return data from raw data store, rather than overridden
