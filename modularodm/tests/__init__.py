@@ -151,5 +151,10 @@ class ModularOdmTestCase(unittest.TestCase):
     # Teardown
 
     def tearDown(self):
-        self.clean_up_storage()
+        # Avoids error when no models defined; variables like
+        # pickle_files will not be defined.
+        try:
+            self.clean_up_storage()
+        except AttributeError:
+            pass
         super(ModularOdmTestCase, self).tearDown()
