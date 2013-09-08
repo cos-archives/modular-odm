@@ -5,17 +5,8 @@ class DefaultTranslator(object):
 
     null_value = None
 
-    def to_default(self, value):
-        return value
-
-    def from_default(self, value):
-        return value
-
-    def to_ObjectId(self, value):
-        return str(value)
-
-    def from_ObjectId(self, value):
-        return ObjectId(value)
+    to_default = None
+    from_default = None
 
 class JSONTranslator(DefaultTranslator):
 
@@ -24,6 +15,12 @@ class JSONTranslator(DefaultTranslator):
 
     def from_datetime(self, value):
         return dateparser.parse(value)
+
+    def to_ObjectId(self, value):
+        return str(value)
+
+    def from_ObjectId(self, value):
+        return ObjectId(value)
 
 class StringTranslator(JSONTranslator):
 
