@@ -200,33 +200,6 @@ class Cache(object):
     def clear_schema(self, schema):
         self.data.pop(schema)
 
-from flask import request
-from weakref import WeakKeyDictionary
-
-class FlaskCache(Cache):
-
-    @property
-    def _request(self):
-        return request._get_current_object()
-
-    def __init__(self):
-        self.data = WeakKeyDictionary()
-
-    def set(self, schema, key, value):
-        deep_assign(self.data, value, self._request, schema, key)
-
-    def get(self, schema, key):
-        try:
-            return self.data[self._request][schema][key]
-        except KeyError:
-            return None
-
-    def pop(self, schema, key):
-        self.data[self._request][schema].pop(key)
-
-    def clear_schema(self, schema):
-        self.data[self._request].pop(schema)
-
 class StoredObject(object):
 
     __metaclass__ = ObjectMeta
@@ -863,3 +836,35 @@ def rm_back_refs(obj):
                 obj,
                 field_name,
             )
+
+from flask import request
+from weakref import WeakKeyDictionary
+
+class FlaskCache(Cache):
+
+    @property
+    def _request(self):
+        return request._get_current_object()
+
+    def __init__(self):
+        self.data = WeakKeyDictionary()
+
+    def set(self, schema, key, value):
+        deep_assign(self.data, value, self._request, schema, key)
+
+    def get(self, schema, key):
+        try:
+            return self.data[self._request][schema][key]
+        except KeyError:
+            return None
+
+    def pop(self, schema, key):
+        self.data[self._request][schema].pop(key)
+
+    def clear_schema(self, schema):
+        self.data[self._request].pop(schema)
+
+class FlaskStoredObject(StoredObject):
+
+    _cache = FlaskCache()
+    _object_cache = FlaskCache()

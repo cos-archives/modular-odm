@@ -1,1 +1,1 @@
-from storedobject import StoredObject
+from storedobject import StoredObject, FlaskStoredObject
