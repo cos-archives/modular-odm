@@ -182,6 +182,10 @@ class Cache(object):
     def __init__(self):
         self.data = {}
 
+    @property
+    def raw(self):
+        return self.data
+
     def set(self, schema, key, value):
         deep_assign(self.data, value, schema, key)
 
@@ -220,7 +224,14 @@ class StoredObject(object):
 
         # Add kwargs to instance
         for key, value in kwargs.items():
-            setattr(self, key, value)
+            try:
+                field = self._fields[key]
+                field.__set__(self, value, safe=True)
+            except KeyError:
+                setattr(self, key, value)
+
+        if self._is_loaded:
+            self._set_cache(self._primary_key, self)
 
     def __eq__(self, other):
         if self is other:
@@ -420,7 +431,7 @@ class StoredObject(object):
 
     @classmethod
     def _clear_data_cache(cls, key=None):
-        if cls is StoredObject:
+        if not cls._fields:
             cls._cache.clear()
         elif key is not None:
             cls._cache.pop(cls._name, key)
@@ -429,7 +440,7 @@ class StoredObject(object):
 
     @classmethod
     def _clear_object_cache(cls, key=None):
-        if cls is StoredObject:
+        if not cls._fields:
             cls._object_cache.clear()
         elif key is not None:
             cls._object_cache.pop(cls._name, key)
@@ -634,7 +645,7 @@ class StoredObject(object):
                 ids = deref(self.__backrefs, [backref_key, parent_schema_name, parent_field_name], missing=[])
             else:
                 raise AttributeError(errmsg)
-            return ForeignList(ids, literal=True, base_class=StoredObject.get_collection(parent_schema_name))
+            return ForeignList(ids, literal=True, base_class=self.get_collection(parent_schema_name))
         raise AttributeError(errmsg)
 
     @warn_if_detached
@@ -795,7 +806,7 @@ def rm_fwd_refs(obj):
         backref_key, parent_schema_name, parent_field_name = stack
 
         # Get parent info
-        parent_schema = StoredObject._collections[parent_schema_name]
+        parent_schema = obj._collections[parent_schema_name]
         parent_key_store = parent_schema._pk_to_storage(key)
         parent_object = parent_schema.load(parent_key_store)
 
@@ -840,14 +851,27 @@ def rm_back_refs(obj):
 from flask import request
 from weakref import WeakKeyDictionary
 
+class DummyRequest(object): pass
+dummy_request = DummyRequest()
+
 class FlaskCache(Cache):
 
     @property
     def _request(self):
-        return request._get_current_object()
+       try:
+           return request._get_current_object()
+       except:
+           return dummy_request
 
     def __init__(self):
         self.data = WeakKeyDictionary()
+
+    @property
+    def raw(self):
+        try:
+            return self.data[self._request]
+        except KeyError:
+            return {}
 
     def set(self, schema, key, value):
         deep_assign(self.data, value, self._request, schema, key)
