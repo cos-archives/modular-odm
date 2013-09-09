@@ -343,7 +343,7 @@ class StoredObject(object):
 
     def _remove_backref(self, backref_key, parent, parent_field_name):
         self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
-        self.save()
+        self.save(force=True)
 
     def _set_backref(self, backref_key, parent_field_name, backref_value):
 
@@ -364,7 +364,7 @@ class StoredObject(object):
         if backref_value_primary_key not in append_to:
             append_to.append(backref_value_primary_key)
 
-        self.save()
+        self.save(force=True)
 
     @classmethod
     def set_storage(cls, storage):
@@ -559,7 +559,7 @@ class StoredObject(object):
 
     @has_storage
     @log_storage
-    def save(self):
+    def save(self, force=False):
 
         if self._detached:
             raise Exception('Cannot save detached object.')
@@ -573,10 +573,11 @@ class StoredObject(object):
         else:
             list_on_save_after_fields = self._fields.keys()
 
+        # Quit if no diffs
+        if not list_on_save_after_fields and not force:
+            return
+
         # Validate
-        # for field_name, field_object in self._fields.items():
-        # todo: TEST THIS!
-        # todo: only save modified fields?
         for field_name in list_on_save_after_fields:
             field_object = self._fields[field_name]
             field_object.do_validate(getattr(self, field_name))
