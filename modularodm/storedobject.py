@@ -205,6 +205,7 @@ class StoredObject(object):
     __metaclass__ = ObjectMeta
 
     _collections = {}
+    _deep_cache = None
 
     _cache = Cache()
     _object_cache = Cache()
@@ -212,9 +213,22 @@ class StoredObject(object):
     # todo abstract or remove this
     _dirty = {}
 
+    def _pop_deep_cache(self):
+        if self._deep_cache is None:
+            return
+        for cache_id in self._caches:
+            key = '.'.join(['cache', self._name, self._primary_key])
+            self._deep_cache.update(
+                {'_id' : cache_id},
+                {'$unset' : {key : None}}
+            )
+            self._caches.remove(cache_id)
+
     def __init__(self, **kwargs):
 
         self.__backrefs = {}
+
+        self._caches = []
         self._detached = False
         self._is_loaded = kwargs.pop('_is_loaded', False)
 
@@ -275,8 +289,11 @@ class StoredObject(object):
             )
             data[field_name] = field_value
 
-        if not clone and self.__backrefs:
-            data['__backrefs'] = self.__backrefs
+        if not clone:
+            if self.__backrefs:
+                data['__backrefs'] = self.__backrefs
+            if self._caches:
+                data['_caches'] = self._caches
 
         return data
 
@@ -548,7 +565,7 @@ class StoredObject(object):
 
     @has_storage
     @log_storage
-    def save(self):
+    def save(self, _pop_deep_cache=True):
 
         if self._detached:
             raise Exception('Cannot save detached object.')
@@ -569,6 +586,10 @@ class StoredObject(object):
         for field_name in list_on_save_after_fields:
             field_object = self._fields[field_name]
             field_object.do_validate(getattr(self, field_name))
+
+        # Clear self from deep caches
+        if _pop_deep_cache:
+            self._pop_deep_cache()
 
         if self._is_loaded:
             self.update_one(self._primary_key, self.to_storage(), saved=True)
@@ -744,7 +765,11 @@ class StoredObject(object):
         objs = cls.find(query)
         keys = objs.get_keys()
 
-        if not includes_foreign:
+        if not includes_foreign \
+                and (
+                    cls._deep_cache is None
+                    or not cls._deep_cache.count()
+                ):
             cls._storage[0].update(query, storage_data)
             for key in keys:
                 cls._add_dirty(key)
@@ -752,6 +777,7 @@ class StoredObject(object):
 
         else:
             for obj in objs:
+                # todo rename to update_with_odm
                 obj._update_in_memory(storage_data)
 
     @classmethod
@@ -768,6 +794,9 @@ class StoredObject(object):
         # Detach and remove from cache
         obj._detached = True
         cls._clear_caches(obj._storage_key)
+
+        # Remove from deep caches
+        obj._pop_deep_cache()
 
         # Remove from backend
         if rm:
