@@ -295,7 +295,6 @@ class StoredObject(object):
     @has_storage
     def from_storage(cls, data, translator=None):
 
-        # result = cls()
         result = {}
 
         for key, value in data.items():
@@ -306,24 +305,19 @@ class StoredObject(object):
                 data_value = data[key]
                 if data_value is None:
                     value = None
-                    # setattr(result, key, None)
                     result[key] = None
                 else:
                     value = field_object.from_storage(data_value, translator)
-                # field_object.__set__(result, value, safe=True)
                 result[key] = value
 
             else:
-                # setattr(result, key, value)
                 result[key] = value
-
-        # result._is_loaded = False
 
         return result
 
     def clone(self):
-        return self.load_from_data(
-            self.to_storage(clone=True),
+        return self.load(
+            data=self.to_storage(clone=True),
             _is_loaded=False
         )
 
@@ -491,46 +485,23 @@ class StoredObject(object):
     @classmethod
     @has_storage
     @log_storage
-    def load(cls, key):
+    def load(cls, key=None, data=None, _is_loaded=True):
 
-        key = cls._check_pk_type(key)
-
-        # Try loading from object cache
-        cached_object = cls._load_from_cache(key)
-        if cached_object is not None:
-            return cached_object
+        if key is not None:
+            key = cls._check_pk_type(key)
+            cached_object = cls._load_from_cache(key)
+            if cached_object is not None:
+                return cached_object
 
         # Try loading from backend
-        data = cls._storage[0].get(cls, cls._pk_to_storage(key))
+        if data is None:
+            data = cls._storage[0].get(cls, cls._pk_to_storage(key))
 
         # if not found, return None
-        if not data:
+        if data is None:
             return None
 
-        return cls.load_from_data(data, _is_loaded=True)
-
-    @classmethod
-    def load_from_data(cls, data, _is_loaded):
-
-        loaded_object = cls()
-
-        loaded_data = cls.from_storage(data)
-        for key, value in loaded_data.items():
-            if key in loaded_object._fields:
-                field_object = loaded_object._fields[key]
-                field_object.__set__(loaded_object, value, safe=True, literal=True)
-            elif key == '__backrefs':
-                mangled_key = '_StoredObject' + key
-                setattr(loaded_object, mangled_key, value)
-            else:
-                setattr(loaded_object, key, value)
-
-        loaded_object._is_loaded = _is_loaded
-
-        if _is_loaded and loaded_object._primary_key:
-            cls._set_cache(loaded_object._primary_key, loaded_object)
-
-        return loaded_object
+        return cls(_is_loaded=_is_loaded, **data)
 
     @classmethod
     def _must_be_loaded(cls, value):
@@ -666,7 +637,8 @@ class StoredObject(object):
     @has_storage
     @log_storage
     def find_one(cls, *query):
-        return cls.load_from_data(cls._storage[0].find_one(*query), _is_loaded=True)
+        stored_data = cls._storage[0].find_one(*query)
+        return cls.load(key=stored_data[cls._primary_name], data=stored_data)
 
     @classmethod
     @has_storage
