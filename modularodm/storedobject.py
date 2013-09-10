@@ -213,12 +213,10 @@ class StoredObject(object):
     _cache = Cache()
     _object_cache = Cache()
 
-    # todo abstract or remove this
-    _dirty = {}
-
     def __init__(self, **kwargs):
 
         self.__backrefs = {}
+        self._dirty = False
         self._detached = False
         self._is_loaded = kwargs.pop('_is_loaded', False)
 
@@ -228,6 +226,8 @@ class StoredObject(object):
                 field = self._fields[key]
                 field.__set__(self, value, safe=True)
             except KeyError:
+                if key == '__backrefs':
+                    key = '_StoredObject__backrefs'
                 setattr(self, key, value)
 
         if self._is_loaded:
@@ -401,7 +401,7 @@ class StoredObject(object):
     @classmethod
     def _get_cache(cls, key):
         trans_key = cls._pk_to_storage(key)
-        return cls._object_cache.get(cls.name, trans_key)
+        return cls._object_cache.get(cls._name, trans_key)
 
     @classmethod
     def _get_cached_data(cls, key):
@@ -453,18 +453,6 @@ class StoredObject(object):
         cls._clear_object_cache(key)
 
     ###########################################################################
-
-    @classmethod
-    def _add_dirty(cls, storage_key):
-        if cls._name not in cls._dirty:
-            cls._dirty[cls._name] = []
-        cls._dirty[cls._name].append(storage_key)
-
-    @classmethod
-    def _rm_dirty(cls, storage_key):
-        if cls._name not in cls._dirty:
-            return
-        cls._dirty[cls._name].remove(storage_key)
 
     @classmethod
     def _to_primary_key(cls, value):
@@ -632,7 +620,7 @@ class StoredObject(object):
             cls=self.__class__.__name__,
             item=item
         )
-        if '__' in item:
+        if '__' in item and not item.startswith('__'):
             item_split = item.split('__')
             if len(item_split) == 2:
                 parent_schema_name, backref_key = item_split
@@ -759,8 +747,9 @@ class StoredObject(object):
         if not includes_foreign:
             cls._storage[0].update(query, storage_data)
             for key in keys:
-                cls._add_dirty(key)
-                cls._clear_caches(key)
+                obj = cls._get_cache(key)
+                if obj is not None:
+                    obj._dirty = True
 
         else:
             for obj in objs:

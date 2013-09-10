@@ -130,22 +130,17 @@ class Field(object):
         self.data[instance] = value
 
     def __get__(self, instance, owner, check_dirty=True):
+
+        # Warn if detached
         if instance._detached:
             warnings.warn('Accessing a detached record.')
-        if check_dirty \
-                and instance._name in instance._dirty \
-                and instance._dirty[instance._name]:
-            primary_field = instance._fields[instance._primary_name]
-            try:
-                primary_key = primary_field.__get__(instance, None, check_dirty=False)
-                storage_key = primary_field.to_storage(primary_key)
-                if storage_key in instance._dirty[instance._name]:
-                    instance._rm_dirty(storage_key)
-                    instance.reload()
-            except KeyError:
-                pass
+
+        # Reload if dirty
+        if instance._dirty:
+            instance._dirty = False
+            instance.reload()
             
-        # Impute default if field not populated
+        # Impute default and return
         try:
             return self.data[instance]
         except KeyError:
