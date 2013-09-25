@@ -1,4 +1,4 @@
-from ..fields import Field, List
+from ..fields import Field, ForeignField
 from ..validators import validate_list
 
 class ListField(Field):
@@ -13,6 +13,7 @@ class ListField(Field):
 
         # ListField is a list of the following (e.g., ForeignFields)
         self._field_instance = field_instance
+        self._is_foreign = isinstance(field_instance, ForeignField)
 
         # Descriptor data is this type of list
         self._list_class = self._field_instance._list_class
@@ -29,14 +30,18 @@ class ListField(Field):
         # Default is a callable that returns an empty instance of the list class
         # Avoids the need to deepcopy default values for lists, which will break
         # e.g. when validators contain (un-copyable) regular expressions.
-        self._default = lambda: self._list_class(None, field_instance=self._field_instance)
+        self._default = lambda: self._list_class(None, base_class=self._field_instance.base_class)
 
-    def __set__(self, instance, value):
-        if isinstance(value, self._default.__class__):
-            self.data[instance] = value
-        elif hasattr(value, '__iter__'):
-            self.data[instance] = self._list_class(field_instance=self._field_instance)
-            self.data[instance].extend(value)
+    def __set__(self, instance, value, safe=False, literal=False):
+        self._pre_set(instance, safe=safe)
+        # if isinstance(value, self._default.__class__):
+        #     self.data[instance] = value
+        if hasattr(value, '__iter__'):
+            if literal:
+                self.data[instance] = self._list_class(value, base_class=self._field_instance.base_class, literal=True)
+            else:
+                self.data[instance] = self._list_class(base_class=self._field_instance.base_class)
+                self.data[instance].extend(value)
         else:
             self.data[instance] = value
 
@@ -50,7 +55,7 @@ class ListField(Field):
         if hasattr(self.__class__, 'validate'):
             self.__class__.validate(value)
 
-        # # Schema-level list validation
+        # Schema-level list validation
         if self._list_validate:
             if hasattr(self.list_validate, '__iter__'):
                 for validator in self.list_validate:
@@ -61,18 +66,51 @@ class ListField(Field):
         # Success
         return True
 
+    def _get_translate_func(self, translator, direction):
+        try:
+            return self._translators[(translator, direction)]
+        except KeyError:
+            if self._is_foreign:
+                base_class = self._field_instance.base_class
+                primary_field = base_class._fields[base_class._primary_name]
+                method = primary_field._get_translate_func(translator, direction)
+            else:
+                method = self._field_instance._get_translate_func(translator, direction)
+            self._translators[(translator, direction)] = method
+            return method
+
     def to_storage(self, value, translator=None):
-        '''
-            value will come in as a List (MutableSequence)
-        '''
+        translator = translator or self._schema_class._translator
         if value:
-            return [self._field_instance.to_storage(i, translator) for i in value]
+            if hasattr(value, '_to_primary_keys'):
+                value = value._to_primary_keys()
+            method = self._get_translate_func(translator, 'to')
+            if method is None and translator.null_value is None:
+                return value
+            return [
+                translator.null_value if item is None
+                else
+                item if method is None
+                else
+                method(item)
+                for item in value
+            ]
         return []
 
     def from_storage(self, value, translator=None):
-
+        translator = translator or self._schema_class._translator
         if value:
-            return [self._field_instance.from_storage(i, translator) for i in value]
+            method = self._get_translate_func(translator, 'from')
+            if method is None and translator.null_value is None:
+                return value
+            return [
+                None if item is translator.null_value
+                else
+                item if method is None
+                else
+                method(item)
+                for item in value
+            ]
         return []
 
     def on_after_save(self, parent, field_name, old_stored_data, new_value):

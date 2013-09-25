@@ -1,6 +1,4 @@
 
-from modularodm import StoredObject
-
 class QueryBase(object):
 
     def __or__(self, other):
@@ -8,6 +6,9 @@ class QueryBase(object):
 
     def __and__(self, other):
         return QueryGroup('and', self, other)
+
+    def __invert__(self):
+        return QueryGroup('not', self)
 
 class QueryGroup(QueryBase):
 
@@ -35,8 +36,10 @@ class RawQuery(QueryBase):
 
     def __init__(self, attribute, operator, argument):
 
-        if isinstance(argument, StoredObject):
+        try:
             argument = argument._primary_key
+        except AttributeError:
+            pass
 
         self.attribute = attribute
         self.operator = operator

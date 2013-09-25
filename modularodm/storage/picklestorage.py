@@ -1,10 +1,12 @@
-from ..storage import Storage
-from ..storage import KeyExistsException
+from .base import Storage, KeyExistsException
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
+from modularodm.exceptions import MultipleResultsFound, NoResultsFound
 
 import os
+import copy
+
 try:
     import cpickle as pickle
 except ImportError:
@@ -31,7 +33,6 @@ operators = {
     'contains' : lambda data, test: test in data,
     'icontains' : lambda data, test: test.lower() in data.lower(),
 
-
 }
 
 class PickleQuerySet(BaseQuerySet):
@@ -41,20 +42,29 @@ class PickleQuerySet(BaseQuerySet):
         super(PickleQuerySet, self).__init__(schema)
         self.data = list(data)
 
-    def __getitem__(self, index):
-
+    def __getitem__(self, index, raw=False):
         super(PickleQuerySet, self).__getitem__(index)
-        return self.schema.load(self.data[index][self.primary])
+        key = self.data[index][self.primary]
+        if raw:
+            return key
+        return self.schema.load(key)
 
-    def __iter__(self):
-
-        return (self.schema.load(obj[self.primary]) for obj in self.data)
+    def __iter__(self, raw=False):
+        keys = [obj[self.primary] for obj in self.data]
+        if raw:
+            return keys
+        return (self.schema.load(key) for key in keys)
 
     def __len__(self):
-
         return len(self.data)
 
     count = __len__
+
+    def get_key(self, index):
+        return self.__getitem__(index, raw=True)
+
+    def get_keys(self):
+        return list(self.__iter__(raw=True))
 
     def sort(self, *keys):
         """ Iteratively sort data by keys in reverse order. """
@@ -120,26 +130,37 @@ class PickleStorage(Storage):
             msg = 'Key ({key}) already exists'.format(key=key)
             raise KeyExistsException(msg)
 
-    def update(self, schema, key, value):
-        """Update value of key. Key need not exist.
+    # def update(self, schema, key, value):
+    #     """Update value of key. Key need not exist.
+    #
+    #     :param key: Key
+    #     :param value: Value
+    #
+    #     """
+    #     self.store[key] = value
+    #     self.flush()
 
-        :param key: Key
-        :param value: Value
-
-        """
-        self.store[key] = value
-        self.flush()
+    def update(self, query, data):
+        for pk in self.find(query, by_pk=True):
+            for key, value in data.items():
+                self.store[pk][key] = value
 
     def get(self, schema, key):
-        return self.store[key]
+        return copy.deepcopy(self.store[key])
 
-    def remove(self, key):
+    def _remove_by_pk(self, key, flush=True):
         """Retrieve value from store.
 
         :param key: Key
 
         """
         del self.store[key]
+        if flush:
+            self.flush()
+
+    def remove(self, *query):
+        for key in self.find(*query, by_pk=True):
+            self._remove_by_pk(key, flush=False)
         self.flush()
 
     def flush(self):
@@ -147,20 +168,17 @@ class PickleStorage(Storage):
         with open(self.filename, 'wb') as fp:
             pickle.dump(self.store, fp, -1)
 
-    def find_all(self):
-        return self.store.values()
-
-    def find_one(self, **kwargs):
-
-        results = list(self.find(**kwargs))
+    def find_one(self, *query):
+        results = list(self.find(*query))
         if len(results) == 1:
             return results[0]
-
-        raise Exception(
-            'Query for find_one must return exactly one result; returned {0}'.format(
-                len(results)
+        elif len(results) == 0:
+            raise NoResultsFound()
+        else:
+            raise MultipleResultsFound(
+                'Query for find_one must return exactly one result; '
+                'returned {0}'.format(len(results))
             )
-        )
 
     def _match(self, value, query):
 
@@ -172,31 +190,42 @@ class PickleStorage(Storage):
                 return all(matches)
             elif query.operator == 'or':
                 return any(matches)
+            elif query.operator == 'not':
+                return not any(matches)
             else:
-                raise Exception('QueryGroup operator must be <and> or <or>.')
+                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
 
         elif isinstance(query, RawQuery):
-
             attribute, operator, argument = \
                 query.attribute, query.operator, query.argument
 
             return operators[operator](value[attribute], argument)
 
         else:
-
             raise Exception('Query must be a QueryGroup or Query object.')
 
-    def find(self, *query):
+    def find(self, *query, **kwargs):
+        """
+        Return generator over query results. Takes optional
+        by_pk keyword argument; if true, return keys rather than
+        values.
 
-        if len(query) > 1:
-            query = QueryGroup('and', *query)
-        else:
-            query = query[0]
-
-        for key, value in self.store.iteritems():
-
-            if self._match(value, query):
+        """
+        if len(query) == 0:
+            for key, value in self.store.iteritems():
                 yield value
+        else:
+            if len(query) > 1:
+                query = QueryGroup('and', *query)
+            else:
+                query = query[0]
+
+            for key, value in self.store.items():
+                if self._match(value, query):
+                    if kwargs.get('by_pk'):
+                        yield key
+                    else:
+                        yield value
 
     def __repr__(self):
         return str(self.store)

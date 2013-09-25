@@ -5,21 +5,23 @@ import datetime
 
 from modularodm import StoredObject
 
-from modularodm.storage.PickleStorage import PickleStorage
+from modularodm.storage import PickleStorage
 
-from modularodm.fields.StringField import StringField
-from modularodm.fields.IntegerField import IntegerField
-from modularodm.fields.FloatField import FloatField
-from modularodm.fields.BooleanField import BooleanField
-from modularodm.fields.DateTimeField import DateTimeField
+from modularodm.fields import(
+    BooleanField,
+    DateTimeField,
+    FloatField,
+    IntegerField,
+    StringField,
+)
 
 from modularodm.validators import MinValueValidator, MaxValueValidator
 from modularodm.validators import MinLengthValidator, MaxLengthValidator
 
 from modularodm.validators import RegexValidator, URLValidator
 
-# Describe a table
 
+# Describe a table
 class TestSchema(StoredObject):
 
     _id = StringField(primary=True)

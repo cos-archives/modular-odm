@@ -1,23 +1,17 @@
 # todo: warn on no default, or something
 # todo: get default collection name for picklestorage, mongostorage constructors
 # todo: requirements.txt
-# todo: distutils
 
 import pprint
 
 from modularodm import StoredObject
-from modularodm.fields.StringField import StringField
-from modularodm.fields.IntegerField import IntegerField
-from modularodm.fields.FloatField import FloatField
-from modularodm.fields.BooleanField import BooleanField
-from modularodm.fields.DateTimeField import DateTimeField
-from modularodm.fields.ForeignField import ForeignField
-from modularodm.storage.PickleStorage import PickleStorage
-from modularodm.storage.MongoStorage import MongoStorage
+from modularodm.storedobject import ContextLogger
+from modularodm import fields
+from modularodm import storage
 from modularodm.validators import *
 from modularodm.query.querydialect import DefaultQueryDialect as Q
 
-from modularodm.translators import DefaultTranslator, JSONTranslator
+from modularodm.translators import DefaultTranslator, JSONTranslator, StringTranslator
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -35,15 +29,13 @@ db.blog.remove()
 
 class Ron(StoredObject):
 
-    _id = DateTimeField(primary=True)
-    # _id = StringField(primary=True)
-    # _meta = {'optimistic' : True}
+    _id = fields.DateTimeField(primary=True)
 
-    ron_str = StringField()
-    ron_int = IntegerField()
-    ron_now = DateTimeField()
+    ron_str = fields.StringField()
+    ron_int = fields.IntegerField()
+    ron_now = fields.DateTimeField()
 
-Ron.set_storage(PickleStorage('ron'))
+Ron.set_storage(storage.PickleStorage('ron'))
 
 ron1 = Ron()
 ron1._id = datetime.datetime.now()
@@ -55,35 +47,40 @@ ron2.save()
 
 # import pdb; pdb.set_trace()
 
-# ron3 = Ron.from_storage({'_id' : str(datetime.datetime.now())})
+ron3 = Ron()
+ron3._id = datetime.datetime.now()
+ron3.save()
 
-Ron._add_field('added_ron', StringField())
+# Ron._add_field('added_ron', fields.StringField())
 
 import datetime
 
 class Sheila(StoredObject):
 
-    _id = StringField(primary=True)
+    _id = fields.StringField(primary=True)
     _meta = {'optimistic' : True}
 
     # Simple fields
-    sheila_str = StringField(default='sheila', validate=True, required=True)
-    sheila_int = IntegerField(default=7, validate=MaxValueValidator(9))
-    sheila_now = DateTimeField()
-    sheila_url = StringField(validate=URLValidator())
-    sheila_foostop = StringField(required=True, validate=RegexValidator(r'foo$'), list=True)
+    sheila_str = fields.StringField(default='sheila', validate=True, required=True)
+    sheila_int = fields.IntegerField(default=7, validate=MaxValueValidator(9))
+    sheila_now = fields.DateTimeField()
+    sheila_url = fields.StringField(validate=URLValidator())
+    sheila_foostop = fields.StringField(required=True, validate=RegexValidator(r'foo$'), list=True)
+
+    created = fields.DateTimeField(auto_now_add=True)
+    modified = fields.DateTimeField(auto_now=True)
 
     # List fields
-    sheila_strs = StringField(list=True, validate=MinLengthValidator(5), list_validate=MinLengthValidator(3))
-    sheila_nows = DateTimeField(list=True)#, default=[])
-    sheila_urls = StringField(list=True, validate=[URLValidator(), MinLengthValidator(20)], list_validate=MinLengthValidator(2))
-    sheila_ints = IntegerField(list=True, validate=MinValueValidator(3), list_validate=MinLengthValidator(2))
+    sheila_strs = fields.StringField(list=True, validate=MinLengthValidator(5), list_validate=MinLengthValidator(3))
+    sheila_nows = fields.DateTimeField(list=True)#, default=[])
+    sheila_urls = fields.StringField(list=True, validate=[URLValidator(), MinLengthValidator(20)], list_validate=MinLengthValidator(2))
+    sheila_ints = fields.IntegerField(list=True, validate=MinValueValidator(3), list_validate=MinLengthValidator(2))
 
     # Foreign fields
-    sheila_ron = ForeignField('Ron', backref='ron')
-    sheila_rons = ForeignField('Ron', backref='rons', list=True)
+    sheila_ron = fields.ForeignField('Ron', backref='ron')
+    sheila_rons = fields.ForeignField('Ron', backref='rons', list=True)
 
-Sheila.set_storage(PickleStorage('sheila'))
+Sheila.set_storage(storage.PickleStorage('sheila'))
 
 # import pdb; pdb.set_trace()
 
@@ -100,29 +97,26 @@ sheila1.sheila_urls = [
     'http://openscienceframework.org/',
 ]
 sheila1.sheila_ints = [5, 3]
+
 sheila1.sheila_ron = ron1
 
-sheila1.sheila_rons = [ron1]
+sheila1.sheila_rons = [ron2, ron3]
+sheila1.save()
+
 sheila1.save()
 
 # import pdb; pdb.set_trace()
-
-sheila1.sheila_rons.append(ron2)
-sheila1.save()
-
-# import pdb; pdb.set_trace()
-Ron.remove(ron1)
+#
+# Ron.remove(ron1)
 
 # import pdb; pdb.set_trace()
+#
+# Sheila.remove(sheila1)
 
 sheila1.sheila_rons = []
 sheila1.save()
 
 # import pdb; pdb.set_trace()
-
-ron3 = Ron()
-ron3._id = datetime.datetime.now()
-ron3.save()
 
 # sheila1.sheila_rons = [ron3, ron2]
 sheila1.sheila_rons = [ron2]
@@ -139,36 +133,39 @@ sheila1.save()
 
 # import pdb; pdb.set_trace()
 
-sheila1.sheila_rons = []
+sheila1.sheila_rons = [ron1, ron2, ron3]
 sheila1.save()
 
 
 
-sheila1_stored = sheila1.to_storage()
+sheila1_stored = sheila1.to_storage(clone=True)
 sheila1_reloaded = Sheila.from_storage(sheila1_stored)
 
 # import pdb; pdb.set_trace()
 
 class Tag(StoredObject):
-    value = StringField(primary=True, index=False)
-    count = StringField(default='c', validate=True, index=True)
-    misc = StringField(default='')
-    misc2 = StringField(default='')
-    created = DateTimeField(validate=True)
-    modified = DateTimeField(validate=True, auto_now=True)
-    keywords = StringField(default=['keywd1', 'keywd2'], validate=[MinLengthValidator(5), MaxLengthValidator(10)], list=True)
-    mybool = BooleanField(default=False)
-    myint = IntegerField()
-    myfloat = FloatField(required=True, default=4.5)
-    myurl = StringField(validate=URLValidator())
+    value = fields.StringField(primary=True, index=False)
+    count = fields.StringField(default='c', validate=True, index=True)
+    misc = fields.StringField(default='')
+    misc2 = fields.StringField(default='')
+    created = fields.DateTimeField(validate=True)
+    modified = fields.DateTimeField(validate=True, auto_now=True)
+    keywords = fields.StringField(default=['keywd1', 'keywd2'], validate=[MinLengthValidator(5), MaxLengthValidator(10)], list=True)
+    mybool = fields.BooleanField(default=False)
+    myint = fields.IntegerField()
+    myfloat = fields.FloatField(required=True, default=4.5)
+    myurl = fields.StringField(validate=URLValidator())
 
 class Blog(StoredObject):
-    _id = StringField(primary=True, optimistic=True)
-    body = StringField(default='blog body')
-    title = StringField(default='asdfasdfasdf', validate=MinLengthValidator(8))
-    tag = ForeignField('Tag', backref='tagged')
-    tags = ForeignField('Tag', list=True, backref='taggeds')
-    _meta = {'optimistic':True}
+    _id = fields.StringField(primary=True, optimistic=True)
+    body = fields.StringField(default='blog body')
+    title = fields.StringField(default='asdfasdfasdf', validate=MinLengthValidator(8))
+    tag = fields.ForeignField('Tag', backref='tagged')
+    tags = fields.ForeignField('Tag', list=True, backref='taggeds')
+    _meta = {
+        'optimistic' : True,
+        'log_level' : logging.DEBUG,
+    }
 
 import os
 try:os.remove('db_blog.pkl')
@@ -176,10 +173,10 @@ except:pass
 try:os.remove('db_tag.pkl')
 except:pass
 
-Tag.set_storage(MongoStorage(db, 'tag'))
-Blog.set_storage(MongoStorage(db, 'blog'))
-# Tag.set_storage(PickleStorage('tag'))
-# Blog.set_storage(PickleStorage('blog'))
+Tag.set_storage(storage.MongoStorage(db, 'tag'))
+Blog.set_storage(storage.MongoStorage(db, 'blog'))
+# Tag.set_storage(storage.PickleStorage('tag'))
+# Blog.set_storage(storage.PickleStorage('blog'))
 
 tag1 = Tag(value=str(random.randint(0, 1000)), count='count_1', keywords=['keywd1', 'keywd3', 'keywd4'])
 tag1.save()
@@ -190,46 +187,82 @@ tag2.save()
 tag3 = Tag(value=str(random.randint(0, 1000)), count="count_3", misc="foobaz", misc2="b")
 tag3.save()
 
-tag4 = Tag(value=str(random.randint(0, 1000)), count="count_4", misc="bar", misc2="a")
+tag4 = Tag(value=str(random.randint(0, 1000)), count="mycount_4", misc="bar", misc2="a")
 tag4.save()
 
-tag5 = Tag(value=str(random.randint(0, 1000)), count="count_5", misc="baz", misc2="b")
+tag5 = Tag(value=str(random.randint(0, 1000)), count="mycount_5", misc="baz", misc2="b")
 tag5.save()
 
 blog1 = Blog(title='blogtitle1')
 blog2 = Blog(title='blogtitle2')
 blog3 = Blog(title='blogtitle3')
 
-blog1.tags.append(tag1)
+# blog1.tags = [tag1, tag2, tag3]
+# blog1.save()
 
-blog1.tag = tag1
+# import pdb; pdb.set_trace()
+#
+# StoredObject._clear_caches()
+# blog1_loaded = Blog.load(blog1._id)
+
+# import pdb; pdb.set_trace()
+
+blog1.tags.append(tag1)
+blog1.tags.append(tag1)
+# blog1.tags = [tag1, tag1]
+
+# blog1.tag = tag1
+
 # import pdb; pdb.set_trace()
 blog1.save()
 
-blog2.tag = tag1
-# blog2.tags.append(tag1)
+blog1.tags.pop()
 
-blog2.save()
-
-blog3.tag = tag1
-
-blog3.save()
-
-blog4 = Blog(tags=[tag1])
-blog4.save()
+blog1.save()
 
 # import pdb; pdb.set_trace()
 
-res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+logging.debug("foo")
 
-# Tag.find(Q('foo', 'bar', 'baz'))
+with ContextLogger():
 
-# todo: accept list of strings
-res = Tag.find_all().sort('misc2', '-misc')
-# import pdb; pdb.set_trace()
-print 'here', [(r.misc, r.misc2) for r in res]
+    blog2.tag = tag1
+    # blog2.tags.append(tag1)
+
+    blog2.save()
+
+    blog3.tag = tag1
+
+    blog3.save()
+
+    blog4 = Blog(title='tbdtbdtbd', tags=[tag1, tag2, tag3, tag4, tag5])
+    blog4.save()
+
+logging.debug("bar")
+
+import pdb; pdb.set_trace()
+
+Blog.remove(Q('title', 'startswith', 'tbd'))
+
+# res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+# print 'before rm', res.count()
+#
+# Tag.remove(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+#
+# res = Tag.find(Q('count', 'startswith', 'count_') & Q('misc', 'endswith', 'bar'))
+# print 'after rm', res.count()
+
+Tag.update(Q('count', 'startswith', 'count_'), {'count' : 'shutup'})
+print tag1.count
+
+import pdb; pdb.set_trace()
+
+# print 'here', [(r.misc, r.misc2) for r in res]
 
 res = Tag.find(Q('count', 'eq', 'count_1'))
+print 'here', res.count(), list(res)
+
+res = Tag.find(~Q('count', 'eq', 'count_1'))
 print 'here', res.count(), list(res)
 
 res = Tag.find(Q('misc', 'startswith', 'foo'))

@@ -1,79 +1,61 @@
-# todo: make this do something or use built-in exception?
-class ValidationError(Exception):
-    pass
+from modularodm.exceptions import (
+    ValidationError,
+    ValidationTypeError,
+    ValidationValueError,
+)
 
-class StringValidator(object):
-
-    def __call__(self, value):
-
-        if type(value) not in [str, unicode]:
-            raise ValidationError('Not a valid string: <{0}>'.format(value))
+from bson import ObjectId
 
 class TypeValidator(object):
 
-    def __init__(self, _type):
-        self._type = _type
+    def _as_list(self, value):
+
+        if isinstance(value, list):
+            return value
+        return [value]
+
+    def __init__(self, allowed_types, forbidden_types=None):
+        self.allowed_types = self._as_list(allowed_types)
+        self.forbidden_types = self._as_list(forbidden_types) if forbidden_types else []
 
     def __call__(self, value):
-        if not isinstance(value, self._type):
-            raise Exception(
-                'Expected a value of type {}; received value {} of type {}'.format(
-                    self._type, value, type(value)
-                )
-            )
 
-validate_integer = TypeValidator(int)
+        for ftype in self.forbidden_types:
+            if isinstance(value, ftype):
+                self._raise(value)
+
+        for atype in self.allowed_types:
+            if isinstance(value, atype):
+                return
+
+        self._raise(value)
+
+    def _raise(self, value):
+
+        raise ValidationTypeError(
+            'Received invalid value {} of type {}'.format(
+                value, type(value)
+            )
+        )
+
+validate_string = TypeValidator(basestring)
+validate_integer = TypeValidator(
+    allowed_types=int,
+    forbidden_types=bool
+)
 validate_float = TypeValidator(float)
 validate_boolean = TypeValidator(bool)
+validate_objectid = TypeValidator(ObjectId)
 
-from ..fields import List
+from ..fields.lists import List
 validate_list = TypeValidator(List)
 
 import datetime
 validate_datetime = TypeValidator(datetime.datetime)
 
-# # class MinLengthValidator(StringValidator):
-# class MinLengthValidator(object):
-#
-#     def __init__(self, min_length):
-#
-#         self.min_length = min_length
-#
-#     def __call__(self, value):
-#
-#         # super(MinLengthValidator, self).__call__(value)
-#         if len(value) < self.min_length:
-#             raise ValidationError(
-#                 'Length must be at least {0}; received value <{1}> of length {2}'.format(
-#                     self.min_length,
-#                     value,
-#                     len(value)
-#                 )
-#             )
-#
-# # class MaxLengthValidator(StringValidator):
-# class MaxLengthValidator(object):
-#
-#     def __init__(self, max_length):
-#
-#         self.max_length = max_length
-#
-#     def __call__(self, value):
-#
-#         # super(MaxLengthValidator, self).__call__(value)
-#         if len(value) > self.max_length:
-#             raise ValidationError(
-#                 'Length must be less than or equal to {0}; received value <{1}> of length {2}'.format(
-#                     self.max_length,
-#                     value,
-#                     len(value)
-#                 )
-#             )
-
-
 # Adapted from Django RegexValidator
 import re
-class RegexValidator(StringValidator):
+class RegexValidator(object):
 
     def __init__(self, regex=None, flags=0):
 
@@ -82,7 +64,6 @@ class RegexValidator(StringValidator):
 
     def __call__(self, value):
 
-        super(RegexValidator, self).__call__(value)
         if not self.regex.search(value):
             raise ValidationError(
                 'Value must match regex {0} and flags {1}; received value <{2}>'.format(
@@ -161,7 +142,7 @@ class BaseValidator(object):
         cleaned = self.clean(value)
         params = {'limit_value': self.limit_value, 'show_value': cleaned}
         if self.compare(cleaned, self.limit_value):
-            raise ValidationError(self.message.format(**params))
+            raise ValidationValueError(self.message.format(**params))
 
 
 class MaxValueValidator(BaseValidator):
