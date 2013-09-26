@@ -495,7 +495,7 @@ class StoredObject(object):
 
         # Try loading from backend
         if data is None:
-            data = cls._storage[0].get(cls, cls._pk_to_storage(key))
+            data = cls._storage[0].get(cls._primary_name, cls._pk_to_storage(key))
 
         # if not found, return None
         if data is None:
@@ -512,7 +512,7 @@ class StoredObject(object):
     @log_storage
     def _optimistic_insert(self):
         self._primary_key = self._storage[0]._optimistic_insert(
-            self.__class__,
+            self._primary_name,
             self.to_storage()
         )
 
@@ -568,7 +568,7 @@ class StoredObject(object):
 
     def reload(self):
 
-        storage_data = self._storage[0].get(self.__class__, self._storage_key)
+        storage_data = self._storage[0].get(self._primary_name, self._storage_key)
 
         for key, value in storage_data.items():
             field_object = self._fields.get(key, None)
@@ -643,17 +643,12 @@ class StoredObject(object):
     @classmethod
     @has_storage
     def get(cls, key):
-        return cls.load(cls._storage[0].get(cls, cls._pk_to_storage(key)))
+        return cls.load(cls._storage[0].get(cls._primary_name, cls._pk_to_storage(key)))
 
     @classmethod
     @has_storage
     def insert(cls, key, val):
-        cls._storage[0].insert(cls, cls._pk_to_storage(key), val)
-
-    # @classmethod
-    # @has_storage
-    # def update(cls, key, data):
-    #     cls._storage[0].update(cls, cls._pk_to_storage(key), data)
+        cls._storage[0].insert(cls._primary_name, cls._pk_to_storage(key), val)
 
     @classmethod
     def _prepare_update(cls, data):

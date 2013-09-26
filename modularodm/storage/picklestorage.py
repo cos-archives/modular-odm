@@ -116,7 +116,7 @@ class PickleStorage(Storage):
                 data = fp.read()
                 self.store = pickle.loads(data)
 
-    def insert(self, schema, key, value):
+    def insert(self, primary_name, key, value):
         """Add key-value pair to storage. Key must not exist.
 
         :param key: Key
@@ -130,22 +130,12 @@ class PickleStorage(Storage):
             msg = 'Key ({key}) already exists'.format(key=key)
             raise KeyExistsException(msg)
 
-    # def update(self, schema, key, value):
-    #     """Update value of key. Key need not exist.
-    #
-    #     :param key: Key
-    #     :param value: Value
-    #
-    #     """
-    #     self.store[key] = value
-    #     self.flush()
-
     def update(self, query, data):
         for pk in self.find(query, by_pk=True):
             for key, value in data.items():
                 self.store[pk][key] = value
 
-    def get(self, schema, key):
+    def get(self, primary_name, key):
         return copy.deepcopy(self.store[key])
 
     def _remove_by_pk(self, key, flush=True):
