@@ -147,13 +147,13 @@ class MongoStorage(Storage):
             'returned {0}'.format(matches.count())
         )
 
-    def get(self, schema, key):
-        return self.store.find_one({schema._primary_name : key})
+    def get(self, primary_name, key):
+        return self.store.find_one({primary_name : key})
 
-    def insert(self, schema, key, value):
-        if schema._primary_name not in value:
+    def insert(self, primary_name, key, value):
+        if primary_name not in value:
             value = value.copy()
-            value[schema._primary_name] = key
+            value[primary_name] = key
         self.store.insert(value)
 
     def update(self, query, data):
