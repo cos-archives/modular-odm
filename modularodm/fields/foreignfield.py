@@ -65,6 +65,10 @@ class ForeignField(Field):
         # return self.base_class._check_pk_type(value)
 
     @property
+    def mutable(self):
+        return self.base_class._fields[self.base_class._primary_name].mutable
+
+    @property
     def base_class(self):
         if self._base_class is None:
             # Look up base class in collections of attached schema; all

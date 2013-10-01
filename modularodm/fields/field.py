@@ -9,6 +9,7 @@ class Field(object):
     default = None
     base_class = None
     _list_class = List
+    mutable = False
 
     def _prepare_validators(self, _validate):
 
@@ -110,14 +111,20 @@ class Field(object):
         if value is None:
             return translator.null_value
         method = self._get_translate_func(translator, 'to')
-        return value if method is None else method(value)
+        value = value if method is None else method(value)
+        if self.mutable:
+            return copy.deepcopy(value)
+        return value
 
     def from_storage(self, value, translator=None):
         translator = translator or self._schema_class._translator
         if value == translator.null_value:
             return None
         method = self._get_translate_func(translator, 'from')
-        return value if method is None else method(value)
+        value = value if method is None else method(value)
+        if self.mutable:
+            return copy.deepcopy(value)
+        return value
 
     def _pre_set(self, instance, safe=False):
         if not self._editable and not safe:

@@ -7,6 +7,7 @@ class DateTimeField(Field):
 
     validate = validate_datetime
     data_type = datetime.datetime
+    mutable = True
 
     def _get_auto_func(self, name, value):
         if value is True:
