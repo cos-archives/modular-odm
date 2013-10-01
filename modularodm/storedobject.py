@@ -401,14 +401,12 @@ class StoredObject(object):
     def _get_cached_data(cls, key):
         return cls._cache.get(cls._name, key)
 
-    def _get_list_of_differences_from_cache(self):
+    def _get_list_of_differences_from_cache(self, cached_data):
 
         field_list = []
 
         if not self._is_loaded:
             return field_list
-
-        cached_data = self._get_cached_data(self._primary_key)
 
         if cached_data is None:
             return field_list
@@ -527,8 +525,9 @@ class StoredObject(object):
             if hasattr(field_object, 'on_before_save'):
                 field_object.on_before_save(self)
 
-        if self._primary_key is not None and self._is_cached(self._primary_key):
-            list_on_save_after_fields = self._get_list_of_differences_from_cache()
+        cached_data = self._get_cached_data(self._primary_key)
+        if self._primary_key is not None and cached_data is not None:
+            list_on_save_after_fields = self._get_list_of_differences_from_cache(cached_data)
         else:
             list_on_save_after_fields = self._fields.keys()
 
@@ -557,10 +556,11 @@ class StoredObject(object):
         for field_name in list_on_save_after_fields:
             field_object = self._fields[field_name]
             if hasattr(field_object, 'on_after_save'):
-                cached_data = self._get_cached_data(self._primary_key)
-                if cached_data:
-                    cached_data = cached_data.get(field_name, None)
-                field_object.on_after_save(self, field_name, cached_data, getattr(self, field_name))
+                if cached_data is not None:
+                    cached_field = cached_data.get(field_name, None)
+                else:
+                    cached_field = None
+                field_object.on_after_save(self, field_name, cached_field, getattr(self, field_name))
 
         self._set_cache(self._primary_key, self)
 
