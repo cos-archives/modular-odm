@@ -2,24 +2,10 @@ import inspect
 import os
 import pymongo
 import unittest
-from StringIO import StringIO
-try:
-    import cpickle as pickle
-except ImportError:
-    import pickle
 import uuid
 
 from modularodm import StoredObject
-from modularodm.storage import MongoStorage, PickleStorage
-
-
-class EphemeralStorage(PickleStorage):
-    def __init__(self, *args, **kwargs):
-        self.store = {}
-        self.fp = StringIO()
-
-    def flush(self):
-        pickle.dump(self.store, self.fp, -1)
+from modularodm.storage import MongoStorage, PickleStorage, EphemeralStorage
 
 
 class TestObject(StoredObject):
