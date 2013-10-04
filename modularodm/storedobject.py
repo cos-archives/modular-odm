@@ -839,11 +839,12 @@ class FlaskCache(Cache):
         except KeyError:
             return None
 
+    # todo: should this check for keyerrors?
     def pop(self, schema, key):
         self.data[self._request][schema].pop(key)
 
     def clear_schema(self, schema):
-        self.data[self._request].pop(schema)
+        self.data[self._request].pop(schema, None)
 
 class FlaskStoredObject(StoredObject):
 
