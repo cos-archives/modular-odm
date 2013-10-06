@@ -55,6 +55,7 @@ if 'run_tests' in sys.argv:
     status = subprocess.call(TEST_CMD, shell=True)
     sys.exit(status)
 
+
 def read(fname):
     with open(fname) as fp:
         content = fp.read()
@@ -63,9 +64,16 @@ def read(fname):
 setup(
     name='modular-odm',
     version=__version__,
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "Programming Language :: Python :: 2",
+        "Programming Language :: Python :: 2.7",
+    ],
     url="https://github.com/CenterForOpenScience/modular-odm",
     author='Center for Open Science',
     author_email='contact@centerforopenscience.org',
+    zip_safe=False,
     description='A Pythonic Object Data Manager',
     long_description=read("README.rst"),
     packages=find_packages(),
@@ -73,5 +81,6 @@ setup(
         str(req.req)
         for req in parse_requirements('requirements.txt')
     ],
-    tests_require=["nose"]
+    tests_require=["nose"],
+    keywords=["odm", "nosql", "mongo", "mongodb"],
 )

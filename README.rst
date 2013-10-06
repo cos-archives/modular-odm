@@ -45,7 +45,6 @@ Setting the Storage Backend
 
     from pymongo import MongoClient
 
-    # Set up MongoDB
     client = MongoClient()
     db = client['testdb']
     User.set_storage(storage.MongoStorage(db, collection="user"))
