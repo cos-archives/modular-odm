@@ -45,7 +45,10 @@ nosetests.xml
 .hgignore
 .env
 
-# OSF-specific 
+# OSF-specific
 #######################
 Site/Cache/*
 Site/Uploads/*
+
+# Readme build
+README.html
