@@ -18,7 +18,7 @@ from modularodm.tests import ModularOdmTestCase
 
 class ComparisonOperatorsTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = fields.IntegerField(primary=True)
             integer_field = fields.IntegerField()
@@ -29,7 +29,7 @@ class ComparisonOperatorsTestCase(ModularOdmTestCase):
 
         return Foo,
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
         self.foos = []
 
         for idx in xrange(3):

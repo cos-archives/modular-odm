@@ -17,14 +17,14 @@ from modularodm.tests import ModularOdmTestCase
 
 class StringComparisonTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = fields.IntegerField(primary=True)
             string_field = fields.StringField()
 
         return Foo,
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
         self.foos = []
 
         field_values = (
