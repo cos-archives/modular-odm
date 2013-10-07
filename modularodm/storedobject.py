@@ -178,7 +178,12 @@ def deep_assign(dict, value, *keys):
         deep_assign(dict[keys[0]], value, *keys[1:])
 
 class Cache(object):
+    """Simple container for storing cached data. This
+    is NOT suitable for working with Flask, since the cache
+    will be shared across requests; see FlaskCache and
+    FlaskStoredObject, below, for use with Flask.
 
+    """
     def __init__(self):
         self.data = {}
 
@@ -677,7 +682,7 @@ class StoredObject(object):
 
     @classmethod
     def _which_to_obj(cls, which):
-        if isinstance(which, list) and isinstance(which[0], QueryBase):
+        if isinstance(which, QueryBase):
             return cls.find_one(which)
         if isinstance(which, StoredObject):
             return which
@@ -812,7 +817,11 @@ class DummyRequest(object): pass
 dummy_request = DummyRequest()
 
 class FlaskCache(Cache):
+    """Subclass of Cache that stores data in a weak key
+    dictionary keyed by the current request (or by a dummy
+    request object if working outside a request context).
 
+    """
     @property
     def _request(self):
        try:
@@ -847,6 +856,12 @@ class FlaskCache(Cache):
         self.data[self._request].pop(schema, None)
 
 class FlaskStoredObject(StoredObject):
+    """Subclass of StoredObject with context-local cache data
+    suitable for use with Flask. Stores cache data in FlaskCache
+    objects, which use weak key dictionaries keyed on the current
+    request object to ensure that data associated with one request
+    cannot leak into another.
 
+    """
     _cache = FlaskCache()
     _object_cache = FlaskCache()

@@ -49,7 +49,7 @@ class UpdateQueryTestCase(ModularOdmTestCase):
         update clause
         """
         self.Foo.update_one(
-            query=Q('_id', 'eq', 2),
+            which=Q('_id', 'eq', 2),
             data={'modified': True})
 
         self.assertEqual(
