@@ -98,18 +98,20 @@ class MultipleBackendMeta(type):
                 (mixin, ) + bases,
                 dct
             )
+            frame.f_globals[new_name].__test__ = True
 
 
 
 class ModularOdmTestCase(unittest.TestCase):
 
     __metaclass__ = MultipleBackendMeta
+    __test__ = False
 
     # Setup
 
     def setUp(self):
         super(ModularOdmTestCase, self).setUp()
-        test_objects = self.define_test_objects() or tuple()
+        test_objects = self.define_objects() or tuple()
 
         for obj in test_objects:
             obj.set_storage(self.make_storage())
@@ -117,20 +119,20 @@ class ModularOdmTestCase(unittest.TestCase):
 
         StoredObject._clear_caches()
 
-        self.set_up_test_objects()
+        self.set_up_objects()
 
     def set_up_storage(self):
         super(ModularOdmTestCase, self).set_up_storage()
 
-    def define_test_objects(self):
+    def define_objects(self):
         try:
-            super(ModularOdmTestCase, self).define_test_objects()
+            super(ModularOdmTestCase, self).define_objects()
         except AttributeError:
             pass
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
         try:
-            super(ModularOdmTestCase, self).set_up_test_objects()
+            super(ModularOdmTestCase, self).set_up_objects()
         except AttributeError:
             pass
 

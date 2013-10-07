@@ -4,9 +4,10 @@ from modularodm import StoredObject
 from modularodm.storedobject import ContextLogger
 from modularodm.fields import ForeignField, IntegerField
 
+
 class LazyLoadTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
 
         class Foo(StoredObject):
             _id = IntegerField()

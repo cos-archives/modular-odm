@@ -10,13 +10,13 @@ import unittest
 
 class BasicQueryTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField(primary=True)
 
         return Foo,
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
         self.foos = []
 
         for idx in xrange(30):

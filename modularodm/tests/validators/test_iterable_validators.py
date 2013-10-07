@@ -7,7 +7,7 @@ from modularodm.validators import MaxLengthValidator, MinLengthValidator
 
 class StringValidatorTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             test_field_max = StringField(
@@ -42,7 +42,7 @@ class StringValidatorTestCase(ModularOdmTestCase):
 
 class ListValidatorTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             test_field_max = IntegerField(
@@ -79,7 +79,7 @@ class ListValidatorTestCase(ModularOdmTestCase):
 
 
 class IterableValidatorCombinationTestCase(ModularOdmTestCase):
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             test_field = StringField(

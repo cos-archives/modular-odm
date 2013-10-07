@@ -5,7 +5,7 @@ from modularodm.fields import ForeignField, IntegerField
 
 class OneToManyFieldTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
 
         class Foo(TestObject):
             _id = IntegerField()
@@ -16,7 +16,7 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
 
         return Foo, Bar
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
 
         self.foo = self.Foo(_id=1)
         self.bar = self.Bar(_id=2)

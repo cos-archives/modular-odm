@@ -11,7 +11,7 @@ from modularodm.fields import ForeignField, IntegerField
 
 class ManyToManyFieldTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             my_bar = ForeignField('Bar', list=True, backref='my_foo')
@@ -21,7 +21,7 @@ class ManyToManyFieldTestCase(ModularOdmTestCase):
 
         return Foo, Bar
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
 
         # create a Foo and two Bars
         self.foo = self.Foo(_id=1)
