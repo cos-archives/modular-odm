@@ -283,8 +283,12 @@ class StoredObject(object):
         data = {}
 
         for field_name, field_object in self._fields.items():
-            if clone and field_object._is_primary:
-                continue
+
+            # Ignore primary and foreign fields if cloning
+            # TODO: test this
+            if clone:
+                if field_object._is_primary or field_object._is_foreign:
+                    continue
             field_value = field_object.to_storage(
                 field_object._get_underlying_data(self),
                 translator
