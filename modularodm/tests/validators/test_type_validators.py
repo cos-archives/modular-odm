@@ -13,7 +13,7 @@ from modularodm.tests import ModularOdmTestCase
 
 
 class BooleanValidatorTestCase(ModularOdmTestCase):
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             field = BooleanField(list=False, validate=True)
@@ -57,7 +57,7 @@ class BooleanValidatorTestCase(ModularOdmTestCase):
 
 
 class DateTimeValidatorTestCase(ModularOdmTestCase):
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             field = DateTimeField(list=False, validate=True)
@@ -102,7 +102,7 @@ class DateTimeValidatorTestCase(ModularOdmTestCase):
 
 
 class FloatValidatorTestCase(ModularOdmTestCase):
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             field = FloatField(list=False, validate=True)
@@ -147,7 +147,7 @@ class FloatValidatorTestCase(ModularOdmTestCase):
 
 
 class IntegerValidatorTestCase(ModularOdmTestCase):
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             field = IntegerField(list=False, validate=True)
@@ -192,7 +192,7 @@ class IntegerValidatorTestCase(ModularOdmTestCase):
 
 
 class StringValidatorTestCase(ModularOdmTestCase):
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             field = StringField(list=False, validate=True)
@@ -236,7 +236,7 @@ class StringValidatorTestCase(ModularOdmTestCase):
 
 
 class ListValidatorTestCase(ModularOdmTestCase):
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = IntegerField()
             field = StringField(list=True, validate=True)

@@ -11,7 +11,7 @@ from modularodm import StoredObject
 
 class OneToManyFieldTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
 
         class Foo(StoredObject):
             _meta = {
@@ -27,7 +27,7 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
 
         return Foo, Bar
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
 
         self.bar = self.Bar()
         self.bar.save()

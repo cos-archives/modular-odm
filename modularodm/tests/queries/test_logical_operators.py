@@ -3,7 +3,7 @@ from modularodm.query.querydialect import DefaultQueryDialect as Q
 from modularodm.tests import ModularOdmTestCase
 
 class LogicalOperatorsBase(ModularOdmTestCase):
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = fields.IntegerField(required=True, primary=True)
             a = fields.IntegerField()
@@ -11,7 +11,7 @@ class LogicalOperatorsBase(ModularOdmTestCase):
 
         return Foo,
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
         self.foos =  []
 
         for idx, f in  enumerate([(a, b) for a in xrange(3) for b in xrange(3)]):
