@@ -706,6 +706,8 @@ class StoredObject(object):
                 ),
                 storage_data,
             )
+            if obj:
+                obj._dirty = True
             if not saved:
                 cls._clear_caches(obj._storage_key)
         else:

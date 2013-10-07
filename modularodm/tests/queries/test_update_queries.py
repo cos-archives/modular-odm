@@ -7,14 +7,14 @@ from modularodm.tests import ModularOdmTestCase
 
 class UpdateQueryTestCase(ModularOdmTestCase):
 
-    def define_test_objects(self):
+    def define_objects(self):
         class Foo(StoredObject):
             _id = fields.IntegerField(primary=True)
             modified = fields.BooleanField(default=False)
 
         return Foo,
 
-    def set_up_test_objects(self):
+    def set_up_objects(self):
         self.foos = []
 
         for idx in xrange(5):
