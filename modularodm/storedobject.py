@@ -225,6 +225,11 @@ class StoredObject(object):
         self._detached = False
         self._is_loaded = kwargs.pop('_is_loaded', False)
 
+        # Impute non-lazy default values (e.g. datetime with auto_now=True)
+        for value in self._fields.values():
+            if not value.lazy_default:
+                value.__set__(self, value._gen_default(), safe=True)
+
         # Add kwargs to instance
         for key, value in kwargs.items():
             try:
@@ -590,7 +595,6 @@ class StoredObject(object):
                 data_value = storage_data[key]
                 if data_value is None:
                     value = None
-                    setattr(self, key, None)
                 else:
                     value = field_object.from_storage(data_value)
                 field_object.__set__(self, value, safe=True)

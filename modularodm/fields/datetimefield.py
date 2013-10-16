@@ -37,6 +37,7 @@ class DateTimeField(Field):
         #
         if self._auto_now:
             self._auto_now = self._get_auto_func('auto_now', self._auto_now)
+            self.lazy_default = False
         #
         if self._auto_now_add:
             self._default = self._auto_now_add = self._get_auto_func('auto_now_add', self._auto_now_add)
