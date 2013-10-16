@@ -207,7 +207,7 @@ class Cache(object):
         self.__init__()
 
     def clear_schema(self, schema):
-        self.data.pop(schema)
+        self.data.pop(schema, None)
 
 class StoredObject(object):
 
@@ -410,23 +410,24 @@ class StoredObject(object):
     def _get_cached_data(cls, key):
         return cls._cache.get(cls._name, key)
 
-    def _get_list_of_differences_from_cache(self, cached_data):
+    def _get_list_of_differences_from_cache(self, cached_data, storage_data):
+        """Get fields that differ between the cache and the current object.
+        Validation and after_save methods should only be run on diffed
+        fields.
 
-        field_list = []
+        :param cached_data: Storage-formatted data from cache
+        :param storage_data: Storage-formatted data from object
+        :return: List of diffed fields
 
-        if not self._is_loaded:
-            return field_list
+        """
+        if not self._is_loaded or cached_data is None:
+            return []
 
-        if cached_data is None:
-            return field_list
-
-        current_data = self.to_storage()
-
-        for field_name, field_object in self._fields.items():
-            if current_data[field_name] != cached_data[field_name]:
-                field_list.append(field_name)
-
-        return field_list
+        return [
+            field
+            for field in self._fields
+            if cached_data[field] != storage_data[field]
+        ]
 
     # Cache clearing
 
@@ -535,8 +536,12 @@ class StoredObject(object):
                 field_object.on_before_save(self)
 
         cached_data = self._get_cached_data(self._primary_key)
+        storage_data = self.to_storage()
+
         if self._primary_key is not None and cached_data is not None:
-            list_on_save_after_fields = self._get_list_of_differences_from_cache(cached_data)
+            list_on_save_after_fields = self._get_list_of_differences_from_cache(
+                cached_data, storage_data
+            )
         else:
             list_on_save_after_fields = self._fields.keys()
 
@@ -550,11 +555,11 @@ class StoredObject(object):
             field_object.do_validate(getattr(self, field_name))
 
         if self._is_loaded:
-            self.update_one(self._primary_key, self.to_storage(), saved=True)
+            self.update_one(self._primary_key, storage_data, saved=True)
         elif self._is_optimistic and self._primary_key is None:
             self._optimistic_insert()
         else:
-            self.insert(self._primary_key, self.to_storage())
+            self.insert(self._primary_key, storage_data)
 
         # if primary key has changed, follow back references and update
         # AND
@@ -766,8 +771,14 @@ class StoredObject(object):
         cls._storage[0].remove(*query)
 
 def rm_fwd_refs(obj):
-    """ Remove forward references to linked fields. """
+    """When removing an object, other objects with references to the current
+    object should remove those references. This function identifies objects
+    with forward references to the current object, then removes those
+    references.
 
+    :param obj: Object to which forward references should be removed
+
+    """
     for stack, key in obj._backrefs_flat:
 
         # Unpack stack
@@ -789,26 +800,41 @@ def rm_fwd_refs(obj):
         parent_object.save()
 
 def rm_back_refs(obj):
-    """ Remove backward references from linked fields. """
+    """When removing an object with foreign fields, back-references from
+    other objects to the current object should be deleted. This function
+    identifies foreign fields of the specified object whose values are not
+    None and which specify back-reference keys, then removes back-references
+    from linked objects to the specified object.
 
+    :param obj: Object for which back-references should be removed
+
+    """
     for field_name, field_object in obj._fields.items():
 
         delete_queue = []
 
-        if isinstance(field_object, ForeignField):
-            value = getattr(obj, field_name)
-            if value:
-                delete_queue.append(value)
-            field_instance = field_object
-
-        elif isinstance(field_object, ListField):
-            field_instance = field_object._field_instance
-            if isinstance(field_instance, ForeignField):
-                delete_queue = getattr(obj, field_name)
-
-        else:
+        # Skip if not foreign field
+        if not field_object._is_foreign:
             continue
 
+        # Skip if value is None
+        value = getattr(obj, field_name)
+        if not value:
+            continue
+
+        # Build list of linked objects if ListField, else single field
+        if isinstance(field_object, ListField):
+            delete_queue.extend([v for v in value if v])
+            field_instance = field_object._field_instance
+        else:
+            delete_queue.append(value)
+            field_instance = field_object
+
+        # Skip if field does not specify back-references
+        if not field_instance._backref_field_name:
+            continue
+
+        # Remove back-references
         for obj_to_delete in delete_queue:
             obj_to_delete._remove_backref(
                 field_instance._backref_field_name,
@@ -829,37 +855,24 @@ class FlaskCache(Cache):
 
     """
     @property
-    def _request(self):
+    def request(self):
        try:
            return request._get_current_object()
        except:
            return dummy_request
 
     def __init__(self):
-        self.data = WeakKeyDictionary()
+        self._data = WeakKeyDictionary()
 
     @property
-    def raw(self):
-        try:
-            return self.data[self._request]
-        except KeyError:
-            return {}
+    def data(self):
+        if self.request not in self._data:
+            self._data[self.request] = {}
+        return self._data[self.request]
 
-    def set(self, schema, key, value):
-        deep_assign(self.data, value, self._request, schema, key)
-
-    def get(self, schema, key):
-        try:
-            return self.data[self._request][schema][key]
-        except KeyError:
-            return None
-
-    # todo: should this check for keyerrors?
-    def pop(self, schema, key):
-        self.data[self._request][schema].pop(key)
-
-    def clear_schema(self, schema):
-        self.data[self._request].pop(schema, None)
+    @data.setter
+    def data(self, value):
+        self._data[self.request] = value
 
 class FlaskStoredObject(StoredObject):
     """Subclass of StoredObject with context-local cache data
