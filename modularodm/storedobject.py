@@ -690,7 +690,6 @@ class StoredObject(object):
     def _data_to_storage(cls, data):
 
         storage_data = {}
-        #includes_foreign = False
 
         for key, value in data.items():
             if key in cls._fields:
@@ -701,7 +700,7 @@ class StoredObject(object):
             else:
                 storage_data[key] = value
 
-        return storage_data#, includes_foreign
+        return storage_data
 
     def _update_in_memory(self, storage_data):
         for field_name, data_value in storage_data.items():
