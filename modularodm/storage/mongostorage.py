@@ -157,8 +157,17 @@ class MongoStorage(Storage):
         self.store.insert(value)
 
     def update(self, query, data):
+
         mongo_query = self._translate_query(query)
-        update_query = {'$set' : data}
+
+        # Field "_id" shouldn't appear in both search and update queries; else
+        # MongoDB will raise a "Mod on _id not allowed" error
+        if '_id' in mongo_query:
+            update_data = {k: v for k, v in data.items() if k != '_id'}
+        else:
+            update_data = data
+        update_query = {'$set': update_data}
+
         self.store.update(
             mongo_query,
             update_query,
@@ -184,7 +193,6 @@ class MongoStorage(Storage):
             query = QueryGroup('and', *query)
         else:
             query = None
-
 
         mongo_query = {}
 

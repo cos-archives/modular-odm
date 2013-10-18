@@ -11,6 +11,7 @@ class Field(object):
     _list_class = List
     mutable = False
     lazy_default = True
+    _uniform_translator = True
 
     def _prepare_validators(self, _validate):
 

@@ -560,7 +560,7 @@ class StoredObject(object):
             field_object.do_validate(getattr(self, field_name))
 
         if self._is_loaded:
-            self.update_one(self._primary_key, storage_data, saved=True)
+            self.update_one(self._primary_key, storage_data=storage_data, saved=True)
         elif self._is_optimistic and self._primary_key is None:
             self._optimistic_insert()
         else:
@@ -609,6 +609,8 @@ class StoredObject(object):
             cls=self.__class__.__name__,
             item=item
         )
+
+        # Retrieve back-references
         if '__' in item and not item.startswith('__'):
             item_split = item.split('__')
             if len(item_split) == 2:
@@ -623,7 +625,16 @@ class StoredObject(object):
                 ids = deref(self.__backrefs, [backref_key, parent_schema_name, parent_field_name], missing=[])
             else:
                 raise AttributeError(errmsg)
-            return ForeignList(ids, literal=True, base_class=self.get_collection(parent_schema_name))
+            try:
+                base_class = self.get_collection(parent_schema_name)
+            except KeyError:
+                raise ModularOdmException(
+                    'Unknown schema <{}>'.format(
+                        parent_schema_name
+                    )
+                )
+            return ForeignList(ids, literal=True, base_class=base_class)
+
         raise AttributeError(errmsg)
 
     @warn_if_detached
@@ -669,23 +680,28 @@ class StoredObject(object):
         cls._storage[0].insert(cls._primary_name, cls._pk_to_storage(key), val)
 
     @classmethod
-    def _prepare_update(cls, data):
+    def _includes_foreign(cls, keys):
+        for key in keys:
+            if key in cls._fields and cls._fields[key]._is_foreign:
+                return True
+        return False
+
+    @classmethod
+    def _data_to_storage(cls, data):
 
         storage_data = {}
-        includes_foreign = False
+        #includes_foreign = False
 
         for key, value in data.items():
             if key in cls._fields:
                 field_object = cls._fields[key]
-                if field_object._is_foreign and not includes_foreign:
-                    includes_foreign = True
                 if key == cls._primary_name:
                     continue
                 storage_data[key] = field_object.to_storage(value)
             else:
                 storage_data[key] = value
 
-        return storage_data, includes_foreign
+        return storage_data#, includes_foreign
 
     def _update_in_memory(self, storage_data):
         for field_name, data_value in storage_data.items():
@@ -703,9 +719,10 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def update_one(cls, which, data, saved=False):
+    def update_one(cls, which, data=None, storage_data=None, saved=False):
 
-        storage_data, includes_foreign = cls._prepare_update(data)
+        storage_data = storage_data or cls._data_to_storage(data)
+        includes_foreign = cls._includes_foreign(storage_data.keys())
         obj = cls._which_to_obj(which)
 
         if saved or not includes_foreign:
@@ -724,9 +741,10 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def update(cls, query, data):
+    def update(cls, query, data=None, storage_data=None):
 
-        storage_data, includes_foreign = cls._prepare_update(data)
+        storage_data = storage_data or cls._data_to_storage(data)
+        includes_foreign = cls._includes_foreign(storage_data.keys())
 
         objs = cls.find(query)
         keys = objs.get_keys()
@@ -745,7 +763,13 @@ class StoredObject(object):
     @classmethod
     @has_storage
     def remove_one(cls, which, rm=True):
+        """Remove an object, along with its references and back-references.
+        Remove the object from the cache and sets its _detached flag to True.
 
+        :param which: Object selector: Query, StoredObject, or primary key
+        :param rm: Remove data from backend?
+
+        """
         # Look up object
         obj = cls._which_to_obj(which)
 
@@ -753,8 +777,7 @@ class StoredObject(object):
         rm_fwd_refs(obj)
         rm_back_refs(obj)
 
-        # Detach and remove from cache
-        obj._detached = True
+        # Remove from cache
         cls._clear_caches(obj._storage_key)
 
         # Remove from backend
@@ -763,10 +786,17 @@ class StoredObject(object):
                 RawQuery(obj._primary_name, 'eq', obj._storage_key)
             )
 
+        # Set detached
+        obj._detached = True
+
     @classmethod
     @has_storage
     def remove(cls, *query):
+        """Remove objects by query.
 
+        :param query: Query object
+
+        """
         objs = cls.find(*query)
 
         for obj in objs:
