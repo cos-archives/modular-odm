@@ -33,14 +33,19 @@ Bob.set_storage(storage.MongoStorage(collection, 'bob'))
 #Baz.set_storage(storage.PickleStorage('baz'))
 #Bob.set_storage(storage.PickleStorage('bob'))
 
-foo = Foo()
-foo.save()
+#foo = Foo()
+#foo.save()
+
+foo_id = 'asdf'
 
 bar = Bar()
 bar.save()
 
-baz1 = Baz(abstract=(foo._id, 'foo'))
+baz1 = Baz(abstract=(foo_id, 'foo'))
 baz1.save()
+
+foo = Foo(_id=foo_id)
+foo.save()
 
 baz2 = Baz(abstract=bar)
 baz2.save()
@@ -53,12 +58,6 @@ baz3.save()
 
 baz3.remove_one(baz3)
 
-#bob = Bob()
-#bob.abstract = [foo, bar]
-#bob.save()
-
 #Bob._clear_caches()
 
 import pdb; pdb.set_trace()
-
-#bobr = Bob.load(bob._id)
