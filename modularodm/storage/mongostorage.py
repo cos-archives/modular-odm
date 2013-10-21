@@ -9,7 +9,7 @@ from modularodm.exceptions import NoResultsFound, MultipleResultsFound
 
 # From mongoengine.queryset.transform
 COMPARISON_OPERATORS = ('ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'mod',
-                        'all', 'size', 'exists', 'not')
+                        'all', 'size', 'exists', 'not', 'elemMatch')
 # GEO_OPERATORS        = ('within_distance', 'within_spherical_distance',
 #                         'within_box', 'within_polygon', 'near', 'near_sphere',
 #                         'max_distance', 'geo_within', 'geo_within_box',
