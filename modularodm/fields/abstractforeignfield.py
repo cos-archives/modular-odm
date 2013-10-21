@@ -69,8 +69,6 @@ class AbstractForeignField(Field):
         if value is None:
             return None
         if hasattr(value, '_primary_key'):
-            if not value._is_loaded:
-                raise Exception('Record must be loaded.')
             return value._primary_key
 
     def __set__(self, instance, value, safe=False, literal=False):
