@@ -58,16 +58,22 @@ class MongoQuerySet(BaseQuerySet):
 
     def __getitem__(self, index, raw=False):
         super(MongoQuerySet, self).__getitem__(index)
-        key = self.data[index][self.primary]
-        if raw:
-            return key
-        return self.schema.load(key)
+        if self.schema:
+            key = self.data[index][self.primary]
+            if raw:
+                return key
+            return self.schema.load(key)
+        else:
+            return self.data[index]
 
     def __iter__(self, raw=False):
-        keys = [obj[self.primary] for obj in self.data.clone()]
-        if raw:
-            return keys
-        return (self.schema.load(key) for key in keys)
+        if self.schema:
+            keys = [obj[self.primary] for obj in self.data.clone()]
+            if raw:
+                return keys
+            return (self.schema.load(key) for key in keys)
+        else:
+            return (record for record in self.data.clone())
 
     def __len__(self):
 

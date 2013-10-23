@@ -1,7 +1,10 @@
+import datetime
 import logging
 import warnings
+from bson import ObjectId
 
-from fields import Field, ListField, ForeignField, ForeignList
+from fields import Field, ListField, ForeignList
+from .query.querydialect import DefaultQueryDialect as Q
 from .storage import Storage
 from .query import QueryBase, RawQuery
 from .frozen import FrozenDict
@@ -110,6 +113,12 @@ class ObjectMeta(type):
         cls._log_level = hasattr(cls, '_meta') and \
             cls._meta.get('log_level', None)
 
+        # Store version info
+        cls._versioned = hasattr(cls, '_meta') and \
+            cls._meta.get('versioned', False)
+        cls._version_method = hasattr(cls, '_meta') and \
+            cls._meta.get('version_method', 'diff')
+
         # Prepare fields
         cls._fields = {}
         cls._primary_name = None
@@ -167,7 +176,7 @@ class ObjectMeta(type):
 
     @property
     def _translator(cls):
-        return cls._storage[0].translator
+        return cls._storage['primary'].translator
 
 def deep_assign(dict, value, *keys):
     if len(keys) == 1:
@@ -375,18 +384,28 @@ class StoredObject(object):
         self.save(force=True)
 
     @classmethod
-    def set_storage(cls, storage):
+    def set_storage(cls, primary, **kwargs):
 
-        if not isinstance(storage, Storage):
+        if not isinstance(primary, Storage):
             raise Exception('Argument to set_storage must be an instance of Storage.')
         if not hasattr(cls, '_storage'):
-            cls._storage = []
+            cls._storage = {}
 
+        # Ensure indices on primary storage
         for field_name, field_object in cls._fields.items():
             if field_object._index:
-                storage._ensure_index(field_name)
+                primary._ensure_index(field_name)
 
-        cls._storage.append(storage)
+        # Add primary storage backend
+        cls._storage['primary'] = primary
+
+        # Add auxiliary storage backends
+        for key, value in kwargs.items():
+            if isinstance(value, Storage):
+                cls._storage[key] = value
+            else:
+                raise ModularOdmException('Keyword arguments to set_storage must be Storage objects')
+
 
     # Caching ################################################################
 
@@ -498,9 +517,9 @@ class StoredObject(object):
     @classmethod
     @has_storage
     @log_storage
-    def load(cls, key=None, data=None, _is_loaded=True):
+    def load(cls, key=None, data=None, _is_loaded=True, date=None):
 
-        if key is not None:
+        if key is not None and date is None:
             key = cls._check_pk_type(key)
             cached_object = cls._load_from_cache(key)
             if cached_object is not None:
@@ -508,7 +527,18 @@ class StoredObject(object):
 
         # Try loading from backend
         if data is None:
-            data = cls._storage[0].get(cls._primary_name, cls._pk_to_storage(key))
+            data = cls._storage['primary'].get(cls._primary_name, cls._pk_to_storage(key))
+            if date is not None:
+                data = cls._load_version(key, data, date)
+                #diffs = cls._storage['primary'].QuerySet(
+                #    None,
+                #    cls._storage['versioned'].find(
+                #        Q('primary_id', 'eq', cls._pk_to_storage(key)) &
+                #        Q('timestamp', 'gte', date)
+                #    )
+                #).sort('-timestamp')
+                #for diff in list(diffs):
+                #    data.update(diff['data'])
 
         # if not found, return None
         if data is None:
@@ -524,10 +554,64 @@ class StoredObject(object):
     @has_storage
     @log_storage
     def _optimistic_insert(self):
-        self._primary_key = self._storage[0]._optimistic_insert(
+        self._primary_key = self._storage['primary']._optimistic_insert(
             self._primary_name,
             self.to_storage()
         )
+
+    @has_storage
+    @log_storage
+    def _save_version(self, data, fields=None):
+
+        if self._version_method == 'full':
+            version_data = data
+        elif self._version_method == 'diff':
+            version_data = {
+                key: data[key]
+                for key in fields
+            }
+
+        self._storage['versioned'].insert(
+            '_id',
+            ObjectId(),
+            {
+                'primary_id': self._primary_key,
+                'timestamp': datetime.datetime.utcnow(),
+                'method': self._version_method,
+                'data': version_data
+            }
+        )
+
+    @classmethod
+    @has_storage
+    @log_storage
+    def _load_version(cls, key, data, date):
+
+        versions = cls._storage['primary'].QuerySet(
+            None,
+            cls._storage['versioned'].find(
+                Q('primary_id', 'eq', cls._pk_to_storage(key)) &
+                Q('timestamp', 'gte', date)
+            )
+        )
+
+        if cls._version_method == 'full':
+            if versions:
+                versions = versions.sort('timestamp')
+                data = versions[0]['data']
+        elif cls._version_method == 'diff':
+            data = cls._storage['primary'].get(
+                cls._primary_name,
+                cls._pk_to_storage(key)
+            )
+            diffs = versions.sort('-timestamp')
+            for diff in diffs:
+                data.update(diff['data'])
+
+        return data
+
+    def revert(self, date):
+        pass
 
     @has_storage
     @log_storage
@@ -566,6 +650,14 @@ class StoredObject(object):
         else:
             self.insert(self._primary_key, storage_data)
 
+        if self._versioned \
+                and 'versioned' in self._storage \
+                and cached_data is not None:
+            self._save_version(
+                cached_data,
+                list_on_save_after_fields
+            )
+
         # if primary key has changed, follow back references and update
         # AND
         # run after_save or after_save_on_difference
@@ -587,7 +679,7 @@ class StoredObject(object):
 
     def reload(self):
 
-        storage_data = self._storage[0].get(self._primary_name, self._storage_key)
+        storage_data = self._storage['primary'].get(self._primary_name, self._storage_key)
 
         for key, value in storage_data.items():
             field_object = self._fields.get(key, None)
@@ -649,24 +741,24 @@ class StoredObject(object):
     @has_storage
     @log_storage
     def find(cls, *args, **kwargs):
-        return cls._storage[0].QuerySet(cls, cls._storage[0].find(*args, **kwargs))
+        return cls._storage['primary'].QuerySet(cls, cls._storage['primary'].find(*args, **kwargs))
 
     @classmethod
     @has_storage
     @log_storage
     def find_one(cls, *query):
-        stored_data = cls._storage[0].find_one(*query)
+        stored_data = cls._storage['primary'].find_one(*query)
         return cls.load(key=stored_data[cls._primary_name], data=stored_data)
 
     @classmethod
     @has_storage
     def get(cls, key):
-        return cls.load(cls._storage[0].get(cls._primary_name, cls._pk_to_storage(key)))
+        return cls.load(cls._storage['primary'].get(cls._primary_name, cls._pk_to_storage(key)))
 
     @classmethod
     @has_storage
     def insert(cls, key, val):
-        cls._storage[0].insert(cls._primary_name, cls._pk_to_storage(key), val)
+        cls._storage['primary'].insert(cls._primary_name, cls._pk_to_storage(key), val)
 
     @classmethod
     def _prepare_update(cls, data):
@@ -709,7 +801,7 @@ class StoredObject(object):
         obj = cls._which_to_obj(which)
 
         if saved or not includes_foreign:
-            cls._storage[0].update(
+            cls._storage['primary'].update(
                 RawQuery(
                     cls._primary_name, 'eq', obj._primary_key
                 ),
@@ -732,7 +824,7 @@ class StoredObject(object):
         keys = objs.get_keys()
 
         if not includes_foreign:
-            cls._storage[0].update(query, storage_data)
+            cls._storage['primary'].update(query, storage_data)
             for key in keys:
                 obj = cls._get_cache(key)
                 if obj is not None:
@@ -759,7 +851,7 @@ class StoredObject(object):
 
         # Remove from backend
         if rm:
-            cls._storage[0].remove(
+            cls._storage['primary'].remove(
                 RawQuery(obj._primary_name, 'eq', obj._storage_key)
             )
 
@@ -772,7 +864,7 @@ class StoredObject(object):
         for obj in objs:
             cls.remove_one(obj, rm=False)
 
-        cls._storage[0].remove(*query)
+        cls._storage['primary'].remove(*query)
 
 def rm_fwd_refs(obj):
     """When removing an object, other objects with references to the current

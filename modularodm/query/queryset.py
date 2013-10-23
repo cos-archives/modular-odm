@@ -1,13 +1,9 @@
-
-# todo groupby
-# todo indexing
-
 class BaseQuerySet(object):
 
     def __init__(self, schema):
 
         self.schema = schema
-        self.primary = schema._primary_name
+        self.primary = getattr(schema, '_primary_name', None)
 
     def __getitem__(self, index):
 
