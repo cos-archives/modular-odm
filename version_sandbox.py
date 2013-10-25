@@ -11,7 +11,7 @@ from modularodm import storage
 from modularodm.validators import *
 from modularodm.query.querydialect import DefaultQueryDialect as Q
 
-from modularodm.translators import DefaultTranslator, JSONTranslator, StringTranslator
+from modularodm.version.context import VersionContext
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -45,34 +45,66 @@ Foo.set_storage(
     versioned=storage.MongoStorage(database, 'foo_versioned'),
 )
 
-foo = Foo(title='hi')
-foo.save()
+#foo = Foo(title='hi')
+#foo.save()
+#
+#dt_save0 = datetime.datetime.utcnow()
+#time.sleep(2.5)
+#
+#foo.title = 'newtitle'
+#foo.save()
+#
+#dt_save1 = datetime.datetime.utcnow()
+#time.sleep(2.5)
+#
+#foo.tags = ['good', 'foo']
+#foo.save()
+#
+#dt_save2 = datetime.datetime.utcnow()
+#
+#Foo._clear_caches()
+#foo_old = Foo.load(foo._primary_key, date=dt_save0 - datetime.timedelta(days=1))
+#
+#Foo._clear_caches()
+#foo_after_one_update = Foo.load(foo._primary_key, date=dt_save1)
+#
+#Foo._clear_caches()
+#foo_after_two_updates = Foo.load(foo._primary_key, date=dt_save2)
+#
+#print foo_old
+#print foo_after_one_update
+#print foo_after_two_updates
 
-dt_save0 = datetime.datetime.utcnow()
-time.sleep(2.5)
+foo1 = Foo(title='foo1')
+foo1.save()
 
-foo.title = 'newtitle'
-foo.save()
+foo2 = Foo(title='foo2')
+foo2.save()
 
-dt_save1 = datetime.datetime.utcnow()
-time.sleep(2.5)
+time.sleep(1)
 
-foo.tags = ['good', 'foo']
-foo.save()
+foo1.tags = ['tag1']
+foo1.save()
 
-dt_save2 = datetime.datetime.utcnow()
+time.sleep(1)
 
-Foo._clear_caches()
-foo_old = Foo.load(foo._primary_key, date=dt_save0 - datetime.timedelta(days=1))
+foo2.tags = ['tag2']
+foo2.save()
 
-Foo._clear_caches()
-foo_after_one_update = Foo.load(foo._primary_key, date=dt_save1)
+with VersionContext(datetime.datetime.utcnow() - datetime.timedelta(days=1)):
+    foo1_vc_old = Foo.load(foo1._primary_key)
+    foo2_vc_old = Foo.load(foo2._primary_key)
 
-Foo._clear_caches()
-foo_after_two_updates = Foo.load(foo._primary_key, date=dt_save2)
+with VersionContext(datetime.datetime.utcnow()):
+    foo1_vc_new = Foo.load(foo1._primary_key)
+    foo2_vc_new = Foo.load(foo2._primary_key)
 
-print foo_old
-print foo_after_one_update
-print foo_after_two_updates
+print 'foo1'
+print foo1_vc_old
+print foo1_vc_new
+
+print 'foo2'
+print foo2_vc_old
+print foo2_vc_new
 
 import pdb; pdb.set_trace()

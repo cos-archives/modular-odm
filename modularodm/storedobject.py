@@ -519,6 +519,9 @@ class StoredObject(object):
     @log_storage
     def load(cls, key=None, data=None, _is_loaded=True, date=None):
 
+        # Get version date
+        date = date or getattr(cls, '_version_date', None)
+
         if key is not None and date is None:
             key = cls._check_pk_type(key)
             cached_object = cls._load_from_cache(key)
@@ -530,15 +533,6 @@ class StoredObject(object):
             data = cls._storage['primary'].get(cls._primary_name, cls._pk_to_storage(key))
             if date is not None:
                 data = cls._load_version(key, data, date)
-                #diffs = cls._storage['primary'].QuerySet(
-                #    None,
-                #    cls._storage['versioned'].find(
-                #        Q('primary_id', 'eq', cls._pk_to_storage(key)) &
-                #        Q('timestamp', 'gte', date)
-                #    )
-                #).sort('-timestamp')
-                #for diff in list(diffs):
-                #    data.update(diff['data'])
 
         # if not found, return None
         if data is None:
@@ -578,7 +572,7 @@ class StoredObject(object):
                 'primary_id': self._primary_key,
                 'timestamp': datetime.datetime.utcnow(),
                 'method': self._version_method,
-                'data': version_data
+                'data': version_data,
             }
         )
 
@@ -611,7 +605,16 @@ class StoredObject(object):
         return data
 
     def revert(self, date):
-        pass
+
+        data = self._load_version(date)
+
+        for key, value in data.iteritems():
+            field_object = self._fields[key]
+            if value is not None:
+                value = field_object.from_storage(value)
+            field_object.__set__(self, value, safe=True)
+
+        self.save()
 
     @has_storage
     @log_storage
