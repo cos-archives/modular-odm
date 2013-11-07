@@ -61,9 +61,11 @@ class ForeignList(BaseForeignList):
 
     def __getitem__(self, item):
         result = super(ForeignList, self).__getitem__(item)
-        if isinstance(result, list):
-            return [self._base_class.load(i) for i in result]
         return self._base_class.load(result)
+
+    def __getslice__(self, i, j):
+        result = super(ForeignList, self).__getslice__(i, j)
+        return [self._base_class.load(i) for i in result]
 
     def __contains__(self, item):
         if isinstance(item, self._base_class):
@@ -110,9 +112,11 @@ class AbstractForeignList(BaseForeignList):
 
     def __getitem__(self, item):
         result = super(AbstractForeignList, self).__getitem__(item)
-        if isinstance(result, list):
-            return [self.get_foreign_object(item) for item in result]
         return self.get_foreign_object(result)
+
+    def __getslice__(self, i, j):
+        result = super(AbstractForeignList, self).__getslice__(i, j)
+        return [self.get_foreign_object(item) for item in result]
 
     def __contains__(self, item):
         if hasattr(item, '_primary_key'):
