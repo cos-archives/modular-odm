@@ -201,7 +201,7 @@ class Cache(object):
             return None
 
     def pop(self, schema, key):
-        self.data[schema].pop(key)
+        self.data[schema].pop(key, None)
 
     def clear(self):
         self.__init__()

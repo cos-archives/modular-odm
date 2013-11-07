@@ -16,13 +16,10 @@ class List(list):
 class BaseForeignList(List):
 
     def _to_primary_keys(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _from_value(self, value):
-        raise NotImplemented
-
-    def __reversed__(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _to_data(self):
         return list(super(BaseForeignList, self).__iter__())
