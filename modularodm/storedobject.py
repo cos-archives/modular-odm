@@ -349,9 +349,13 @@ class StoredObject(object):
     def _backrefs_flat(self):
         return flatten_backrefs(self.__backrefs)
 
-    def _remove_backref(self, backref_key, parent, parent_field_name):
-        self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
-        self.save(force=True)
+    def _remove_backref(self, backref_key, parent, parent_field_name, strict=False):
+        try:
+            self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
+            self.save(force=True)
+        except ValueError:
+            if strict:
+                raise
 
     def _set_backref(self, backref_key, parent_field_name, backref_value):
 
@@ -873,6 +877,7 @@ def rm_back_refs(obj):
                 field_instance._backref_field_name,
                 obj,
                 field_name,
+                strict=False
             )
 
 from flask import request
