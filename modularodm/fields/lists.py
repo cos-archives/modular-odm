@@ -65,7 +65,7 @@ class ForeignList(BaseForeignList):
 
     def __getslice__(self, i, j):
         result = super(ForeignList, self).__getslice__(i, j)
-        return [self._base_class.load(i) for i in result]
+        return ForeignList(result, base_class=self._base_class)
 
     def __contains__(self, item):
         if isinstance(item, self._base_class):
@@ -116,7 +116,7 @@ class AbstractForeignList(BaseForeignList):
 
     def __getslice__(self, i, j):
         result = super(AbstractForeignList, self).__getslice__(i, j)
-        return [self.get_foreign_object(item) for item in result]
+        return AbstractForeignList(result)
 
     def __contains__(self, item):
         if hasattr(item, '_primary_key'):
