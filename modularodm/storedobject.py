@@ -556,7 +556,10 @@ class StoredObject(object):
 
         # Quit if no diffs
         if not list_on_save_after_fields and not force:
-            return
+            return {
+                'success': True,
+                'saved_fields': [],
+            }
 
         # Validate
         for field_name in list_on_save_after_fields:
@@ -587,7 +590,10 @@ class StoredObject(object):
 
         self._set_cache(self._primary_key, self)
 
-        return True # todo raise exception on not save
+        return {
+            'success': True,
+            'saved_fields': list_on_save_after_fields,
+        }
 
     def reload(self):
 
