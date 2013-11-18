@@ -1,4 +1,4 @@
-from ..fields import Field, ForeignField
+from ..fields import Field
 from ..validators import validate_list
 import copy
 
@@ -23,10 +23,12 @@ class ListField(Field):
 
         # Descriptor data is this type of list object, instantiated as our
         # default
-        if self._default and not hasattr(self._default, '__iter__'):
-            raise Exception(
-                'Default value for list fields must be a list; received <{0}>'.format(
-                    repr(self._field_instance._default)
+        if (self._default
+            and not hasattr(self._default, '__iter__')
+            or isinstance(self._default, dict)):
+            raise TypeError(
+                'Default value for list fields must be a list; received {0}'.format(
+                    type(self._default)
                 )
             )
 

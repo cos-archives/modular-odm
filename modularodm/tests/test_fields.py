@@ -15,6 +15,7 @@ class User(StoredObject):
     date_created = fields.DateTimeField(auto_now_add=set_datetime)
     date_updated = fields.DateTimeField(auto_now=set_datetime)
     read_only = fields.StringField(editable=False)
+
     _meta = {'optimistic':True}
 
 
@@ -37,6 +38,20 @@ class TestField(unittest.TestCase):
     def test_required_field(self):
         u = User()
         assert_raises(exceptions.ValidationError, lambda: u.save())
+
+
+class TestListField(unittest.TestCase):
+
+    def test_default_must_be_list(self):
+        assert_raises(TypeError,
+            lambda: fields.ListField(fields.StringField(), default=3))
+        assert_raises(TypeError,
+            lambda: fields.ListField(fields.StringField(), default="123"))
+        assert_raises(TypeError,
+            lambda: fields.ListField(fields.StringField(), default=True))
+        assert_raises(TypeError,
+            lambda: fields.ListField(fields.StringField(), default={"default": (1,2)}))
+
 
 
 class TestDateTimeField(unittest.TestCase):
