@@ -1,11 +1,12 @@
+# -*- coding: utf-8 -*-
+import logging
+
 from modularodm import exceptions, StoredObject
 from modularodm.fields import IntegerField
 from modularodm.query.query import RawQuery as Q
 from modularodm.tests import ModularOdmTestCase
 
-import os
-import pymongo
-import unittest
+logger = logging.getLogger(__name__)
 
 
 class BasicQueryTestCase(ModularOdmTestCase):
@@ -61,7 +62,8 @@ class BasicQueryTestCase(ModularOdmTestCase):
           and appropriate error.
         """
         with self.assertRaises(exceptions.MultipleResultsFound):
-            print self.Foo.find_one()
+            result = self.Foo.find_one()
+            logger.debug(result)
 
     def test_limit(self):
         """ For a query that returns > n results, `.limit(n)` should return the

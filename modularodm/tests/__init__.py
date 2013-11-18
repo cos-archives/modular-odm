@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+import logging
 import inspect
 import os
 import pymongo
@@ -7,6 +9,7 @@ import uuid
 from modularodm import StoredObject
 from modularodm.storage import MongoStorage, PickleStorage, EphemeralStorage
 
+logger = logging.getLogger(__name__)
 
 class TestObject(StoredObject):
     def __init__(self, *args, **kwargs):
@@ -60,7 +63,7 @@ class MongoStorageMixin(object):
 
         collection = str(uuid.uuid4())[:8]
         self.mongo_collections.append(collection)
-        print self.mongo_collections
+        # logger.debug(self.mongo_collections)
 
         return MongoStorage(
             db=db,
