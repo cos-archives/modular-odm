@@ -1,5 +1,8 @@
 
 import unittest
+from nose.tools import *  # PEP8 asserts
+
+from modularodm import StoredObject, fields, exceptions
 
 class TestExceptions(unittest.TestCase):
 
@@ -23,7 +26,11 @@ class TestExceptions(unittest.TestCase):
 
     def test_has_storage(self):
         """ Calling save on an object without an attached storage should throw an exception. """
-        pass
+        class NoStorage(StoredObject):
+            _id = fields.StringField(primary=True)
+        obj = NoStorage()
+        assert_raises(exceptions.ImproperConfigurationError,
+            lambda: obj.save())
 
     def test_storage_type(self):
         """ Assigning a non-Storage object in set_storage should throw an exception. """

@@ -1,9 +1,11 @@
+# -*- coding: utf-8 -*-
 import unittest
 import datetime
-import time
 import os
 
-from modularodm import StoredObject
+from nose.tools import *  # PEP8 asserts
+
+from modularodm import StoredObject, fields, exceptions
 from modularodm.fields import DateTimeField, StringField
 from modularodm.validators import MinLengthValidator
 from modularodm.storage import PickleStorage
@@ -37,7 +39,7 @@ class ForeignTests(unittest.TestCase):
 
 
 
-class BasicTests(unittest.TestCase):
+class TestStoredObject(unittest.TestCase):
 
     @staticmethod
     def clear_pickle_files():
@@ -136,6 +138,18 @@ class BasicTests(unittest.TestCase):
 
     def test_find_operator_method(self):
         pass
+
+    def test_cant_have_multiple_primary_keys(self):
+        with assert_raises(AttributeError):
+            class BadObject(StoredObject):
+                _id = fields.StringField(primary=True)
+                another_id = fields.StringField(primary=True)
+
+
+    def test_must_have_primary_key(self):
+        with assert_raises(AttributeError):
+            class NoPK(StoredObject):
+                dummy = fields.StringField()
 
     # def test_find_match(self):
     #     tag = Tag()

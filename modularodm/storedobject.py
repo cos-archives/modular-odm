@@ -1,11 +1,12 @@
 import logging
 import warnings
 
+from modularodm import exceptions
 from fields import Field, ListField, ForeignField, ForeignList
 from .storage import Storage
 from .query import QueryBase, RawQuery
 from .frozen import FrozenDict
-from .exceptions import ModularOdmException
+
 
 class ContextLogger(object):
 
@@ -88,8 +89,9 @@ def has_storage(func):
         me = args[0]
         if not hasattr(me, '_storage') or \
                 not me._storage:
-            raise Exception('No storage backend attached to schema <{}>.'.format(
-                me._name.upper())
+            raise exceptions.ImproperConfigurationError(
+                'No storage backend attached to schema <{0}>.'
+                    .format(me._name.upper())
             )
         return func(*args, **kwargs)
     return wrapped
@@ -131,7 +133,8 @@ class ObjectMeta(type):
                     cls._primary_name = key
                     cls._primary_type = value.data_type
                 else:
-                    raise Exception('Multiple primary keys are not supported.')
+                    raise AttributeError(
+                        'Multiple primary keys are not supported.')
 
             # Wrap in list
             if value._list:
@@ -160,7 +163,9 @@ class ObjectMeta(type):
                     cls._primary_name = '_id'
                     cls._primary_type = cls._fields['_id'].data_type
                 else:
-                    raise Exception('Schemas must either define a field named _id or specify exactly one field as primary.')
+                    raise AttributeError(
+                        'Schemas must either define a field named _id or '
+                        'specify exactly one field as primary.')
 
         # Register
         cls.register_collection()
@@ -338,7 +343,7 @@ class StoredObject(object):
 
     @_backrefs.setter
     def _backrefs(self, _):
-        raise ModularOdmException('Cannot modify _backrefs.')
+        raise exceptions.ModularOdmException('Cannot modify _backrefs.')
 
     @property
     def _backrefs_flat(self):
@@ -354,7 +359,7 @@ class StoredObject(object):
         backref_value_primary_key = backref_value._primary_key
 
         if backref_value_primary_key is None:
-            raise Exception('backref object\'s primary key must be saved first')
+            raise exceptions.DatabaseError('backref object\'s primary key must be saved first')
 
         if backref_key not in self.__backrefs:
             self.__backrefs[backref_key] = {}
@@ -373,7 +378,7 @@ class StoredObject(object):
     def set_storage(cls, storage):
 
         if not isinstance(storage, Storage):
-            raise Exception('Argument to set_storage must be an instance of Storage.')
+            raise TypeError('Argument to set_storage must be an instance of Storage.')
         if not hasattr(cls, '_storage'):
             cls._storage = []
 
