@@ -2,6 +2,7 @@ import weakref
 import warnings
 import copy
 
+from modularodm import exceptions
 from .lists import List
 
 class Field(object):
@@ -70,7 +71,7 @@ class Field(object):
         # Check if required
         if value is None:
             if hasattr(self, '_required') and self._required:
-                raise Exception('Value <{}> is required.'.format(self._field_name))
+                raise exceptions.ValidationError('Value <{}> is required.'.format(self._field_name))
             return True
 
         # Field-level validation

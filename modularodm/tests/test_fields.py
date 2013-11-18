@@ -4,25 +4,45 @@ import datetime
 import unittest
 from nose.tools import *  # PEP8 asserts
 
-from modularodm import StoredObject, fields, storage
+from modularodm import StoredObject, fields, storage, exceptions
 
 def set_datetime():
     return datetime.datetime(1999, 1, 2, 3, 45)
 
 class User(StoredObject):
     _id = fields.StringField(primary=True)
+    name = fields.StringField(required=True)
     date_created = fields.DateTimeField(auto_now_add=set_datetime)
     date_updated = fields.DateTimeField(auto_now=set_datetime)
+    read_only = fields.StringField(editable=False)
     _meta = {'optimistic':True}
+
+
 
 
 User.set_storage(storage.PickleStorage('fields', prefix="test_"))
 
 
+class TestField(unittest.TestCase):
+
+    def test_validators_must_be_callable(self):
+        assert_raises(TypeError, lambda: fields.Field(validate="invalid"))
+        assert_raises(TypeError, lambda: fields.Field(validate=["invalid"]))
+
+    def test_uneditable_field(self):
+        u = User(name='Foo')
+        with assert_raises(AttributeError):
+            u.read_only = 'foo'
+
+    def test_required_field(self):
+        u = User()
+        assert_raises(exceptions.ValidationError, lambda: u.save())
+
+
 class TestDateTimeField(unittest.TestCase):
 
     def setUp(self):
-        self.user = User()
+        self.user = User(name="Foo")
         self.user.save()
 
     def tearDown(self):

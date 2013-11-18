@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 import logging
 import warnings
 
 from modularodm import exceptions
-from fields import Field, ListField, ForeignField, ForeignList
+from fields import Field, ListField, ForeignList
 from .storage import Storage
 from .query import QueryBase, RawQuery
 from .frozen import FrozenDict
