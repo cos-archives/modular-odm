@@ -100,12 +100,16 @@ class PickleStorage(Storage):
         """Build pickle file name and load data if exists.
 
         :param collection_name: Collection name
-        :param prefix: File prefix; defaults to 'db_'
-        :param ext: File extension; defaults to 'pkl'
+        :param prefix: File prefix.
+        :param ext: File extension.
 
         """
         # Build filename
-        self.filename = prefix + collection_name + '.' + ext
+        filename = collection_name + '.' + ext
+        if prefix:
+            self.filename = prefix + filename
+        else:
+            self.filename = filename
 
         # Initialize empty store
         self.store = {}
