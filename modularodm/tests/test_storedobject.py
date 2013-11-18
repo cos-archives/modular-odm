@@ -193,6 +193,11 @@ class TestStoredObject(unittest.TestCase):
         """ Assigning a non-Storage object in set_storage should throw an exception. """
         pass
 
+    def test_cannot_save_detached_object(self):
+        user = User()
+        user._detached = True
+        assert_raises(exceptions.DatabaseError, lambda: user.save())
+
     def test_validator_is_valid(self):
         """  """
         pass

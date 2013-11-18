@@ -533,7 +533,7 @@ class StoredObject(object):
     def save(self, force=False):
 
         if self._detached:
-            raise Exception('Cannot save detached object.')
+            raise exceptions.DatabaseError('Cannot save detached object.')
 
         for field_name, field_object in self._fields.items():
             if hasattr(field_object, 'on_before_save'):
