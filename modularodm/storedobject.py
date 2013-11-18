@@ -486,7 +486,7 @@ class StoredObject(object):
         try:
             key = cast_type(key)
         except:
-            raise Exception(
+            raise TypeError(
                 'Invalid key type: {key}, {type}, {ptype}.'.format(
                     key=key, type=type(key), ptype=cast_type
                 )
@@ -518,7 +518,7 @@ class StoredObject(object):
     @classmethod
     def _must_be_loaded(cls, value):
         if value is not None and not value._is_loaded:
-            raise Exception('Record must be loaded.')
+            raise exceptions.DatabaseError('Record must be loaded.')
 
     @has_storage
     @log_storage
