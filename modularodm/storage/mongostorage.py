@@ -227,12 +227,12 @@ class MongoStorage(Storage):
                 return {'$not' : self._translate_query(query.nodes[0])}
 
             else:
-                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
+                raise ValueError('QueryGroup operator must be <and>, <or>, or <not>.')
 
         elif query is None:
             return {}
 
         else:
-            raise Exception('Query must be a QueryGroup or Query object.')
+            raise TypeError('Query must be a QueryGroup or Query object.')
 
         return mongo_query

@@ -187,7 +187,7 @@ class PickleStorage(Storage):
             elif query.operator == 'not':
                 return not any(matches)
             else:
-                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
+                raise ValueError('QueryGroup operator must be <and>, <or>, or <not>.')
 
         elif isinstance(query, RawQuery):
             attribute, operator, argument = \
@@ -196,7 +196,7 @@ class PickleStorage(Storage):
             return operators[operator](value[attribute], argument)
 
         else:
-            raise Exception('Query must be a QueryGroup or Query object.')
+            raise TypeError('Query must be a QueryGroup or Query object.')
 
     def find(self, *query, **kwargs):
         """
