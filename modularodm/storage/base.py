@@ -130,18 +130,16 @@ class Storage(object):
     def _ensure_index(self, key):
         pass
 
+    # todo allow custom id generator
+    # todo increment n on repeated failures
     def _generate_random_id(self, n=5):
         """Generated random alphanumeric key.
 
         :param n: Number of characters in random key
 
         """
-        # Build character set
-        charset = string.lowercase + \
-            string.uppercase + \
-            string.digits
-
-        return ''.join(random.sample(charset, n))
+        alphabet = '23456789abcdefghijkmnpqrstuvwxyz'
+        return ''.join(random.sample(alphabet, n))
 
     def _optimistic_insert(self, primary_name, value, n=5):
         """Attempt to insert with randomly generated key until insert

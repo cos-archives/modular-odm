@@ -33,10 +33,12 @@ class DateTimeField(Field):
         if (self._auto_now or self._auto_now_add) \
                 and 'editable' not in self._kwargs:
             self._editable = False
+            self.lazy_default = False
 
         #
         if self._auto_now:
             self._auto_now = self._get_auto_func('auto_now', self._auto_now)
+
         #
         if self._auto_now_add:
             self._default = self._auto_now_add = self._get_auto_func('auto_now_add', self._auto_now_add)

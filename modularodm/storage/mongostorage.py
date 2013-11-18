@@ -9,7 +9,7 @@ from modularodm.exceptions import NoResultsFound, MultipleResultsFound
 
 # From mongoengine.queryset.transform
 COMPARISON_OPERATORS = ('ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'mod',
-                        'all', 'size', 'exists', 'not')
+                        'all', 'size', 'exists', 'not', 'elemMatch')
 # GEO_OPERATORS        = ('within_distance', 'within_spherical_distance',
 #                         'within_box', 'within_polygon', 'near', 'near_sphere',
 #                         'max_distance', 'geo_within', 'geo_within_box',
@@ -157,8 +157,17 @@ class MongoStorage(Storage):
         self.store.insert(value)
 
     def update(self, query, data):
+
         mongo_query = self._translate_query(query)
-        update_query = {'$set' : data}
+
+        # Field "_id" shouldn't appear in both search and update queries; else
+        # MongoDB will raise a "Mod on _id not allowed" error
+        if '_id' in mongo_query:
+            update_data = {k: v for k, v in data.items() if k != '_id'}
+        else:
+            update_data = data
+        update_query = {'$set': update_data}
+
         self.store.update(
             mongo_query,
             update_query,
@@ -184,7 +193,6 @@ class MongoStorage(Storage):
             query = QueryGroup('and', *query)
         else:
             query = None
-
 
         mongo_query = {}
 
