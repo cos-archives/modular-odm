@@ -2,24 +2,40 @@
 import unittest
 import datetime
 import os
+from glob import glob
 
 from nose.tools import *  # PEP8 asserts
 
-from modularodm import StoredObject, fields, exceptions
-from modularodm.fields import DateTimeField, StringField
+from modularodm import StoredObject, fields, exceptions, storage
 from modularodm.validators import MinLengthValidator
-from modularodm.storage import PickleStorage
 
 
 class Tag(StoredObject):
-    _id = StringField(primary=True)
-    date_created = DateTimeField(validate=True, auto_now_add=True)
-    date_modified = DateTimeField(validate=True, auto_now=True)
-    value = StringField(default='default', validate=MinLengthValidator(5))
-    keywords = StringField(default=['keywd1', 'keywd2'], validate=MinLengthValidator(5), list=True)
+    _id = fields.StringField(primary=True)
+    date_created = fields.DateTimeField(validate=True, auto_now_add=True)
+    date_modified = fields.DateTimeField(validate=True, auto_now=True)
+    value = fields.StringField(default='default', validate=MinLengthValidator(5))
+    keywords = fields.StringField(default=['keywd1', 'keywd2'], validate=MinLengthValidator(5), list=True)
     _meta = {'optimistic':True}
 
-Tag.set_storage(PickleStorage('tag'))
+Tag.set_storage(storage.PickleStorage('tag'))
+
+
+class User(StoredObject):
+    _id = fields.StringField(primary=True)
+    _meta = {"optimistic": True}
+    name = fields.StringField()
+
+
+class Comment(StoredObject):
+    _id = fields.StringField(primary=True)
+    text = fields.StringField()
+    user = fields.ForeignField("user", backref="comments")
+    _meta = {"optimistic": True}
+
+
+User.set_storage(storage.PickleStorage("test_user", prefix=None))
+Comment.set_storage(storage.PickleStorage("test_comment", prefix=None))
 
 class ValidateTests(unittest.TestCase):
 
@@ -43,14 +59,15 @@ class TestStoredObject(unittest.TestCase):
 
     @staticmethod
     def clear_pickle_files():
-        try:os.remove('db_tag.pkl')
-        except:pass
+        for fname in glob("*.pkl"):
+            os.remove(fname)
 
     def setUp(self):
         self.clear_pickle_files()
 
     def tearDown(self):
-        self.clear_pickle_files()
+        for fname in glob("*.pkl"):
+            os.remove(fname)
 
     def test_string_default(self):
         """ Make sure the default option works for StringField fields. """
@@ -150,6 +167,36 @@ class TestStoredObject(unittest.TestCase):
         with assert_raises(AttributeError):
             class NoPK(StoredObject):
                 dummy = fields.StringField()
+
+    def test_multiple_primary_keys(self):
+        """ Schema definition with multiple primary keys should throw an exception. """
+        pass
+
+    def test_must_be_loaded(self):
+        """ Assigning an object that has not been saved as a foreign field should throw an exception. """
+        user = User()
+        assert_raises(exceptions.DatabaseError, lambda: Comment(user=user))
+
+    def test_must_be_loaded_list(self):
+        """ Assigning an object that has not been saved to a foreign list field should throw an exception. """
+        pass
+
+    def test_has_storage(self):
+        """ Calling save on an object without an attached storage should throw an exception. """
+        class NoStorage(StoredObject):
+            _id = fields.StringField(primary=True)
+        obj = NoStorage()
+        assert_raises(exceptions.ImproperConfigurationError,
+            lambda: obj.save())
+
+    def test_storage_type(self):
+        """ Assigning a non-Storage object in set_storage should throw an exception. """
+        pass
+
+    def test_validator_is_valid(self):
+        """  """
+        pass
+
 
     # def test_find_match(self):
     #     tag = Tag()
