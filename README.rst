@@ -85,8 +85,8 @@ Creating and Querying
 Running Tests
 =============
 
-Tests require `nose <http://nose.readthedocs.org/en/latest/>`_.
+Tests require `nose <http://nose.readthedocs.org/en/latest/>`_ and `invoke <http://docs.pyinvoke.org/en/latest/>`_ .
 
 .. code-block:: bash
 
-    $ nosetests
+    $ invoke test

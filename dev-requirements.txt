@@ -1,3 +1,5 @@
 nose
 tox
 wheel
+invoke
+sphinx

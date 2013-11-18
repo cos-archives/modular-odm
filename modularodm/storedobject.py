@@ -645,7 +645,7 @@ class StoredObject(object):
                 base_class = self.get_collection(parent_schema_name)
             except KeyError:
                 raise exceptions.ModularOdmException(
-                    'Unknown schema <{}>'.format(
+                    'Unknown schema <{0}>'.format(
                         parent_schema_name
                     )
                 )
