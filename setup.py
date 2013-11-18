@@ -76,7 +76,7 @@ setup(
     zip_safe=False,
     description='A Pythonic Object Data Manager',
     long_description=read("README.rst"),
-    packages=find_packages(),
+    packages=find_packages(exclude=("test*",)),
     install_requires=[
         str(req.req)
         for req in parse_requirements('requirements.txt')

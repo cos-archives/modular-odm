@@ -2,12 +2,12 @@ import unittest
 
 from modularodm import fields
 from modularodm.storedobject import ContextLogger
-from modularodm.tests import (
-    ModularOdmTestCase
-)
 from modularodm import StoredObject
 from modularodm.exceptions import ModularOdmException
 
+from tests import (
+    ModularOdmTestCase
+)
 
 class OneToManyFieldTestCase(ModularOdmTestCase):
 
