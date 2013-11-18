@@ -198,11 +198,6 @@ class TestStoredObject(unittest.TestCase):
         user._detached = True
         assert_raises(exceptions.DatabaseError, lambda: user.save())
 
-    def test_validator_is_valid(self):
-        """  """
-        pass
-
-
     # def test_find_match(self):
     #     tag = Tag()
     #     tag.value = 'test_query_match'
