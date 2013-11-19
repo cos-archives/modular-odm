@@ -6,6 +6,15 @@ docs_dir = 'docs'
 build_dir = os.path.join(docs_dir, '_build')
 
 @task
+def mongo(daemon=False, port=20771):
+    '''Run the mongod process.
+    '''
+    cmd = "mongod --port {0}".format(port)
+    if daemon:
+        cmd += " --fork"
+    run(cmd)
+
+@task
 def test(coverage=False, browse=False):
     command = "nosetests"
     if coverage:
