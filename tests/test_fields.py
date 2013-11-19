@@ -19,8 +19,6 @@ class User(StoredObject):
     _meta = {'optimistic':True}
 
 
-
-
 User.set_storage(storage.PickleStorage('fields', prefix="test_"))
 
 

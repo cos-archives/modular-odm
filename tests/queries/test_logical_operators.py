@@ -1,7 +1,7 @@
 from modularodm import fields, StoredObject
 from modularodm.query.querydialect import DefaultQueryDialect as Q
 
-from tests import ModularOdmTestCase
+from tests.base import ModularOdmTestCase
 
 class LogicalOperatorsBase(ModularOdmTestCase):
     def define_objects(self):

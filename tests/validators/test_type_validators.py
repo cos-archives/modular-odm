@@ -10,7 +10,7 @@ from modularodm.fields import (
     StringField,
 )
 
-from tests import ModularOdmTestCase
+from tests.base import ModularOdmTestCase
 
 
 class BooleanValidatorTestCase(ModularOdmTestCase):

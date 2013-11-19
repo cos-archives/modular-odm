@@ -7,7 +7,7 @@ from modularodm import (
 from modularodm.fields import ForeignField, IntegerField
 
 
-from tests import ModularOdmTestCase
+from tests.base import ModularOdmTestCase
 
 class ManyToManyFieldTestCase(ModularOdmTestCase):
 

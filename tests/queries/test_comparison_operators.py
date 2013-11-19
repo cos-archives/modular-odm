@@ -4,7 +4,7 @@ import datetime as dt
 from modularodm import fields, StoredObject
 from modularodm.query.query import RawQuery as Q
 
-from tests import ModularOdmTestCase
+from tests.base import ModularOdmTestCase
 
 # TODO: The following are defined in MongoStorage, but not PickleStorage:
 #   'mod',

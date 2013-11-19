@@ -3,7 +3,7 @@ from modularodm.exceptions import ValidationValueError
 from modularodm.fields import IntegerField, StringField
 from modularodm.validators import MaxLengthValidator, MinLengthValidator
 
-from tests import ModularOdmTestCase
+from tests.base import ModularOdmTestCase
 
 class StringValidatorTestCase(ModularOdmTestCase):
 

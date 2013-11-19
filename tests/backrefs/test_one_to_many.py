@@ -1,7 +1,7 @@
 
 from modularodm import fields
 
-from tests import ModularOdmTestCase, TestObject
+from tests.base import ModularOdmTestCase, TestObject
 
 class OneToManyFieldTestCase(ModularOdmTestCase):
 

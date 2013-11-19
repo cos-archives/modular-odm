@@ -5,7 +5,7 @@ from modularodm.storedobject import ContextLogger
 from modularodm import StoredObject
 from modularodm.exceptions import ModularOdmException
 
-from tests import (
+from tests.base import (
     ModularOdmTestCase
 )
 

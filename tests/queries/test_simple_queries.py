@@ -5,7 +5,7 @@ from modularodm import exceptions, StoredObject
 from modularodm.fields import IntegerField
 from modularodm.query.query import RawQuery as Q
 
-from tests import ModularOdmTestCase
+from tests.base import ModularOdmTestCase
 
 logger = logging.getLogger(__name__)
 

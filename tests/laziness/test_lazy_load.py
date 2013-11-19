@@ -2,7 +2,7 @@ from modularodm import StoredObject
 from modularodm.storedobject import ContextLogger
 from modularodm.fields import ForeignField, IntegerField
 
-from tests import ModularOdmTestCase
+from tests.base import ModularOdmTestCase
 
 
 class LazyLoadTestCase(ModularOdmTestCase):
