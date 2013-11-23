@@ -250,9 +250,22 @@ class StoredObject(object):
             self._set_cache(self._primary_key, self)
 
     def __eq__(self, other):
-        if self is other:
-            return True
-        return self.to_storage() == other.to_storage()
+        try:
+            if self is other:
+                return True
+            return self.to_storage() == other.to_storage()
+        except (AttributeError, TypeError):
+            # Can't compare with "other". Try the reverse comparison
+            return NotImplemented
+
+    def __ne__(self, other):
+        try:
+            if self is other:
+                return False
+            return self.to_storage() != other.to_storage()
+        except (AttributeError, TypeError):
+            # Can't compare with "other". Try the reverse comparison
+            return NotImplemented
 
     @warn_if_detached
     def __unicode__(self):
@@ -509,7 +522,7 @@ class StoredObject(object):
     @has_storage
     @log_storage
     def load(cls, key=None, data=None, _is_loaded=True):
-
+        '''Get a record by its primary key.'''
         if key is not None:
             key = cls._check_pk_type(key)
             cached_object = cls._load_from_cache(key)

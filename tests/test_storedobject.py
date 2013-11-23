@@ -80,6 +80,12 @@ class TestStoredObject(unittest.TestCase):
         self.assertEqual(tag.keywords[0], 'keywd1')
         self.assertEqual(tag.keywords[1], 'keywd2')
 
+    def test_set_attribute(self):
+        user = User()
+        user.name = "Foo Bar"
+        user.save()
+        assert_equal(user.name, "Foo Bar")
+
     # Datetime tests
 
     def _times_approx_equal(self, first, second=None, tolerance=0.01):
@@ -197,6 +203,15 @@ class TestStoredObject(unittest.TestCase):
         user = User()
         user._detached = True
         assert_raises(exceptions.DatabaseError, lambda: user.save())
+
+    def test_eq(self):
+        user = User(name="Foobar")
+        user.save()
+        same_user = User.load(user._primary_key)
+        assert_equal(user, same_user)
+        different = User(name="Barbaz")
+        assert_not_equal(user, different)
+        assert_not_equal(None, user)
 
     # def test_find_match(self):
     #     tag = Tag()
