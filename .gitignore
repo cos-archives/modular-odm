@@ -45,6 +45,9 @@ nosetests.xml
 .hgignore
 .env
 
+# Coverage
+cover
+
 # OSF-specific
 #######################
 Site/Cache/*

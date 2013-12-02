@@ -2,7 +2,8 @@ import os
 
 from modularodm import exceptions, fields, StoredObject
 from modularodm.query.querydialect import DefaultQueryDialect as Q
-from modularodm.tests import ModularOdmTestCase
+
+from tests.base import ModularOdmTestCase
 
 
 class UpdateQueryTestCase(ModularOdmTestCase):

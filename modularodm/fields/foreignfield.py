@@ -1,3 +1,5 @@
+
+from modularodm import exceptions
 from . import Field
 from .lists import ForeignList
 
@@ -58,7 +60,7 @@ class ForeignField(Field):
             return None
         if isinstance(value, self.base_class):
             if not value._is_loaded:
-                raise Exception('Record must be loaded.')
+                raise exceptions.DatabaseError('Record must be loaded.')
             return value._primary_key
 
         return self.base_class._to_primary_key(value)

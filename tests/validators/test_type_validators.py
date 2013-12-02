@@ -9,7 +9,8 @@ from modularodm.fields import (
     IntegerField,
     StringField,
 )
-from modularodm.tests import ModularOdmTestCase
+
+from tests.base import ModularOdmTestCase
 
 
 class BooleanValidatorTestCase(ModularOdmTestCase):

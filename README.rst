@@ -82,11 +82,32 @@ Creating and Querying
 
 *Full documentation coming soon.*
 
-Running Tests
-=============
+Development
+===========
 
-Tests require `nose <http://nose.readthedocs.org/en/latest/>`_.
+Tests require `nose <http://nose.readthedocs.org/en/latest/>`_, `invoke <http://docs.pyinvoke.org/en/latest/>`_, and MongoDB.
+
+Installing MongoDB
+------------------
+
+If you are on MacOSX with `homebrew <http://brew.sh/>`_, run
 
 .. code-block:: bash
 
-    $ nosetests
+    $ brew update
+    $ brew install mongodb
+
+Running Tests
+-------------
+
+To start mongodb, run
+
+.. code-block:: bash
+
+    $ invoke mongo
+
+Run all tests with
+
+.. code-block:: bash
+
+    $ invoke test

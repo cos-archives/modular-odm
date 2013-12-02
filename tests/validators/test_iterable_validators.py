@@ -1,9 +1,9 @@
 from modularodm import StoredObject
 from modularodm.exceptions import ValidationValueError
 from modularodm.fields import IntegerField, StringField
-from modularodm.tests import ModularOdmTestCase
 from modularodm.validators import MaxLengthValidator, MinLengthValidator
 
+from tests.base import ModularOdmTestCase
 
 class StringValidatorTestCase(ModularOdmTestCase):
 
@@ -22,7 +22,7 @@ class StringValidatorTestCase(ModularOdmTestCase):
         return Foo,
 
     def test_max_length_string_validator(self):
-        
+
         self.test_object.test_field_max = 'abc'
         self.test_object.save()
 

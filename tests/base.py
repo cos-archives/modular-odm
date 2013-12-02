@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+import logging
 import inspect
 import os
 import pymongo
@@ -7,6 +9,7 @@ import uuid
 from modularodm import StoredObject
 from modularodm.storage import MongoStorage, PickleStorage, EphemeralStorage
 
+logger = logging.getLogger(__name__)
 
 class TestObject(StoredObject):
     def __init__(self, *args, **kwargs):
@@ -40,18 +43,20 @@ class PickleStorageMixin(object):
     def clean_up_storage(self):
         for f in self.pickle_files:
             try:
-                os.remove('db_{}.pkl'.format(f))
+                os.remove('db_{0}.pkl'.format(f))
             except OSError:
                 pass
 
 
 class MongoStorageMixin(object):
     fixture_suffix = 'Mongo'
+    # DB settings
+    DB_HOST = os.environ.get('MONGO_HOST', 'localhost')
+    DB_PORT = int(os.environ.get('MONGO_PORT', '20771'))
 
     def make_storage(self):
-        db = pymongo.MongoClient('mongodb://localhost:20771/').modm_test
-
-        self.mongo_client = db
+        self.mongo_client = pymongo.MongoClient(host=self.DB_HOST,
+                                                port=self.DB_PORT).modm_test
 
         try:
             self.mongo_collections
@@ -60,10 +65,10 @@ class MongoStorageMixin(object):
 
         collection = str(uuid.uuid4())[:8]
         self.mongo_collections.append(collection)
-        print self.mongo_collections
+        # logger.debug(self.mongo_collections)
 
         return MongoStorage(
-            db=db,
+            db=self.mongo_client,
             collection=collection
         )
 

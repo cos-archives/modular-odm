@@ -1,9 +1,9 @@
 from modularodm import StoredObject
 from modularodm.exceptions import ValidationValueError
 from modularodm.fields import FloatField, IntegerField
-from modularodm.tests import ModularOdmTestCase
 from modularodm.validators import MinValueValidator, MaxValueValidator
 
+from tests.base import ModularOdmTestCase
 
 class IntValueValidatorTestCase(ModularOdmTestCase):
 

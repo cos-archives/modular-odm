@@ -100,12 +100,16 @@ class PickleStorage(Storage):
         """Build pickle file name and load data if exists.
 
         :param collection_name: Collection name
-        :param prefix: File prefix; defaults to 'db_'
-        :param ext: File extension; defaults to 'pkl'
+        :param prefix: File prefix.
+        :param ext: File extension.
 
         """
         # Build filename
-        self.filename = prefix + collection_name + '.' + ext
+        filename = collection_name + '.' + ext
+        if prefix:
+            self.filename = prefix + filename
+        else:
+            self.filename = filename
 
         # Initialize empty store
         self.store = {}
@@ -183,7 +187,7 @@ class PickleStorage(Storage):
             elif query.operator == 'not':
                 return not any(matches)
             else:
-                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
+                raise ValueError('QueryGroup operator must be <and>, <or>, or <not>.')
 
         elif isinstance(query, RawQuery):
             attribute, operator, argument = \
@@ -192,7 +196,7 @@ class PickleStorage(Storage):
             return operators[operator](value[attribute], argument)
 
         else:
-            raise Exception('Query must be a QueryGroup or Query object.')
+            raise TypeError('Query must be a QueryGroup or Query object.')
 
     def find(self, *query, **kwargs):
         """

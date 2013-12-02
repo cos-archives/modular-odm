@@ -2,6 +2,7 @@ import weakref
 import warnings
 import copy
 
+from modularodm import exceptions
 from .lists import List
 
 class Field(object):
@@ -23,7 +24,7 @@ class Field(object):
                 if hasattr(validator, '__call__'):
                     validate.append(validator)
                 else:
-                    raise Exception('Validator lists must be lists of callables.')
+                    raise TypeError('Validator lists must be lists of callables.')
 
         elif hasattr(_validate, '__call__'):
 
@@ -38,7 +39,7 @@ class Field(object):
         else:
 
             # Invalid validator type
-            raise Exception('Validators must be callables, lists of callables, or booleans.')
+            raise TypeError('Validators must be callables, lists of callables, or booleans.')
 
         return _validate, validate
 
@@ -70,7 +71,7 @@ class Field(object):
         # Check if required
         if value is None:
             if hasattr(self, '_required') and self._required:
-                raise Exception('Value <{}> is required.'.format(self._field_name))
+                raise exceptions.ValidationError('Value <{}> is required.'.format(self._field_name))
             return True
 
         # Field-level validation
@@ -130,7 +131,7 @@ class Field(object):
 
     def _pre_set(self, instance, safe=False):
         if not self._editable and not safe:
-            raise Exception('Field cannot be edited.')
+            raise AttributeError('Field cannot be edited.')
         if instance._detached:
             warnings.warn('Accessing a detached record.')
 
@@ -148,7 +149,7 @@ class Field(object):
         if instance._dirty:
             instance._dirty = False
             instance.reload()
-            
+
         # Impute default and return
         try:
             return self.data[instance]

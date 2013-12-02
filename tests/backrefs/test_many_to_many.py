@@ -1,13 +1,13 @@
 import unittest
 
-from modularodm.tests import ModularOdmTestCase
-
 from modularodm import (
     exceptions as exc,
     StoredObject,
 )
 from modularodm.fields import ForeignField, IntegerField
 
+
+from tests.base import ModularOdmTestCase
 
 class ManyToManyFieldTestCase(ModularOdmTestCase):
 
