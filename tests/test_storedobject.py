@@ -37,23 +37,6 @@ class Comment(StoredObject):
 User.set_storage(storage.PickleStorage("test_user", prefix=None))
 Comment.set_storage(storage.PickleStorage("test_comment", prefix=None))
 
-class ValidateTests(unittest.TestCase):
-
-    def test_min_length_validate(self):
-        pass
-
-    def test_max_length_validate(self):
-        pass
-
-class DefaultTests(unittest.TestCase):
-
-    pass
-
-class ForeignTests(unittest.TestCase):
-
-    pass
-
-
 
 class TestStoredObject(unittest.TestCase):
 
@@ -162,24 +145,57 @@ class TestStoredObject(unittest.TestCase):
     def test_find_operator_method(self):
         pass
 
+    def test_infer_primary_if_none_explicit(self):
+        """  """
+        class Schema(StoredObject):
+            _id = fields.StringField()
+        assert_true(Schema._fields['_id']._is_primary)
+        assert_equal(Schema._primary_name, '_id')
+
+    def test_dont_infer_primary_if_explicit(self):
+        """  """
+        class Schema(StoredObject):
+            _id = fields.StringField()
+            primary = fields.StringField(primary=True)
+        assert_true(Schema._fields['primary']._is_primary)
+        assert_false(Schema._fields['_id']._is_primary)
+        assert_equal(Schema._primary_name, 'primary')
+
     def test_cant_have_multiple_primary_keys(self):
+        """Assigning an object that has not been saved as a foreign field
+        should raise an AttributeError.
+
+        """
         with assert_raises(AttributeError):
             class BadObject(StoredObject):
                 _id = fields.StringField(primary=True)
                 another_id = fields.StringField(primary=True)
 
-
-    def test_must_have_primary_key(self):
+    def test_must_have_primary_key_not_abstract(self):
         with assert_raises(AttributeError):
             class NoPK(StoredObject):
                 dummy = fields.StringField()
 
-    def test_multiple_primary_keys(self):
-        """ Schema definition with multiple primary keys should throw an exception. """
-        pass
+    def test_can_have_no_primary_key_if_abstract(self):
+        try:
+            class AbstractSchema(StoredObject):
+                field = fields.StringField()
+                _meta = {
+                    'abstract': True,
+                }
+        except:
+            assert False
+
+    def test_cannot_instantiate_abstract_schema(self):
+        with assert_raises(TypeError):
+            class AbstractSchema(StoredObject):
+                field = fields.StringField()
+                _meta = {
+                    'abstract': True,
+                }
+            abstract_instance = AbstractSchema()
 
     def test_must_be_loaded(self):
-        """ Assigning an object that has not been saved as a foreign field should throw an exception. """
         user = User()
         assert_raises(exceptions.DatabaseError, lambda: Comment(user=user))
 
