@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import copy
 import logging
 import warnings
 
@@ -99,6 +100,41 @@ def has_storage(func):
 
 class ObjectMeta(type):
 
+    def _add_field(cls, name, field):
+
+        # Skip if not descriptor
+        if not isinstance(field, Field):
+            return
+
+        # Memorize parent references
+        field._schema_class = cls
+        field._field_name = name
+
+        # Check for primary key
+        if field._is_primary:
+            if cls._primary_name is None:
+                cls._primary_name = name
+                cls._primary_type = field.data_type
+            else:
+                raise AttributeError(
+                    'Multiple primary keys are not supported.')
+
+        # Wrap in list
+        if field._list:
+            field = ListField(
+                field,
+                **field._kwargs
+            )
+            # Memorize parent references
+            field._schema_class = cls
+            field._field_name = name
+            # Set parent pointer of child field to list field
+            field._field_instance._list_container = field
+
+        # Store descriptor to cls, cls._fields
+        setattr(cls, name, field)
+        cls._fields[name] = field
+
     def __init__(cls, name, bases, dct):
 
         # Run super-metaclass __init__
@@ -107,11 +143,12 @@ class ObjectMeta(type):
         # Store prettified name
         cls._name = name.lower()
 
-        # Store optimism
-        cls._is_optimistic = hasattr(cls, '_meta') and \
-            cls._meta.get('optimistic', False)
-        cls._log_level = hasattr(cls, '_meta') and \
-            cls._meta.get('log_level', None)
+        # Store parameters from _meta
+        my_meta = cls.__dict__.get('_meta', {})
+
+        cls._is_optimistic = my_meta.get('optimistic', False)
+        cls._is_abstract = my_meta.get('abstract', False)
+        cls._log_level = my_meta.get('log_level', None)
 
         # Prepare fields
         cls._fields = {}
@@ -119,51 +156,26 @@ class ObjectMeta(type):
         cls._primary_type = None
 
         for key, value in cls.__dict__.items():
+            cls._add_field(key, value)
 
-            # Skip if not descriptor
-            if not isinstance(value, Field):
+        for base in bases:
+            if not hasattr(base, '_fields') or not isinstance(base._fields, dict):
                 continue
+            for key, value in base._fields.items():
+                cls._add_field(key, copy.deepcopy(value))
 
-            # Memorize parent references
-            value._schema_class = cls
-            value._field_name = key
-
-            # Check for primary key
-            if value._is_primary:
-                if cls._primary_name is None:
-                    cls._primary_name = key
-                    cls._primary_type = value.data_type
-                else:
-                    raise AttributeError(
-                        'Multiple primary keys are not supported.')
-
-            # Wrap in list
-            if value._list:
-                value = ListField(
-                    value,
-                    **value._kwargs
-                )
-                # Memorize parent references
-                value._schema_class = cls
-                value._field_name = key
-                # Set parent pointer of child field to list field
-                value._field_instance._list_container = value
-
-            # Store descriptor to cls, cls._fields
-            setattr(cls, key, value)
-            cls._fields[key] = value
-
-        # Must have a primary key
+        # Impute field named _id as primary if no primary field specified;
+        # must be exactly one primary field unless abstract
         if cls._fields:
             if cls._primary_name is None:
                 if '_id' in cls._fields:
                     primary_field = cls._fields['_id']
-                    primary_field._primary = True
+                    primary_field._is_primary = True
                     if 'index' not in primary_field._kwargs or not primary_field._kwargs['index']:
                         primary_field._index = True
                     cls._primary_name = '_id'
                     cls._primary_type = cls._fields['_id'].data_type
-                else:
+                elif not cls._is_abstract:
                     raise AttributeError(
                         'Schemas must either define a field named _id or '
                         'specify exactly one field as primary.')
@@ -225,6 +237,10 @@ class StoredObject(object):
     _object_cache = Cache()
 
     def __init__(self, **kwargs):
+
+        # Crash if abstract
+        if self._is_abstract:
+            raise TypeError('Cannot instantiate abstract schema')
 
         self.__backrefs = {}
         self._dirty = False
