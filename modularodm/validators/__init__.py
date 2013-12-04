@@ -6,7 +6,12 @@ from modularodm.exceptions import (
 
 from bson import ObjectId
 
-class TypeValidator(object):
+class Validator(object):
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+class TypeValidator(Validator):
 
     def _as_list(self, value):
 
@@ -55,7 +60,7 @@ validate_datetime = TypeValidator(datetime.datetime)
 
 # Adapted from Django RegexValidator
 import re
-class RegexValidator(object):
+class RegexValidator(Validator):
 
     def __init__(self, regex=None, flags=0):
 
@@ -106,7 +111,7 @@ class URLValidator(RegexValidator):
             pass
             # url = value
 
-class BaseValidator(object):
+class BaseValidator(Validator):
     compare = lambda self, a, b: a is not b
 
     def __init__(self, limit_value):
@@ -128,7 +133,7 @@ class MinLengthValidator(BaseValidator):
 class MaxLengthValidator(BaseValidator):
     compare = lambda self, a, b: len(a) > b
 
-class BaseValidator(object):
+class BaseValidator(Validator):
 
     compare = lambda self, a, b: a is not b
     clean = lambda self, x: x

@@ -119,7 +119,9 @@ class ModularOdmTestCase(unittest.TestCase):
         test_objects = self.define_objects() or tuple()
 
         for obj in test_objects:
-            obj.set_storage(self.make_storage())
+            # Create storage backend if not explicitly set
+            if not getattr(obj, '_storage', None):
+                obj.set_storage(self.make_storage())
             self.__setattr__(obj.__name__, obj)
 
         StoredObject._clear_caches()

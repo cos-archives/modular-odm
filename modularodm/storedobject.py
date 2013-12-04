@@ -149,6 +149,8 @@ class ObjectMeta(type):
         cls._is_optimistic = my_meta.get('optimistic', False)
         cls._is_abstract = my_meta.get('abstract', False)
         cls._log_level = my_meta.get('log_level', None)
+        cls._version_of = my_meta.get('version_of', None)
+        cls._version = my_meta.get('version', 1)
 
         # Prepare fields
         cls._fields = {}
@@ -335,6 +337,7 @@ class StoredObject(object):
             )
             data[field_name] = field_value
 
+        data['_version'] = self._version
         if not clone and self.__backrefs:
             data['__backrefs'] = self.__backrefs
 
@@ -553,7 +556,139 @@ class StoredObject(object):
         if data is None:
             return None
 
+        if '_version' in data and data['_version'] != cls._version:
+
+            old_object = cls._version_of.load(data=data)
+            new_object = cls()
+
+            cls.migrate(old_object, new_object)
+
+            return new_object
+
         return cls(_is_loaded=_is_loaded, **data)
+
+    @classmethod
+    def migrate_all(cls):
+        for record in cls.find():
+            record.save()
+
+    @classmethod
+    def migrate(cls, old, new, verbose=True, dry_run=False, rm_refs=True):
+        """Migrate record to new schema.
+
+        :param old: Record from original schema
+        :param new: Record from new schema
+        :param verbose: Print detailed info
+        :param dry_run: Dry run; make no changes if true
+        :param rm_refs: Remove references on deleted fields
+
+        """
+        # Check deleted, added fields
+        if verbose:
+            deleted_fields = [field for field in old._fields if field not in new._fields]
+            added_fields = [field for field in new._fields if field not in old._fields]
+            print 'Will delete fields:', deleted_fields
+            print 'Will add fields:', added_fields
+
+        # Check change in primary key
+        if verbose and old._primary_name != new._primary_name:
+            print '''
+                The primary key will change from {old_name}: {old_field} to
+                {new_name}: {new_field} in this migration. Primary keys and backreferences
+                will not be automatically migrated. If you want to migrate primary keys,
+                you should handle this in your migrate() method.
+            '''.format(
+                old_name=old._primary_name,
+                old_field=old._fields[old._primary_name],
+                new_name=new._primary_name,
+                new_field=new._fields[new._primary_name],
+            )
+
+        # Copy fields to new object
+        for field in old._fields:
+
+            # Delete forward references on deleted fields
+            if field not in cls._fields:
+                if rm_refs:
+                    if verbose:
+                        print '''
+                            Backreferences to this object keyed on foreign field {name}: {field} will be deleted in this migration.
+                            To prevent this behavior, re-run with <rm_fwd_refs> set to False.
+                        '''.format(
+                            name=field,
+                            field=old._fields[field]
+                        )
+                    if not dry_run:
+                        rm_fwd_refs(old)
+                elif verbose:
+                    print '''
+                        Backreferences to this object keyed on foreign field {name}: {field} will be not deleted in this migration.
+                        To add this behavior, re-run with <rm_fwd_refs> set to True.
+                    '''.format(
+                        name=field,
+                        field=old._fields[field]
+                    )
+                continue
+
+            # Check for field change
+            if old._fields[field] != new._fields[field]:
+                if verbose:
+                    print '''
+                        Old field {name}: {old_field} differs from new field {name}: {new_field}.
+                        This field will not be automatically migrated. If you want to migrate this field,
+                        you should handle this in your migrate() method.
+                    '''.format(
+                        name=field,
+                        old_field=old._fields[field],
+                        new_field=new._fields[field],
+                    )
+                continue
+
+            # Copy values of retained fields
+            if not dry_run:
+                field_object = cls._fields[field]
+                field_object.__set__(
+                    new,
+                    getattr(old, field),
+                    safe=True
+                )
+
+        # Copy backreferences
+        if not dry_run:
+            new.__backrefs = old.__backrefs
+
+        # Run custom migration
+        if not dry_run:
+            cls._migrate(old, new)
+
+    @classmethod
+    def explain_migration(cls):
+
+        classes = [cls]
+        methods = [cls._migrate]
+        klass = cls
+        while klass._version and klass._version_of:
+            classes.insert(0, klass._version_of)
+            try:
+                methods.insert(0, klass._migrate)
+            except AttributeError:
+                methods.insert(0, None)
+            klass = klass._version_of
+
+        for step in range(len(classes) - 1):
+
+            fr = classes[step]
+            to = classes[step + 1]
+
+            print 'From schema {}'.format(fr._name)
+            print '\n'.join('\t{}'.format(field) for field in fr._fields)
+            print
+
+            print 'To schema {}'.format(to._name)
+            print '\n'.join('\t{}'.format(field) for field in to._fields)
+            print
+
+            to.migrate(fr, to, verbose=True, dry_run=True)
 
     @classmethod
     def _must_be_loaded(cls, value):

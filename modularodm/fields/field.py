@@ -5,6 +5,11 @@ import copy
 from modularodm import exceptions
 from .lists import List
 
+def print_arg(arg):
+    if isinstance(arg, basestring):
+        return '"' + arg + '"'
+    return arg
+
 class Field(object):
 
     default = None
@@ -13,6 +18,25 @@ class Field(object):
     mutable = False
     lazy_default = True
     _uniform_translator = True
+
+    def __repr__(self):
+        return '{cls}({kwargs})'.format(
+            cls=self.__class__.__name__,
+            kwargs=', '.join('{}={}'.format(key, print_arg(val)) for key, val in self._kwargs.items())
+        )
+
+    def _to_comparable(self):
+        return {
+            k : v
+            for k, v in self.__dict__.items()
+            if k not in ['data', '_translators', '_schema_class']
+        }
+
+    def __eq__(self, other):
+        return self._to_comparable() == other._to_comparable()
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def _prepare_validators(self, _validate):
 
@@ -139,6 +163,19 @@ class Field(object):
         self._pre_set(instance, safe=safe)
         self.data[instance] = value
 
+    def _touch(self, instance):
+
+        # Reload if dirty
+        if instance._dirty:
+            instance._dirty = False
+            instance.reload()
+
+        # Impute default and return
+        try:
+            self.data[instance]
+        except KeyError:
+            self.data[instance] = self._gen_default()
+
     def __get__(self, instance, owner, check_dirty=True):
 
         # Warn if detached
@@ -158,11 +195,11 @@ class Field(object):
             self.data[instance] = default
             return default
 
-
     def _get_underlying_data(self, instance):
         """Return data from raw data store, rather than overridden
         __get__ methods. Should NOT be overwritten.
         """
+        self._touch(instance)
         return self.data.get(instance, None)
 
     def __delete__(self, instance):
