@@ -1,11 +1,14 @@
+# -*- coding: utf-8 -*-
+import copy
 import logging
 import warnings
 
-from fields import Field, ListField, ForeignField, ForeignList
+from modularodm import exceptions
+from fields import Field, ListField, ForeignList
 from .storage import Storage
 from .query import QueryBase, RawQuery
 from .frozen import FrozenDict
-from .exceptions import ModularOdmException
+
 
 class ContextLogger(object):
 
@@ -88,13 +91,49 @@ def has_storage(func):
         me = args[0]
         if not hasattr(me, '_storage') or \
                 not me._storage:
-            raise Exception('No storage backend attached to schema <{}>.'.format(
-                me._name.upper())
+            raise exceptions.ImproperConfigurationError(
+                'No storage backend attached to schema <{0}>.'
+                    .format(me._name.upper())
             )
         return func(*args, **kwargs)
     return wrapped
 
 class ObjectMeta(type):
+
+    def _add_field(cls, name, field):
+
+        # Skip if not descriptor
+        if not isinstance(field, Field):
+            return
+
+        # Memorize parent references
+        field._schema_class = cls
+        field._field_name = name
+
+        # Check for primary key
+        if field._is_primary:
+            if cls._primary_name is None:
+                cls._primary_name = name
+                cls._primary_type = field.data_type
+            else:
+                raise AttributeError(
+                    'Multiple primary keys are not supported.')
+
+        # Wrap in list
+        if field._list:
+            field = ListField(
+                field,
+                **field._kwargs
+            )
+            # Memorize parent references
+            field._schema_class = cls
+            field._field_name = name
+            # Set parent pointer of child field to list field
+            field._field_instance._list_container = field
+
+        # Store descriptor to cls, cls._fields
+        setattr(cls, name, field)
+        cls._fields[name] = field
 
     def __init__(cls, name, bases, dct):
 
@@ -104,15 +143,14 @@ class ObjectMeta(type):
         # Store prettified name
         cls._name = name.lower()
 
-        # Store optimism
-        cls._is_optimistic = hasattr(cls, '_meta') and \
-            cls._meta.get('optimistic', False)
-        cls._log_level = hasattr(cls, '_meta') and \
-            cls._meta.get('log_level', None)
-        cls._version = hasattr(cls, '_meta') and \
-            cls._meta.get('version', 1)
-        cls._version_of = hasattr(cls, '_meta') and \
-            cls._meta.get('version_of', None)
+        # Store parameters from _meta
+        my_meta = cls.__dict__.get('_meta', {})
+
+        cls._is_optimistic = my_meta.get('optimistic', False)
+        cls._is_abstract = my_meta.get('abstract', False)
+        cls._log_level = my_meta.get('log_level', None)
+        cls._version_of = my_meta.get('version_of', None)
+        cls._version = my_meta.get('version', 1)
 
         # Prepare fields
         cls._fields = {}
@@ -120,51 +158,29 @@ class ObjectMeta(type):
         cls._primary_type = None
 
         for key, value in cls.__dict__.items():
+            cls._add_field(key, value)
 
-            # Skip if not descriptor
-            if not isinstance(value, Field):
+        for base in bases:
+            if not hasattr(base, '_fields') or not isinstance(base._fields, dict):
                 continue
+            for key, value in base._fields.items():
+                cls._add_field(key, copy.deepcopy(value))
 
-            # Memorize parent references
-            value._schema_class = cls
-            value._field_name = key
-
-            # Check for primary key
-            if value._is_primary:
-                if cls._primary_name is None:
-                    cls._primary_name = key
-                    cls._primary_type = value.data_type
-                else:
-                    raise Exception('Multiple primary keys are not supported.')
-
-            # Wrap in list
-            if value._list:
-                value = ListField(
-                    value,
-                    **value._kwargs
-                )
-                # Memorize parent references
-                value._schema_class = cls
-                value._field_name = key
-                # Set parent pointer of child field to list field
-                value._field_instance._list_container = value
-
-            # Store descriptor to cls, cls._fields
-            setattr(cls, key, value)
-            cls._fields[key] = value
-
-        # Must have a primary key
+        # Impute field named _id as primary if no primary field specified;
+        # must be exactly one primary field unless abstract
         if cls._fields:
             if cls._primary_name is None:
                 if '_id' in cls._fields:
                     primary_field = cls._fields['_id']
-                    primary_field._primary = True
+                    primary_field._is_primary = True
                     if 'index' not in primary_field._kwargs or not primary_field._kwargs['index']:
                         primary_field._index = True
                     cls._primary_name = '_id'
                     cls._primary_type = cls._fields['_id'].data_type
-                else:
-                    raise Exception('Schemas must either define a field named _id or specify exactly one field as primary.')
+                elif not cls._is_abstract:
+                    raise AttributeError(
+                        'Schemas must either define a field named _id or '
+                        'specify exactly one field as primary.')
 
         # Register
         cls.register_collection()
@@ -182,7 +198,12 @@ def deep_assign(dict, value, *keys):
         deep_assign(dict[keys[0]], value, *keys[1:])
 
 class Cache(object):
+    """Simple container for storing cached data. This
+    is NOT suitable for working with Flask, since the cache
+    will be shared across requests; see FlaskCache and
+    FlaskStoredObject, below, for use with Flask.
 
+    """
     def __init__(self):
         self.data = {}
 
@@ -200,13 +221,13 @@ class Cache(object):
             return None
 
     def pop(self, schema, key):
-        self.data[schema].pop(key)
+        self.data[schema].pop(key, None)
 
     def clear(self):
         self.__init__()
 
     def clear_schema(self, schema):
-        self.data.pop(schema)
+        self.data.pop(schema, None)
 
 class StoredObject(object):
 
@@ -219,10 +240,19 @@ class StoredObject(object):
 
     def __init__(self, **kwargs):
 
+        # Crash if abstract
+        if self._is_abstract:
+            raise TypeError('Cannot instantiate abstract schema')
+
         self.__backrefs = {}
         self._dirty = False
         self._detached = False
         self._is_loaded = kwargs.pop('_is_loaded', False)
+
+        # Impute non-lazy default values (e.g. datetime with auto_now=True)
+        for value in self._fields.values():
+            if not value.lazy_default:
+                value.__set__(self, value._gen_default(), safe=True)
 
         # Add kwargs to instance
         for key, value in kwargs.items():
@@ -238,9 +268,22 @@ class StoredObject(object):
             self._set_cache(self._primary_key, self)
 
     def __eq__(self, other):
-        if self is other:
-            return True
-        return self.to_storage() == other.to_storage()
+        try:
+            if self is other:
+                return True
+            return self.to_storage() == other.to_storage()
+        except (AttributeError, TypeError):
+            # Can't compare with "other". Try the reverse comparison
+            return NotImplemented
+
+    def __ne__(self, other):
+        try:
+            if self is other:
+                return False
+            return self.to_storage() != other.to_storage()
+        except (AttributeError, TypeError):
+            # Can't compare with "other". Try the reverse comparison
+            return NotImplemented
 
     @warn_if_detached
     def __unicode__(self):
@@ -282,8 +325,12 @@ class StoredObject(object):
         data = {}
 
         for field_name, field_object in self._fields.items():
-            if clone and field_object._is_primary:
-                continue
+
+            # Ignore primary and foreign fields if cloning
+            # TODO: test this
+            if clone:
+                if field_object._is_primary or field_object._is_foreign:
+                    continue
             field_value = field_object.to_storage(
                 field_object._get_underlying_data(self),
                 translator
@@ -334,15 +381,19 @@ class StoredObject(object):
 
     @_backrefs.setter
     def _backrefs(self, _):
-        raise ModularOdmException('Cannot modify _backrefs.')
+        raise exceptions.ModularOdmException('Cannot modify _backrefs.')
 
     @property
     def _backrefs_flat(self):
         return flatten_backrefs(self.__backrefs)
 
-    def _remove_backref(self, backref_key, parent, parent_field_name):
-        self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
-        self.save(force=True)
+    def _remove_backref(self, backref_key, parent, parent_field_name, strict=False):
+        try:
+            self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
+            self.save(force=True)
+        except ValueError:
+            if strict:
+                raise
 
     def _set_backref(self, backref_key, parent_field_name, backref_value):
 
@@ -350,7 +401,7 @@ class StoredObject(object):
         backref_value_primary_key = backref_value._primary_key
 
         if backref_value_primary_key is None:
-            raise Exception('backref object\'s primary key must be saved first')
+            raise exceptions.DatabaseError('backref object\'s primary key must be saved first')
 
         if backref_key not in self.__backrefs:
             self.__backrefs[backref_key] = {}
@@ -369,7 +420,7 @@ class StoredObject(object):
     def set_storage(cls, storage):
 
         if not isinstance(storage, Storage):
-            raise Exception('Argument to set_storage must be an instance of Storage.')
+            raise TypeError('Argument to set_storage must be an instance of Storage.')
         if not hasattr(cls, '_storage'):
             cls._storage = []
 
@@ -406,25 +457,24 @@ class StoredObject(object):
     def _get_cached_data(cls, key):
         return cls._cache.get(cls._name, key)
 
-    def _get_list_of_differences_from_cache(self):
+    def _get_list_of_differences_from_cache(self, cached_data, storage_data):
+        """Get fields that differ between the cache and the current object.
+        Validation and after_save methods should only be run on diffed
+        fields.
 
-        field_list = []
+        :param cached_data: Storage-formatted data from cache
+        :param storage_data: Storage-formatted data from object
+        :return: List of diffed fields
 
-        if not self._is_loaded:
-            return field_list
+        """
+        if not self._is_loaded or cached_data is None:
+            return []
 
-        cached_data = self._get_cached_data(self._primary_key)
-
-        if cached_data is None:
-            return field_list
-
-        current_data = self.to_storage()
-
-        for field_name, field_object in self._fields.items():
-            if current_data[field_name] != cached_data[field_name]:
-                field_list.append(field_name)
-
-        return field_list
+        return [
+            field
+            for field in self._fields
+            if cached_data[field] != storage_data[field]
+        ]
 
     # Cache clearing
 
@@ -479,7 +529,7 @@ class StoredObject(object):
         try:
             key = cast_type(key)
         except:
-            raise Exception(
+            raise TypeError(
                 'Invalid key type: {key}, {type}, {ptype}.'.format(
                     key=key, type=type(key), ptype=cast_type
                 )
@@ -491,7 +541,7 @@ class StoredObject(object):
     @has_storage
     @log_storage
     def load(cls, key=None, data=None, _is_loaded=True):
-
+        '''Get a record by its primary key.'''
         if key is not None:
             key = cls._check_pk_type(key)
             cached_object = cls._load_from_cache(key)
@@ -500,7 +550,7 @@ class StoredObject(object):
 
         # Try loading from backend
         if data is None:
-            data = cls._storage[0].get(cls, cls._pk_to_storage(key))
+            data = cls._storage[0].get(cls._primary_name, cls._pk_to_storage(key))
 
         # if not found, return None
         if data is None:
@@ -524,7 +574,15 @@ class StoredObject(object):
 
     @classmethod
     def migrate(cls, old, new, verbose=True, dry_run=False, rm_refs=True):
+        """Migrate record to new schema.
 
+        :param old: Record from original schema
+        :param new: Record from new schema
+        :param verbose: Print detailed info
+        :param dry_run: Dry run; make no changes if true
+        :param rm_refs: Remove references on deleted fields
+
+        """
         # Check deleted, added fields
         if verbose:
             deleted_fields = [field for field in old._fields if field not in new._fields]
@@ -554,21 +612,21 @@ class StoredObject(object):
                 if rm_refs:
                     if verbose:
                         print '''
-                            Backreferences to this object keyed on foreign field {name}: {} will be deleted in this migration.
+                            Backreferences to this object keyed on foreign field {name}: {field} will be deleted in this migration.
                             To prevent this behavior, re-run with <rm_fwd_refs> set to False.
                         '''.format(
-                            field,
-                            old._fields[field]
+                            name=field,
+                            field=old._fields[field]
                         )
                     if not dry_run:
                         rm_fwd_refs(old)
                 elif verbose:
                     print '''
-                        Backreferences to this object keyed on foreign field {name}: {} will be not deleted in this migration.
+                        Backreferences to this object keyed on foreign field {name}: {field} will be not deleted in this migration.
                         To add this behavior, re-run with <rm_fwd_refs> set to True.
                     '''.format(
-                        field,
-                        old._fields[field]
+                        name=field,
+                        field=old._fields[field]
                     )
                 continue
 
@@ -635,13 +693,13 @@ class StoredObject(object):
     @classmethod
     def _must_be_loaded(cls, value):
         if value is not None and not value._is_loaded:
-            raise Exception('Record must be loaded.')
+            raise exceptions.DatabaseError('Record must be loaded.')
 
     @has_storage
     @log_storage
     def _optimistic_insert(self):
         self._primary_key = self._storage[0]._optimistic_insert(
-            self.__class__,
+            self._primary_name,
             self.to_storage()
         )
 
@@ -650,20 +708,28 @@ class StoredObject(object):
     def save(self, force=False):
 
         if self._detached:
-            raise Exception('Cannot save detached object.')
+            raise exceptions.DatabaseError('Cannot save detached object.')
 
         for field_name, field_object in self._fields.items():
             if hasattr(field_object, 'on_before_save'):
                 field_object.on_before_save(self)
 
-        if self._primary_key is not None and self._is_cached(self._primary_key):
-            list_on_save_after_fields = self._get_list_of_differences_from_cache()
+        cached_data = self._get_cached_data(self._primary_key)
+        storage_data = self.to_storage()
+
+        if self._primary_key is not None and cached_data is not None:
+            list_on_save_after_fields = self._get_list_of_differences_from_cache(
+                cached_data, storage_data
+            )
         else:
             list_on_save_after_fields = self._fields.keys()
 
         # Quit if no diffs
         if not list_on_save_after_fields and not force:
-            return
+            return {
+                'success': True,
+                'saved_fields': [],
+            }
 
         # Validate
         for field_name in list_on_save_after_fields:
@@ -671,11 +737,11 @@ class StoredObject(object):
             field_object.do_validate(getattr(self, field_name))
 
         if self._is_loaded:
-            self.update_one(self._primary_key, self.to_storage(), saved=True)
+            self.update_one(self._primary_key, storage_data=storage_data, saved=True)
         elif self._is_optimistic and self._primary_key is None:
             self._optimistic_insert()
         else:
-            self.insert(self._primary_key, self.to_storage())
+            self.insert(self._primary_key, storage_data)
 
         # if primary key has changed, follow back references and update
         # AND
@@ -686,18 +752,22 @@ class StoredObject(object):
         for field_name in list_on_save_after_fields:
             field_object = self._fields[field_name]
             if hasattr(field_object, 'on_after_save'):
-                cached_data = self._get_cached_data(self._primary_key)
-                if cached_data:
-                    cached_data = cached_data.get(field_name, None)
-                field_object.on_after_save(self, field_name, cached_data, getattr(self, field_name))
+                if cached_data is not None:
+                    cached_field = cached_data.get(field_name, None)
+                else:
+                    cached_field = None
+                field_object.on_after_save(self, field_name, cached_field, getattr(self, field_name))
 
         self._set_cache(self._primary_key, self)
 
-        return True # todo raise exception on not save
+        return {
+            'success': True,
+            'saved_fields': list_on_save_after_fields,
+        }
 
     def reload(self):
 
-        storage_data = self._storage[0].get(self.__class__, self._storage_key)
+        storage_data = self._storage[0].get(self._primary_name, self._storage_key)
 
         for key, value in storage_data.items():
             field_object = self._fields.get(key, None)
@@ -705,7 +775,6 @@ class StoredObject(object):
                 data_value = storage_data[key]
                 if data_value is None:
                     value = None
-                    setattr(self, key, None)
                 else:
                     value = field_object.from_storage(data_value)
                 field_object.__set__(self, value, safe=True)
@@ -720,6 +789,8 @@ class StoredObject(object):
             cls=self.__class__.__name__,
             item=item
         )
+
+        # Retrieve back-references
         if '__' in item and not item.startswith('__'):
             item_split = item.split('__')
             if len(item_split) == 2:
@@ -734,7 +805,16 @@ class StoredObject(object):
                 ids = deref(self.__backrefs, [backref_key, parent_schema_name, parent_field_name], missing=[])
             else:
                 raise AttributeError(errmsg)
-            return ForeignList(ids, literal=True, base_class=self.get_collection(parent_schema_name))
+            try:
+                base_class = self.get_collection(parent_schema_name)
+            except KeyError:
+                raise exceptions.ModularOdmException(
+                    'Unknown schema <{0}>'.format(
+                        parent_schema_name
+                    )
+                )
+            return ForeignList(ids, literal=True, base_class=base_class)
+
         raise AttributeError(errmsg)
 
     @warn_if_detached
@@ -772,36 +852,35 @@ class StoredObject(object):
     @classmethod
     @has_storage
     def get(cls, key):
-        return cls.load(cls._storage[0].get(cls, cls._pk_to_storage(key)))
+        return cls.load(cls._storage[0].get(cls._primary_name, cls._pk_to_storage(key)))
 
     @classmethod
     @has_storage
     def insert(cls, key, val):
-        cls._storage[0].insert(cls, cls._pk_to_storage(key), val)
-
-    # @classmethod
-    # @has_storage
-    # def update(cls, key, data):
-    #     cls._storage[0].update(cls, cls._pk_to_storage(key), data)
+        cls._storage[0].insert(cls._primary_name, cls._pk_to_storage(key), val)
 
     @classmethod
-    def _prepare_update(cls, data):
+    def _includes_foreign(cls, keys):
+        for key in keys:
+            if key in cls._fields and cls._fields[key]._is_foreign:
+                return True
+        return False
+
+    @classmethod
+    def _data_to_storage(cls, data):
 
         storage_data = {}
-        includes_foreign = False
 
         for key, value in data.items():
             if key in cls._fields:
                 field_object = cls._fields[key]
-                if field_object._is_foreign and not includes_foreign:
-                    includes_foreign = True
                 if key == cls._primary_name:
                     continue
                 storage_data[key] = field_object.to_storage(value)
             else:
                 storage_data[key] = value
 
-        return storage_data, includes_foreign
+        return storage_data
 
     def _update_in_memory(self, storage_data):
         for field_name, data_value in storage_data.items():
@@ -811,7 +890,7 @@ class StoredObject(object):
 
     @classmethod
     def _which_to_obj(cls, which):
-        if isinstance(which, list) and isinstance(which[0], QueryBase):
+        if isinstance(which, QueryBase):
             return cls.find_one(which)
         if isinstance(which, StoredObject):
             return which
@@ -819,9 +898,10 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def update_one(cls, which, data, saved=False):
+    def update_one(cls, which, data=None, storage_data=None, saved=False):
 
-        storage_data, includes_foreign = cls._prepare_update(data)
+        storage_data = storage_data or cls._data_to_storage(data)
+        includes_foreign = cls._includes_foreign(storage_data.keys())
         obj = cls._which_to_obj(which)
 
         if saved or not includes_foreign:
@@ -831,6 +911,8 @@ class StoredObject(object):
                 ),
                 storage_data,
             )
+            if obj:
+                obj._dirty = True
             if not saved:
                 cls._clear_caches(obj._storage_key)
         else:
@@ -838,9 +920,10 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def update(cls, query, data):
+    def update(cls, query, data=None, storage_data=None):
 
-        storage_data, includes_foreign = cls._prepare_update(data)
+        storage_data = storage_data or cls._data_to_storage(data)
+        includes_foreign = cls._includes_foreign(storage_data.keys())
 
         objs = cls.find(query)
         keys = objs.get_keys()
@@ -859,7 +942,13 @@ class StoredObject(object):
     @classmethod
     @has_storage
     def remove_one(cls, which, rm=True):
+        """Remove an object, along with its references and back-references.
+        Remove the object from the cache and sets its _detached flag to True.
 
+        :param which: Object selector: Query, StoredObject, or primary key
+        :param rm: Remove data from backend?
+
+        """
         # Look up object
         obj = cls._which_to_obj(which)
 
@@ -867,8 +956,7 @@ class StoredObject(object):
         rm_fwd_refs(obj)
         rm_back_refs(obj)
 
-        # Detach and remove from cache
-        obj._detached = True
+        # Remove from cache
         cls._clear_caches(obj._storage_key)
 
         # Remove from backend
@@ -877,10 +965,17 @@ class StoredObject(object):
                 RawQuery(obj._primary_name, 'eq', obj._storage_key)
             )
 
+        # Set detached
+        obj._detached = True
+
     @classmethod
     @has_storage
     def remove(cls, *query):
+        """Remove objects by query.
 
+        :param query: Query object
+
+        """
         objs = cls.find(*query)
 
         for obj in objs:
@@ -889,8 +984,14 @@ class StoredObject(object):
         cls._storage[0].remove(*query)
 
 def rm_fwd_refs(obj):
-    """ Remove forward references to linked fields. """
+    """When removing an object, other objects with references to the current
+    object should remove those references. This function identifies objects
+    with forward references to the current object, then removes those
+    references.
 
+    :param obj: Object to which forward references should be removed
+
+    """
     for stack, key in obj._backrefs_flat:
 
         # Unpack stack
@@ -912,31 +1013,47 @@ def rm_fwd_refs(obj):
         parent_object.save()
 
 def rm_back_refs(obj):
-    """ Remove backward references from linked fields. """
+    """When removing an object with foreign fields, back-references from
+    other objects to the current object should be deleted. This function
+    identifies foreign fields of the specified object whose values are not
+    None and which specify back-reference keys, then removes back-references
+    from linked objects to the specified object.
 
+    :param obj: Object for which back-references should be removed
+
+    """
     for field_name, field_object in obj._fields.items():
 
         delete_queue = []
 
-        if isinstance(field_object, ForeignField):
-            value = getattr(obj, field_name)
-            if value:
-                delete_queue.append(value)
-            field_instance = field_object
-
-        elif isinstance(field_object, ListField):
-            field_instance = field_object._field_instance
-            if isinstance(field_instance, ForeignField):
-                delete_queue = getattr(obj, field_name)
-
-        else:
+        # Skip if not foreign field
+        if not field_object._is_foreign:
             continue
 
+        # Skip if value is None
+        value = getattr(obj, field_name)
+        if not value:
+            continue
+
+        # Build list of linked objects if ListField, else single field
+        if isinstance(field_object, ListField):
+            delete_queue.extend([v for v in value if v])
+            field_instance = field_object._field_instance
+        else:
+            delete_queue.append(value)
+            field_instance = field_object
+
+        # Skip if field does not specify back-references
+        if not field_instance._backref_field_name:
+            continue
+
+        # Remove back-references
         for obj_to_delete in delete_queue:
             obj_to_delete._remove_backref(
                 field_instance._backref_field_name,
                 obj,
                 field_name,
+                strict=False
             )
 
 from flask import request
@@ -946,40 +1063,38 @@ class DummyRequest(object): pass
 dummy_request = DummyRequest()
 
 class FlaskCache(Cache):
+    """Subclass of Cache that stores data in a weak key
+    dictionary keyed by the current request (or by a dummy
+    request object if working outside a request context).
 
+    """
     @property
-    def _request(self):
+    def request(self):
        try:
            return request._get_current_object()
        except:
            return dummy_request
 
     def __init__(self):
-        self.data = WeakKeyDictionary()
+        self._data = WeakKeyDictionary()
 
     @property
-    def raw(self):
-        try:
-            return self.data[self._request]
-        except KeyError:
-            return {}
+    def data(self):
+        if self.request not in self._data:
+            self._data[self.request] = {}
+        return self._data[self.request]
 
-    def set(self, schema, key, value):
-        deep_assign(self.data, value, self._request, schema, key)
-
-    def get(self, schema, key):
-        try:
-            return self.data[self._request][schema][key]
-        except KeyError:
-            return None
-
-    def pop(self, schema, key):
-        self.data[self._request][schema].pop(key)
-
-    def clear_schema(self, schema):
-        self.data[self._request].pop(schema)
+    @data.setter
+    def data(self, value):
+        self._data[self.request] = value
 
 class FlaskStoredObject(StoredObject):
+    """Subclass of StoredObject with context-local cache data
+    suitable for use with Flask. Stores cache data in FlaskCache
+    objects, which use weak key dictionaries keyed on the current
+    request object to ensure that data associated with one request
+    cannot leak into another.
 
+    """
     _cache = FlaskCache()
     _object_cache = FlaskCache()

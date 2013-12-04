@@ -2,6 +2,7 @@ import weakref
 import warnings
 import copy
 
+from modularodm import exceptions
 from .lists import List
 
 def print_arg(arg):
@@ -14,6 +15,9 @@ class Field(object):
     default = None
     base_class = None
     _list_class = List
+    mutable = False
+    lazy_default = True
+    _uniform_translator = True
 
     def __repr__(self):
         return '{cls}({kwargs})'.format(
@@ -44,7 +48,7 @@ class Field(object):
                 if hasattr(validator, '__call__'):
                     validate.append(validator)
                 else:
-                    raise Exception('Validator lists must be lists of callables.')
+                    raise TypeError('Validator lists must be lists of callables.')
 
         elif hasattr(_validate, '__call__'):
 
@@ -59,7 +63,7 @@ class Field(object):
         else:
 
             # Invalid validator type
-            raise Exception('Validators must be callables, lists of callables, or booleans.')
+            raise TypeError('Validators must be callables, lists of callables, or booleans.')
 
         return _validate, validate
 
@@ -91,7 +95,7 @@ class Field(object):
         # Check if required
         if value is None:
             if hasattr(self, '_required') and self._required:
-                raise Exception('Value <{}> is required.'.format(self._field_name))
+                raise exceptions.ValidationError('Value <{}> is required.'.format(self._field_name))
             return True
 
         # Field-level validation
@@ -134,18 +138,24 @@ class Field(object):
         if value is None:
             return translator.null_value
         method = self._get_translate_func(translator, 'to')
-        return value if method is None else method(value)
+        value = value if method is None else method(value)
+        if self.mutable:
+            return copy.deepcopy(value)
+        return value
 
     def from_storage(self, value, translator=None):
         translator = translator or self._schema_class._translator
         if value == translator.null_value:
             return None
         method = self._get_translate_func(translator, 'from')
-        return value if method is None else method(value)
+        value = value if method is None else method(value)
+        if self.mutable:
+            return copy.deepcopy(value)
+        return value
 
     def _pre_set(self, instance, safe=False):
         if not self._editable and not safe:
-            raise Exception('Field cannot be edited.')
+            raise AttributeError('Field cannot be edited.')
         if instance._detached:
             warnings.warn('Accessing a detached record.')
 
@@ -160,22 +170,30 @@ class Field(object):
             instance._dirty = False
             instance.reload()
 
-        # Impute default
+        # Impute default and return
         try:
             self.data[instance]
         except KeyError:
             self.data[instance] = self._gen_default()
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance, owner, check_dirty=True):
 
         # Warn if detached
         if instance._detached:
             warnings.warn('Accessing a detached record.')
 
-        # Touch
-        self._touch(instance)
+        # Reload if dirty
+        if instance._dirty:
+            instance._dirty = False
+            instance.reload()
 
-        return self.data.get(instance, None)
+        # Impute default and return
+        try:
+            return self.data[instance]
+        except KeyError:
+            default = self._gen_default()
+            self.data[instance] = default
+            return default
 
     def _get_underlying_data(self, instance):
         """Return data from raw data store, rather than overridden

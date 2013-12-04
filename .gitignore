@@ -45,7 +45,13 @@ nosetests.xml
 .hgignore
 .env
 
-# OSF-specific 
+# Coverage
+cover
+
+# OSF-specific
 #######################
 Site/Cache/*
 Site/Uploads/*
+
+# Readme build
+README.html

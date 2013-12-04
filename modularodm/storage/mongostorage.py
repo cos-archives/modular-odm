@@ -9,7 +9,7 @@ from modularodm.exceptions import NoResultsFound, MultipleResultsFound
 
 # From mongoengine.queryset.transform
 COMPARISON_OPERATORS = ('ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'mod',
-                        'all', 'size', 'exists', 'not')
+                        'all', 'size', 'exists', 'not', 'elemMatch')
 # GEO_OPERATORS        = ('within_distance', 'within_spherical_distance',
 #                         'within_box', 'within_polygon', 'near', 'near_sphere',
 #                         'max_distance', 'geo_within', 'geo_within_box',
@@ -147,18 +147,27 @@ class MongoStorage(Storage):
             'returned {0}'.format(matches.count())
         )
 
-    def get(self, schema, key):
-        return self.store.find_one({schema._primary_name : key})
+    def get(self, primary_name, key):
+        return self.store.find_one({primary_name : key})
 
-    def insert(self, schema, key, value):
-        if schema._primary_name not in value:
+    def insert(self, primary_name, key, value):
+        if primary_name not in value:
             value = value.copy()
-            value[schema._primary_name] = key
+            value[primary_name] = key
         self.store.insert(value)
 
     def update(self, query, data):
+
         mongo_query = self._translate_query(query)
-        update_query = {'$set' : data}
+
+        # Field "_id" shouldn't appear in both search and update queries; else
+        # MongoDB will raise a "Mod on _id not allowed" error
+        if '_id' in mongo_query:
+            update_data = {k: v for k, v in data.items() if k != '_id'}
+        else:
+            update_data = data
+        update_query = {'$set': update_data}
+
         self.store.update(
             mongo_query,
             update_query,
@@ -184,7 +193,6 @@ class MongoStorage(Storage):
             query = QueryGroup('and', *query)
         else:
             query = None
-
 
         mongo_query = {}
 
@@ -219,12 +227,12 @@ class MongoStorage(Storage):
                 return {'$not' : self._translate_query(query.nodes[0])}
 
             else:
-                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
+                raise ValueError('QueryGroup operator must be <and>, <or>, or <not>.')
 
         elif query is None:
             return {}
 
         else:
-            raise Exception('Query must be a QueryGroup or Query object.')
+            raise TypeError('Query must be a QueryGroup or Query object.')
 
         return mongo_query

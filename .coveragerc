@@ -1,0 +1,6 @@
+[run]
+include =
+    modularodm/*
+[report]
+exclude_lines =
+    raise NotImplementedError

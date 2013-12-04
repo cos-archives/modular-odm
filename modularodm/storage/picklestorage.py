@@ -100,12 +100,16 @@ class PickleStorage(Storage):
         """Build pickle file name and load data if exists.
 
         :param collection_name: Collection name
-        :param prefix: File prefix; defaults to 'db_'
-        :param ext: File extension; defaults to 'pkl'
+        :param prefix: File prefix.
+        :param ext: File extension.
 
         """
         # Build filename
-        self.filename = prefix + collection_name + '.' + ext
+        filename = collection_name + '.' + ext
+        if prefix:
+            self.filename = prefix + filename
+        else:
+            self.filename = filename
 
         # Initialize empty store
         self.store = {}
@@ -116,7 +120,7 @@ class PickleStorage(Storage):
                 data = fp.read()
                 self.store = pickle.loads(data)
 
-    def insert(self, schema, key, value):
+    def insert(self, primary_name, key, value):
         """Add key-value pair to storage. Key must not exist.
 
         :param key: Key
@@ -130,22 +134,12 @@ class PickleStorage(Storage):
             msg = 'Key ({key}) already exists'.format(key=key)
             raise KeyExistsException(msg)
 
-    # def update(self, schema, key, value):
-    #     """Update value of key. Key need not exist.
-    #
-    #     :param key: Key
-    #     :param value: Value
-    #
-    #     """
-    #     self.store[key] = value
-    #     self.flush()
-
     def update(self, query, data):
         for pk in self.find(query, by_pk=True):
             for key, value in data.items():
                 self.store[pk][key] = value
 
-    def get(self, schema, key):
+    def get(self, primary_name, key):
         return copy.deepcopy(self.store[key])
 
     def _remove_by_pk(self, key, flush=True):
@@ -193,7 +187,7 @@ class PickleStorage(Storage):
             elif query.operator == 'not':
                 return not any(matches)
             else:
-                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
+                raise ValueError('QueryGroup operator must be <and>, <or>, or <not>.')
 
         elif isinstance(query, RawQuery):
             attribute, operator, argument = \
@@ -202,7 +196,7 @@ class PickleStorage(Storage):
             return operators[operator](value[attribute], argument)
 
         else:
-            raise Exception('Query must be a QueryGroup or Query object.')
+            raise TypeError('Query must be a QueryGroup or Query object.')
 
     def find(self, *query, **kwargs):
         """

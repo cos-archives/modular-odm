@@ -130,20 +130,18 @@ class Storage(object):
     def _ensure_index(self, key):
         pass
 
+    # todo allow custom id generator
+    # todo increment n on repeated failures
     def _generate_random_id(self, n=5):
         """Generated random alphanumeric key.
 
         :param n: Number of characters in random key
 
         """
-        # Build character set
-        charset = string.lowercase + \
-            string.uppercase + \
-            string.digits
+        alphabet = '23456789abcdefghijkmnpqrstuvwxyz'
+        return ''.join(random.sample(alphabet, n))
 
-        return ''.join(random.sample(charset, n))
-
-    def _optimistic_insert(self, schema, value, n=5):
+    def _optimistic_insert(self, primary_name, value, n=5):
         """Attempt to insert with randomly generated key until insert
         is successful.
 
@@ -155,20 +153,20 @@ class Storage(object):
         while True:
             try:
                 key = self._generate_random_id(n)
-                value[schema._primary_name] = key
-                self.insert(schema, key, value)
+                value[primary_name] = key
+                self.insert(primary_name, key, value)
             except KeyExistsException:
                 pass
             break
         return key
 
-    def insert(self, key, value):
+    def insert(self, primary_name, key, value):
         raise NotImplementedError
 
     def update(self, key, value):
         raise NotImplementedError
 
-    def get(self, key):
+    def get(self, primary_name, key):
         raise NotImplementedError
 
     def remove(self, key):
