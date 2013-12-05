@@ -569,6 +569,7 @@ class StoredObject(object):
 
     @classmethod
     def migrate_all(cls):
+        """Migrate all records in this collection."""
         for record in cls.find():
             record.save()
 
@@ -620,7 +621,7 @@ class StoredObject(object):
                         )
                     if not dry_run:
                         rm_fwd_refs(old)
-                elif verbose:
+                else:
                     print '''
                         Backreferences to this object keyed on foreign field {name}: {field} will be not deleted in this migration.
                         To add this behavior, re-run with <rm_fwd_refs> set to True.
@@ -660,6 +661,33 @@ class StoredObject(object):
         # Run custom migration
         if not dry_run:
             cls._migrate(old, new)
+
+    @classmethod
+    def _migrate(cls, old, new):
+        """Subclasses can override this class to perform a custom migration.
+        This is run after the migrate() method.
+
+        Example:
+        ::
+
+            class Foo(StoredObject):
+                _id = fields.StringField(primary=True, index=True)
+                my_string = fields.StringField()
+
+                @classmethod
+                def _migrate(cls, old, new):
+                    new.my_string = old.my_string + 'yo'
+
+                _meta = {
+                    'version': 2,
+                    'optimistic': True
+                }
+
+        :param old: Record from original schema
+        :param new: Record from new schema
+        """
+        pass
+
 
     @classmethod
     def explain_migration(cls):
@@ -849,6 +877,7 @@ class StoredObject(object):
         stored_data = cls._storage[0].find_one(*query)
         return cls.load(key=stored_data[cls._primary_name], data=stored_data)
 
+    # TODO: Broken and unused. Remove me?
     @classmethod
     @has_storage
     def get(cls, key):
