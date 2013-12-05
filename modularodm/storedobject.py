@@ -621,7 +621,7 @@ class StoredObject(object):
                         )
                     if not dry_run:
                         rm_fwd_refs(old)
-                else:
+                elif verbose:
                     print '''
                         Backreferences to this object keyed on foreign field {name}: {field} will be not deleted in this migration.
                         To add this behavior, re-run with <rm_fwd_refs> set to True.
