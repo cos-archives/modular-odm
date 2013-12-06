@@ -796,6 +796,8 @@ class StoredObject(object):
                 else:
                     value = field_object.from_storage(data_value)
                 field_object.__set__(self, value, safe=True)
+            elif key == '__backrefs':
+                self._StoredObject__backrefs = value
 
         self._stored_key = self._primary_key
         self._set_cache(self._storage_key, self)
@@ -1072,7 +1074,6 @@ def _collect_refs(obj):
         ])
 
     return refs
-
 
 def rm_back_refs(obj):
     """When removing an object with foreign fields, back-references from

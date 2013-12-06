@@ -89,12 +89,14 @@ class TestPKChange(ModularOdmTestCase):
         bar.save()
         prev_key = bar._primary_key
 
-        self.Bar._clear_caches()
+        StoredObject._clear_caches()
 
         bar_loaded = self.Bar.load(bar._primary_key)
 
         bar_loaded._id = 'changed'
         bar_loaded.save()
+
+        self.foos[0].reload()
 
         assert_in(
             'changed',
