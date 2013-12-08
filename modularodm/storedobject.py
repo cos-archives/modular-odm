@@ -632,7 +632,7 @@ class StoredObject(object):
                                               field=old._fields[field]))
                     if not dry_run:
                         rm_fwd_refs(old)
-                elif verbose:
+                else:
                     logging.info("Backreferences to this object keyed on foreign field "
                         "{name}: {field} will be not deleted in this migration. "
                         "To add this behavior, re-run with <rm_fwd_refs> "
