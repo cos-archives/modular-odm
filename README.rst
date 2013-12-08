@@ -80,6 +80,12 @@ Creating and Querying
     >>> c.text
     'And now for something completely different.'
 
+Migrations
+----------
+
+TODO
+
+
 *Full documentation coming soon.*
 
 Development
