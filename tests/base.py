@@ -50,13 +50,19 @@ class PickleStorageMixin(object):
 
 class MongoStorageMixin(object):
     fixture_suffix = 'Mongo'
+
     # DB settings
     DB_HOST = os.environ.get('MONGO_HOST', 'localhost')
     DB_PORT = int(os.environ.get('MONGO_PORT', '20771'))
 
+    # More efficient to set up client at the class level than to re-connect
+    # for each test
+    mongo_client = pymongo.MongoClient(
+        host=DB_HOST,
+        port=DB_PORT,
+    ).modm_test
+
     def make_storage(self):
-        self.mongo_client = pymongo.MongoClient(host=self.DB_HOST,
-                                                port=self.DB_PORT).modm_test
 
         try:
             self.mongo_collections

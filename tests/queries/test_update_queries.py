@@ -51,7 +51,8 @@ class UpdateQueryTestCase(ModularOdmTestCase):
         """
         self.Foo.update_one(
             which=Q('_id', 'eq', 2),
-            data={'modified': True})
+            data={'modified': True}
+        )
 
         self.assertEqual(
             [x.modified for x in self.foos],

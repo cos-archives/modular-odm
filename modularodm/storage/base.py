@@ -175,5 +175,11 @@ class Storage(object):
     def flush(self):
         raise NotImplementedError
 
+    def find_one(self, query=None, **kwargs):
+        raise NotImplementedError
+
+    def find(self, query=None, **kwargs):
+        raise NotImplementedError
+
     def __repr__(self):
         return str(self.store)

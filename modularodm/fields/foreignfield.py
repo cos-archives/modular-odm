@@ -13,6 +13,7 @@ class ForeignField(Field):
         self._base_class_name = args[0] # todo allow class references / callable?
         self._base_class = None
         self._is_foreign = True
+        self._is_abstract = False
 
     def on_after_save(self, parent, field_name, old_stored_data, new_value):
         '''
@@ -26,7 +27,9 @@ class ForeignField(Field):
 
         if old_stored_data is not None:
             old_value = self.base_class.load(old_stored_data)
-            old_value._remove_backref(self._backref_field_name, parent, field_name)
+            # Note: Added this check to accommodate primary key changes
+            if old_value is not None:
+                old_value._remove_backref(self._backref_field_name, parent, field_name)
 
         if new_value is not None:
             new_value._set_backref(self._backref_field_name, field_name, parent)

@@ -183,9 +183,7 @@ class Field(object):
             warnings.warn('Accessing a detached record.')
 
         # Reload if dirty
-        if instance._dirty:
-            instance._dirty = False
-            instance.reload()
+        self._touch(instance)
 
         # Impute default and return
         try:

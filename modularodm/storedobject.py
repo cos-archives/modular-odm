@@ -6,7 +6,7 @@ import warnings
 from modularodm import exceptions
 from fields import Field, ListField, ForeignList
 from .storage import Storage
-from .query import QueryBase, RawQuery
+from .query import QueryBase, RawQuery, QueryGroup
 from .frozen import FrozenDict
 
 
@@ -248,6 +248,7 @@ class StoredObject(object):
         self._dirty = False
         self._detached = False
         self._is_loaded = kwargs.pop('_is_loaded', False)
+        self._stored_key = None
 
         # Impute non-lazy default values (e.g. datetime with auto_now=True)
         for value in self._fields.values():
@@ -392,6 +393,15 @@ class StoredObject(object):
             self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
             self.save(force=True)
         except ValueError:
+            if strict:
+                raise
+
+    def _update_backref(self, backref_key, parent, parent_field_name, strict=False):
+        try:
+            refs = self.__backrefs[backref_key][parent._name][parent_field_name]
+            refs[refs.index(parent._stored_key)] = parent._primary_key
+            self.save(force=True)
+        except (KeyError, ValueError):
             if strict:
                 raise
 
@@ -562,10 +572,14 @@ class StoredObject(object):
             new_object = cls()
 
             cls.migrate(old_object, new_object)
+            new_object._stored_key = new_object._primary_key
 
             return new_object
 
-        return cls(_is_loaded=_is_loaded, **data)
+        rv = cls(_is_loaded=_is_loaded, **data)
+        rv._stored_key = rv._primary_key
+
+        return rv
 
     @classmethod
     def migrate_all(cls):
@@ -588,22 +602,20 @@ class StoredObject(object):
         if verbose:
             deleted_fields = [field for field in old._fields if field not in new._fields]
             added_fields = [field for field in new._fields if field not in old._fields]
-            print 'Will delete fields:', deleted_fields
-            print 'Will add fields:', added_fields
+            print('Will delete fields: {0}'.format(deleted_fields))
+            print('Will add fields: {0}'.format(added_fields))
 
         # Check change in primary key
         if verbose and old._primary_name != new._primary_name:
-            print '''
-                The primary key will change from {old_name}: {old_field} to
-                {new_name}: {new_field} in this migration. Primary keys and backreferences
-                will not be automatically migrated. If you want to migrate primary keys,
-                you should handle this in your migrate() method.
-            '''.format(
-                old_name=old._primary_name,
-                old_field=old._fields[old._primary_name],
-                new_name=new._primary_name,
-                new_field=new._fields[new._primary_name],
-            )
+            print("The primary key will change from {old_name}: {old_field} to "
+                "{new_name}: {new_field} in this migration. Primary keys and "
+                "backreferences will not be automatically migrated. If you want "
+                "to migrate primary keys, you should handle this in your "
+                "migrate() method."
+                    .format(old_name=old._primary_name,
+                            old_field=old._fields[old._primary_name],
+                            new_name=new._primary_name,
+                            new_field=new._fields[new._primary_name]))
 
         # Copy fields to new object
         for field in old._fields:
@@ -612,23 +624,19 @@ class StoredObject(object):
             if field not in cls._fields:
                 if rm_refs:
                     if verbose:
-                        print '''
-                            Backreferences to this object keyed on foreign field {name}: {field} will be deleted in this migration.
-                            To prevent this behavior, re-run with <rm_fwd_refs> set to False.
-                        '''.format(
-                            name=field,
-                            field=old._fields[field]
-                        )
+                        print("Backreferences to this object keyed on foreign "
+                            "field {name}: {field} will be deleted in this migration. "
+                            "To prevent this behavior, re-run with <rm_fwd_refs> "
+                            "set to False.".format(name=field,
+                                                  field=old._fields[field]))
                     if not dry_run:
                         rm_fwd_refs(old)
-                else:
-                    print '''
-                        Backreferences to this object keyed on foreign field {name}: {field} will be not deleted in this migration.
-                        To add this behavior, re-run with <rm_fwd_refs> set to True.
-                    '''.format(
-                        name=field,
-                        field=old._fields[field]
-                    )
+                elif verbose:
+                    print("Backreferences to this object keyed on foreign field "
+                        "{name}: {field} will be not deleted in this migration. "
+                        "To add this behavior, re-run with <rm_fwd_refs> "
+                        "set to True.".format(name=field,
+                                            field=old._fields[field]))
                 continue
 
             # Check for field change
@@ -718,13 +726,13 @@ class StoredObject(object):
             fr = classes[step]
             to = classes[step + 1]
 
-            print 'From schema {}'.format(fr._name)
-            print '\n'.join('\t{}'.format(field) for field in fr._fields)
-            print
+            print('From schema {0}'.format(fr._name))
+            print('\n'.join('\t{0}'.format(field) for field in fr._fields))
+            print()
 
-            print 'To schema {}'.format(to._name)
-            print '\n'.join('\t{}'.format(field) for field in to._fields)
-            print
+            print('To schema {0}'.format(to._name))
+            print('\n'.join('\t{0}'.format(field) for field in to._fields))
+            print()
 
             to.migrate(fr, to, verbose=True, dry_run=True)
 
@@ -752,7 +760,7 @@ class StoredObject(object):
             if hasattr(field_object, 'on_before_save'):
                 field_object.on_before_save(self)
 
-        cached_data = self._get_cached_data(self._primary_key)
+        cached_data = self._get_cached_data(self._stored_key)
         storage_data = self.to_storage()
 
         if self._primary_key is not None and cached_data is not None:
@@ -774,8 +782,21 @@ class StoredObject(object):
             field_object = self._fields[field_name]
             field_object.do_validate(getattr(self, field_name))
 
+        primary_changed = (
+            self._primary_key != self._stored_key
+            and
+            self._primary_name in list_on_save_after_fields
+        )
+
         if self._is_loaded:
-            self.update_one(self._primary_key, storage_data=storage_data, saved=True)
+            if primary_changed and not getattr(self, '_updating_key', False):
+                self._storage[0].remove(
+                    RawQuery(self._primary_name, 'eq', self._stored_key)
+                )
+                self._clear_caches(self._stored_key)
+                self.insert(self._primary_key, storage_data)
+            else:
+                self.update_one(self, storage_data=storage_data, saved=True, inmem=True)
         elif self._is_optimistic and self._primary_key is None:
             self._optimistic_insert()
         else:
@@ -784,6 +805,15 @@ class StoredObject(object):
         # if primary key has changed, follow back references and update
         # AND
         # run after_save or after_save_on_difference
+
+        if self._is_loaded and primary_changed:
+            if not getattr(self, '_updating_key', False):
+                self._updating_key = True
+                update_backref_keys(self)
+                self._stored_key = self._primary_key
+                self._updating_key = False
+        else:
+            self._stored_key = self._primary_key
 
         self._is_loaded = True
 
@@ -816,7 +846,10 @@ class StoredObject(object):
                 else:
                     value = field_object.from_storage(data_value)
                 field_object.__set__(self, value, safe=True)
+            elif key == '__backrefs':
+                self._StoredObject__backrefs = value
 
+        self._stored_key = self._primary_key
         self._set_cache(self._storage_key, self)
 
     @warn_if_detached
@@ -875,28 +908,63 @@ class StoredObject(object):
         return cls._fields[cls._primary_name].to_storage(key)
 
     @classmethod
-    @has_storage
-    @log_storage
-    def find(cls, *args, **kwargs):
-        return cls._storage[0].QuerySet(cls, cls._storage[0].find(*args, **kwargs))
+    def _process_query(cls, query):
+
+        if isinstance(query, RawQuery):
+            field = cls._fields.get(query.attribute)
+            if field is None:
+                raise Exception
+            if field._is_foreign:
+                if field._is_abstract:
+                    query.argument = (
+                        query.argument._primary_key,
+                        query.argument._name,
+                    )
+                else:
+                    query.argument = query.argument._primary_key
+        elif isinstance(query, QueryGroup):
+            for node in query.nodes:
+                cls._process_query(node)
 
     @classmethod
     @has_storage
     @log_storage
-    def find_one(cls, *query):
-        stored_data = cls._storage[0].find_one(*query)
-        return cls.load(key=stored_data[cls._primary_name], data=stored_data)
+    def find(cls, query=None, **kwargs):
+        cls._process_query(query)
+        return cls._storage[0].QuerySet(
+            cls,
+            cls._storage[0].find(query, **kwargs)
+        )
+
+    @classmethod
+    @has_storage
+    @log_storage
+    def find_one(cls, query=None, **kwargs):
+        cls._process_query(query)
+        stored_data = cls._storage[0].find_one(query, **kwargs)
+        return cls.load(
+            key=stored_data[cls._primary_name],
+            data=stored_data
+        )
 
     # TODO: Broken and unused. Remove me?
     @classmethod
     @has_storage
     def get(cls, key):
-        return cls.load(cls._storage[0].get(cls._primary_name, cls._pk_to_storage(key)))
+        return cls.load(
+            cls._storage[0].get(
+                cls._primary_name, cls._pk_to_storage(key)
+            )
+        )
 
     @classmethod
     @has_storage
     def insert(cls, key, val):
-        cls._storage[0].insert(cls._primary_name, cls._pk_to_storage(key), val)
+        cls._storage[0].insert(
+            cls._primary_name,
+            cls._pk_to_storage(key),
+            val
+        )
 
     @classmethod
     def _includes_foreign(cls, keys):
@@ -937,7 +1005,7 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def update_one(cls, which, data=None, storage_data=None, saved=False):
+    def update_one(cls, which, data=None, storage_data=None, saved=False, inmem=False):
 
         storage_data = storage_data or cls._data_to_storage(data)
         includes_foreign = cls._includes_foreign(storage_data.keys())
@@ -950,7 +1018,7 @@ class StoredObject(object):
                 ),
                 storage_data,
             )
-            if obj:
+            if obj and not inmem:
                 obj._dirty = True
             if not saved:
                 cls._clear_caches(obj._storage_key)
@@ -985,7 +1053,7 @@ class StoredObject(object):
         Remove the object from the cache and sets its _detached flag to True.
 
         :param which: Object selector: Query, StoredObject, or primary key
-        :param rm: Remove data from backend?
+        :param rm: Remove data from backend
 
         """
         # Look up object
@@ -1051,6 +1119,48 @@ def rm_fwd_refs(obj):
         # Save
         parent_object.save()
 
+def _collect_refs(obj):
+    """
+
+    """
+    refs = []
+
+    for field_name, field_object in obj._fields.items():
+
+        field_refs = []
+
+        # Skip if not foreign field
+        if not field_object._is_foreign:
+            continue
+
+        # Skip if value is None
+        value = getattr(obj, field_name)
+        if value is None:
+            continue
+
+        # Build list of linked objects if ListField, else single field
+        if isinstance(field_object, ListField):
+            field_refs.extend([v for v in value if v])
+            field_instance = field_object._field_instance
+        else:
+            field_refs.append(value)
+            field_instance = field_object
+
+        # Skip if field does not specify back-references
+        if not field_instance._backref_field_name:
+            continue
+
+        refs.extend([
+            {
+                'value': ref,
+                'field_name': field_name,
+                'field_instance': field_instance,
+            }
+            for ref in field_refs
+        ])
+
+    return refs
+
 def rm_back_refs(obj):
     """When removing an object with foreign fields, back-references from
     other objects to the current object should be deleted. This function
@@ -1061,39 +1171,51 @@ def rm_back_refs(obj):
     :param obj: Object for which back-references should be removed
 
     """
-    for field_name, field_object in obj._fields.items():
+    for ref in _collect_refs(obj):
+        ref['value']._remove_backref(
+            ref['field_instance']._backref_field_name,
+            obj,
+            ref['field_name'],
+            strict=False
+        )
 
-        delete_queue = []
+def update_backref_keys(obj):
+    """
 
-        # Skip if not foreign field
-        if not field_object._is_foreign:
-            continue
+    """
+    for ref in _collect_refs(obj):
+        ref['value']._update_backref(
+            ref['field_instance']._backref_field_name,
+            obj,
+            ref['field_name'],
+            strict=False,
+        )
 
-        # Skip if value is None
-        value = getattr(obj, field_name)
-        if not value:
-            continue
+    for stack, key in obj._backrefs_flat:
 
-        # Build list of linked objects if ListField, else single field
-        if isinstance(field_object, ListField):
-            delete_queue.extend([v for v in value if v])
-            field_instance = field_object._field_instance
+        # Unpack stack
+        backref_key, parent_schema_name, parent_field_name = stack
+
+        # Get parent info
+        parent_schema = obj._collections[parent_schema_name]
+        parent_key_store = parent_schema._pk_to_storage(key)
+        parent_object = parent_schema.load(parent_key_store)
+
+        #
+        field_object = parent_object._fields[parent_field_name]
+        if field_object._list:
+            value = getattr(parent_object, parent_field_name)
+            if field_object._is_abstract:
+                idx = value.index((obj._stored_key, obj._name))
+                value[idx] = (obj._primary_key, obj._name)
+            else:
+                idx = value.index(obj._stored_key)
+                value[idx] = obj
         else:
-            delete_queue.append(value)
-            field_instance = field_object
+            setattr(parent_object, parent_field_name, obj)
 
-        # Skip if field does not specify back-references
-        if not field_instance._backref_field_name:
-            continue
-
-        # Remove back-references
-        for obj_to_delete in delete_queue:
-            obj_to_delete._remove_backref(
-                field_instance._backref_field_name,
-                obj,
-                field_name,
-                strict=False
-            )
+        # Save
+        parent_object.save()
 
 from flask import request
 from weakref import WeakKeyDictionary
