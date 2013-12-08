@@ -598,16 +598,18 @@ class StoredObject(object):
         :param rm_refs: Remove references on deleted fields
 
         """
-        # Check deleted, added fields
         if verbose:
-            deleted_fields = [field for field in old._fields if field not in new._fields]
-            added_fields = [field for field in new._fields if field not in old._fields]
-            print('Will delete fields: {0}'.format(deleted_fields))
-            print('Will add fields: {0}'.format(added_fields))
+            logging.basicConfig(format='%(levelname)s %(filename)s: %(message)s',
+                                level=logging.DEBUG)
+        # Check deleted, added fields
+        deleted_fields = [field for field in old._fields if field not in new._fields]
+        added_fields = [field for field in new._fields if field not in old._fields]
+        logging.info('Will delete fields: {0}'.format(deleted_fields))
+        logging.info('Will add fields: {0}'.format(added_fields))
 
         # Check change in primary key
-        if verbose and old._primary_name != new._primary_name:
-            print("The primary key will change from {old_name}: {old_field} to "
+        if old._primary_name != new._primary_name:
+            logging.info("The primary key will change from {old_name}: {old_field} to "
                 "{new_name}: {new_field} in this migration. Primary keys and "
                 "backreferences will not be automatically migrated. If you want "
                 "to migrate primary keys, you should handle this in your "
@@ -623,16 +625,15 @@ class StoredObject(object):
             # Delete forward references on deleted fields
             if field not in cls._fields:
                 if rm_refs:
-                    if verbose:
-                        print("Backreferences to this object keyed on foreign "
-                            "field {name}: {field} will be deleted in this migration. "
-                            "To prevent this behavior, re-run with <rm_fwd_refs> "
-                            "set to False.".format(name=field,
-                                                  field=old._fields[field]))
+                    logging.info("Backreferences to this object keyed on foreign "
+                        "field {name}: {field} will be deleted in this migration. "
+                        "To prevent this behavior, re-run with <rm_fwd_refs> "
+                        "set to False.".format(name=field,
+                                              field=old._fields[field]))
                     if not dry_run:
                         rm_fwd_refs(old)
                 elif verbose:
-                    print("Backreferences to this object keyed on foreign field "
+                    logging.info("Backreferences to this object keyed on foreign field "
                         "{name}: {field} will be not deleted in this migration. "
                         "To add this behavior, re-run with <rm_fwd_refs> "
                         "set to True.".format(name=field,
@@ -641,13 +642,12 @@ class StoredObject(object):
 
             # Check for field change
             if old._fields[field] != new._fields[field]:
-                if verbose:
-                    print("Old field {name}: {old_field} differs from new field "
-                        "{name}: {new_field}. This field will not be automatically "
-                        "migrated. If you want to migrate this field, "
-                        "you should handle this in your migrate() method. "
-                            .format(name=field, old_field=old._fields[field],
-                                    new_field=new._fields[field]))
+                logging.info("Old field {name}: {old_field} differs from new field "
+                    "{name}: {new_field}. This field will not be automatically "
+                    "migrated. If you want to migrate this field, "
+                    "you should handle this in your migrate() method. "
+                        .format(name=field, old_field=old._fields[field],
+                                new_field=new._fields[field]))
                 continue
 
             # Copy values of retained fields
@@ -696,6 +696,8 @@ class StoredObject(object):
 
     @classmethod
     def explain_migration(cls):
+        logging.basicConfig(format='%(levelname)s %(filename)s: %(message)s',
+                            level=logging.DEBUG)
 
         classes = [cls]
         methods = [cls._migrate]
@@ -713,13 +715,13 @@ class StoredObject(object):
             fr = classes[step]
             to = classes[step + 1]
 
-            print('From schema {0}'.format(fr._name))
-            print('\n'.join('\t{0}'.format(field) for field in fr._fields))
-            print()
+            logging.info('From schema {0}'.format(fr._name))
+            logging.info('\n'.join('\t{0}'.format(field) for field in fr._fields))
+            logging.info('')
 
-            print('To schema {0}'.format(to._name))
-            print('\n'.join('\t{0}'.format(field) for field in to._fields))
-            print()
+            logging.info('To schema {0}'.format(to._name))
+            logging.info('\n'.join('\t{0}'.format(field) for field in to._fields))
+            logging.info('')
 
             to.migrate(fr, to, verbose=True, dry_run=True)
 
