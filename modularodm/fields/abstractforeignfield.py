@@ -11,6 +11,7 @@ class AbstractForeignField(Field):
         super(AbstractForeignField, self).__init__(*args, **kwargs)
         self._backref_field_name = kwargs.get('backref', None)
         self._is_foreign = True
+        self._is_abstract = True
 
     def on_after_save(self, parent, field_name, old_stored_data, new_value):
         """Update back-references after save; remove self from back-reference
@@ -28,7 +29,8 @@ class AbstractForeignField(Field):
 
         if old_stored_data is not None:
             old_value = self.get_foreign_object(old_stored_data)
-            old_value._remove_backref(self._backref_field_name, parent, field_name)
+            if old_value is not None:
+                old_value._remove_backref(self._backref_field_name, parent, field_name)
 
         if new_value is not None:
             new_value._set_backref(self._backref_field_name, field_name, parent)
@@ -48,6 +50,8 @@ class AbstractForeignField(Field):
 
         if value is None:
             return None
+        if not hasattr(value, '__iter__'):
+            value = (value._primary_key, value._name)
         return (
             self.get_primary_field(value[1])\
                 .to_storage(value[0], translator),

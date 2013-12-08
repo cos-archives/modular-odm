@@ -6,7 +6,7 @@ import warnings
 from modularodm import exceptions
 from fields import Field, ListField, ForeignList
 from .storage import Storage
-from .query import QueryBase, RawQuery
+from .query import QueryBase, RawQuery, QueryGroup
 from .frozen import FrozenDict
 
 
@@ -728,7 +728,7 @@ class StoredObject(object):
             if hasattr(field_object, 'on_before_save'):
                 field_object.on_before_save(self)
 
-        cached_data = self._get_cached_data(self._primary_key)
+        cached_data = self._get_cached_data(self._stored_key)
         storage_data = self.to_storage()
 
         if self._primary_key is not None and cached_data is not None:
@@ -750,8 +750,21 @@ class StoredObject(object):
             field_object = self._fields[field_name]
             field_object.do_validate(getattr(self, field_name))
 
+        primary_changed = (
+            self._primary_key != self._stored_key
+            and
+            self._primary_name in list_on_save_after_fields
+        )
+
         if self._is_loaded:
-            self.update_one(self, storage_data=storage_data, saved=True, inmem=True)
+            if primary_changed and not getattr(self, '_updating_key', False):
+                self._storage[0].remove(
+                    RawQuery(self._primary_name, 'eq', self._stored_key)
+                )
+                self._clear_caches(self._stored_key)
+                self.insert(self._primary_key, storage_data)
+            else:
+                self.update_one(self, storage_data=storage_data, saved=True, inmem=True)
         elif self._is_optimistic and self._primary_key is None:
             self._optimistic_insert()
         else:
@@ -761,11 +774,16 @@ class StoredObject(object):
         # AND
         # run after_save or after_save_on_difference
 
-        if self._is_loaded and self._primary_name in list_on_save_after_fields:
-            update_backref_keys(self)
+        if self._is_loaded and primary_changed:
+            if not getattr(self, '_updating_key', False):
+                self._updating_key = True
+                update_backref_keys(self)
+                self._stored_key = self._primary_key
+                self._updating_key = False
+        else:
+            self._stored_key = self._primary_key
 
         self._is_loaded = True
-        self._stored_key = self._primary_key
 
         for field_name in list_on_save_after_fields:
             field_object = self._fields[field_name]
@@ -858,27 +876,62 @@ class StoredObject(object):
         return cls._fields[cls._primary_name].to_storage(key)
 
     @classmethod
-    @has_storage
-    @log_storage
-    def find(cls, *args, **kwargs):
-        return cls._storage[0].QuerySet(cls, cls._storage[0].find(*args, **kwargs))
+    def _process_query(cls, query):
+
+        if isinstance(query, RawQuery):
+            field = cls._fields.get(query.attribute)
+            if field is None:
+                raise Exception
+            if field._is_foreign:
+                if field._is_abstract:
+                    query.argument = (
+                        query.argument._primary_key,
+                        query.argument._name,
+                    )
+                else:
+                    query.argument = query.argument._primary_key
+        elif isinstance(query, QueryGroup):
+            for node in query.nodes:
+                cls._process_query(node)
 
     @classmethod
     @has_storage
     @log_storage
-    def find_one(cls, *query):
-        stored_data = cls._storage[0].find_one(*query)
-        return cls.load(key=stored_data[cls._primary_name], data=stored_data)
+    def find(cls, query=None, **kwargs):
+        cls._process_query(query)
+        return cls._storage[0].QuerySet(
+            cls,
+            cls._storage[0].find(query, **kwargs)
+        )
+
+    @classmethod
+    @has_storage
+    @log_storage
+    def find_one(cls, query=None, **kwargs):
+        cls._process_query(query)
+        stored_data = cls._storage[0].find_one(query, **kwargs)
+        return cls.load(
+            key=stored_data[cls._primary_name],
+            data=stored_data
+        )
 
     @classmethod
     @has_storage
     def get(cls, key):
-        return cls.load(cls._storage[0].get(cls._primary_name, cls._pk_to_storage(key)))
+        return cls.load(
+            cls._storage[0].get(
+                cls._primary_name, cls._pk_to_storage(key)
+            )
+        )
 
     @classmethod
     @has_storage
     def insert(cls, key, val):
-        cls._storage[0].insert(cls._primary_name, cls._pk_to_storage(key), val)
+        cls._storage[0].insert(
+            cls._primary_name,
+            cls._pk_to_storage(key),
+            val
+        )
 
     @classmethod
     def _includes_foreign(cls, keys):
@@ -967,7 +1020,7 @@ class StoredObject(object):
         Remove the object from the cache and sets its _detached flag to True.
 
         :param which: Object selector: Query, StoredObject, or primary key
-        :param rm: Remove data from backend?
+        :param rm: Remove data from backend
 
         """
         # Look up object
@@ -1097,14 +1150,39 @@ def update_backref_keys(obj):
     """
 
     """
-    refs = _collect_refs(obj)
     for ref in _collect_refs(obj):
         ref['value']._update_backref(
             ref['field_instance']._backref_field_name,
             obj,
             ref['field_name'],
-            strict=False
+            strict=False,
         )
+
+    for stack, key in obj._backrefs_flat:
+
+        # Unpack stack
+        backref_key, parent_schema_name, parent_field_name = stack
+
+        # Get parent info
+        parent_schema = obj._collections[parent_schema_name]
+        parent_key_store = parent_schema._pk_to_storage(key)
+        parent_object = parent_schema.load(parent_key_store)
+
+        #
+        field_object = parent_object._fields[parent_field_name]
+        if field_object._list:
+            value = getattr(parent_object, parent_field_name)
+            if field_object._is_abstract:
+                idx = value.index((obj._stored_key, obj._name))
+                value[idx] = (obj._primary_key, obj._name)
+            else:
+                idx = value.index(obj._stored_key)
+                value[idx] = obj
+        else:
+            setattr(parent_object, parent_field_name, obj)
+
+        # Save
+        parent_object.save()
 
 from flask import request
 from weakref import WeakKeyDictionary

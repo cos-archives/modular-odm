@@ -15,8 +15,8 @@ class ListField(Field):
         # ListField is a list of the following (e.g., ForeignFields)
         self._field_instance = field_instance
         self._is_foreign = field_instance._is_foreign
+        self._is_abstract = getattr(field_instance, '_is_abstract', False)
         self._uniform_translator = field_instance._uniform_translator
-        #self._is_foreign = isinstance(field_instance, ForeignField)
 
         # Descriptor data is this type of list
         self._list_class = self._field_instance._list_class

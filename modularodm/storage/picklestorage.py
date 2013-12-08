@@ -13,25 +13,26 @@ except ImportError:
     import pickle
 
 def _eq(data, test):
-    if hasattr(data, '__iter__'):
+    if isinstance(data, list):
         return test in data
     return data == test
 
 operators = {
 
-    'eq' : _eq,
-    'ne' : lambda data, test: data != test,
-    'gt' : lambda data, test: data > test,
-    'gte' : lambda data, test: data >= test,
-    'lt' : lambda data, test: data < test,
-    'lte' : lambda data, test: data <= test,
-    'in' : lambda data, test: data in test,
-    'nin' : lambda data, test: data not in test,
+    'eq':   _eq,
 
-    'startswith' : lambda data, test: data.startswith(test),
-    'endswith' : lambda data, test: data.endswith(test),
-    'contains' : lambda data, test: test in data,
-    'icontains' : lambda data, test: test.lower() in data.lower(),
+    'ne':   lambda data, test: data != test,
+    'gt':   lambda data, test: data > test,
+    'gte':  lambda data, test: data >= test,
+    'lt':   lambda data, test: data < test,
+    'lte':  lambda data, test: data <= test,
+    'in':   lambda data, test: data in test,
+    'nin':  lambda data, test: data not in test,
+
+    'startswith':  lambda data, test: data.startswith(test),
+    'endswith':    lambda data, test: data.endswith(test),
+    'contains':    lambda data, test: test in data,
+    'icontains':   lambda data, test: test.lower() in data.lower(),
 
 }
 
@@ -140,7 +141,9 @@ class PickleStorage(Storage):
                 self.store[pk][key] = value
 
     def get(self, primary_name, key):
-        return copy.deepcopy(self.store[key])
+        data = self.store.get(key)
+        if data is not None:
+            return copy.deepcopy(data)
 
     def _remove_by_pk(self, key, flush=True):
         """Retrieve value from store.
@@ -162,8 +165,8 @@ class PickleStorage(Storage):
         with open(self.filename, 'wb') as fp:
             pickle.dump(self.store, fp, -1)
 
-    def find_one(self, *query):
-        results = list(self.find(*query))
+    def find_one(self, query=None, **kwargs):
+        results = list(self.find(query))
         if len(results) == 1:
             return results[0]
         elif len(results) == 0:
@@ -198,22 +201,17 @@ class PickleStorage(Storage):
         else:
             raise TypeError('Query must be a QueryGroup or Query object.')
 
-    def find(self, *query, **kwargs):
+    def find(self, query=None, **kwargs):
         """
         Return generator over query results. Takes optional
         by_pk keyword argument; if true, return keys rather than
         values.
 
         """
-        if len(query) == 0:
+        if query is None:
             for key, value in self.store.iteritems():
                 yield value
         else:
-            if len(query) > 1:
-                query = QueryGroup('and', *query)
-            else:
-                query = query[0]
-
             for key, value in self.store.items():
                 if self._match(value, query):
                     if kwargs.get('by_pk'):

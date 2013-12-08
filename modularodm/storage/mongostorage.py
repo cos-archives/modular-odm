@@ -119,11 +119,11 @@ class MongoStorage(Storage):
         self.collection = collection
         self.store = db[self.collection]
 
-    def find(self, *query):
-        mongo_query = self._translate_query(*query)
+    def find(self, query=None, **kwargs):
+        mongo_query = self._translate_query(query)
         return self.store.find(mongo_query)
 
-    def find_one(self, *query):
+    def find_one(self, query=None, **kwargs):
         """ Gets a single object from the collection.
 
         If no matching documents are found, raises ``NoResultsFound``.
@@ -133,7 +133,7 @@ class MongoStorage(Storage):
 
         :returns: The selected document
         """
-        mongo_query = self._translate_query(*query)
+        mongo_query = self._translate_query(query)
         matches = self.store.find(mongo_query).limit(2)
 
         if matches.count() == 1:
@@ -185,15 +185,10 @@ class MongoStorage(Storage):
     def __repr__(self):
         return self.find()
 
-    def _translate_query(self, *query):
+    def _translate_query(self, query=None):
+        """
 
-        if len(query) == 1:
-            query = query[0]
-        elif len(query) > 1:
-            query = QueryGroup('and', *query)
-        else:
-            query = None
-
+        """
         mongo_query = {}
 
         if isinstance(query, RawQuery):

@@ -36,11 +36,6 @@ class RawQuery(QueryBase):
 
     def __init__(self, attribute, operator, argument):
 
-        try:
-            argument = argument._primary_key
-        except AttributeError:
-            pass
-
         self.attribute = attribute
         self.operator = operator
         self.argument = argument
