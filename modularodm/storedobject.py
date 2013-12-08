@@ -643,15 +643,15 @@ class StoredObject(object):
             old_field_obj = old._fields[field]
             new_field_obj = new._fields[field]
             if old_field_obj != new_field_obj:
+                if not old_field_obj._required and new_field_obj._required:
+                    raise exceptions.ValidationError("Field {name!r} is now required "
+                                        "and therefore needs a default value "
+                                        "for existing records. You can set "
+                                        "this value in the _migrate() method. "
+                                        "\nExample: "
+                                        "\n\tnew.{name} = 'default value'"
+                                        .format(name=field))
                 if verbose:
-                    if not old_field_obj._required and new_field_obj._required:
-                        raise exceptions.ValidationError("Field {name!r} is now required "
-                                            "and therefore needs a default value "
-                                            "for existing records. You can set "
-                                            "this value in the _migrate() method. "
-                                            "\nExample: "
-                                            "\n\tnew.{name} = 'default value'"
-                                            .format(name=field))
                     print '''
                         Old field {name}: {old_field} differs from new field {name}: {new_field}.
                         This field will not be automatically migrated. If you want to migrate this field,
