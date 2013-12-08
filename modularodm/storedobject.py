@@ -569,7 +569,7 @@ class StoredObject(object):
         if '_version' in data and data['_version'] != cls._version:
 
             old_object = cls._version_of.load(data=data)
-            new_object = cls()
+            new_object = cls(_is_loaded=_is_loaded)
 
             cls.migrate(old_object, new_object)
             new_object._stored_key = new_object._primary_key
@@ -691,8 +691,7 @@ class StoredObject(object):
         :param old: Record from original schema
         :param new: Record from new schema
         """
-        pass
-
+        return new
 
     @classmethod
     def explain_migration(cls):
