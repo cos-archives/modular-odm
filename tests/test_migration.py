@@ -12,19 +12,20 @@ class TestMigration(ModularOdmTestCase):
         _storage = self.make_storage()
 
         class V1(StoredObject):
-            _id = fields.StringField(primary=True, index=True)
+            _id = fields.StringField(_primary_key=True, index=True)
             my_string = fields.StringField()
             my_float = fields.FloatField()
             my_number = fields.FloatField()
             my_null = fields.StringField(required=False)
             _meta = {
+                'optimistic': True,
                 'version': 1,
                 'optimistic': True
             }
         V1.set_storage(_storage)
 
         class V2(StoredObject):
-            _id = fields.StringField(primary=True, index=True)
+            _id = fields.StringField(_primary_key=True, index=True)
             my_string = fields.StringField()
             my_int = fields.IntegerField(default=5)
             my_number = fields.IntegerField()
@@ -36,6 +37,7 @@ class TestMigration(ModularOdmTestCase):
                     new.my_number = int(old.my_number)
 
             _meta = {
+                'optimistic': True,
                 'version_of': V1,
                 'version': 2,
                 'optimistic': True
@@ -48,6 +50,7 @@ class TestMigration(ModularOdmTestCase):
         self.record = self.V1(my_string='hi', my_float=1.2, my_number=3.4)
         self.record.save()
         self.migrated_record = self.V2.load(self.record._primary_key)
+        self.migrated_record.save()
 
     def test_version_number(self):
         assert_equal(self.migrated_record._version, 2)
@@ -84,6 +87,11 @@ class TestMigration(ModularOdmTestCase):
         assert_raises(exceptions.ValidationError,
                         lambda: self.V2.migrate_all())
 
+    def test_save_migrated(self):
+        try:
+            self.migrated_record.save()
+        except:
+            assert False
 
 if __name__ == '__main__':
     unittest.main()
