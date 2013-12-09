@@ -9,7 +9,7 @@ class TestMigration(ModularOdmTestCase):
     def define_objects(self):
 
         # Use a single storage object for both schema versions
-        _storage = self.make_storage()
+        self._storage = self.make_storage()
 
         class V1(StoredObject):
             _id = fields.StringField(_primary_key=True, index=True)
@@ -22,17 +22,19 @@ class TestMigration(ModularOdmTestCase):
                 'version': 1,
                 'optimistic': True
             }
-        V1.set_storage(_storage)
+        V1.set_storage(self._storage)
 
         class V2(StoredObject):
             _id = fields.StringField(_primary_key=True, index=True)
             my_string = fields.StringField()
             my_int = fields.IntegerField(default=5)
             my_number = fields.IntegerField()
+            my_null = fields.StringField(required=False)
 
             @classmethod
             def _migrate(cls, old, new):
-                new.my_string = old.my_string + 'yo'
+                if old.my_string:
+                    new.my_string = old.my_string + 'yo'
                 if old.my_number:
                     new.my_number = int(old.my_number)
 
@@ -42,7 +44,7 @@ class TestMigration(ModularOdmTestCase):
                 'version': 2,
                 'optimistic': True
             }
-        V2.set_storage(_storage)
+        V2.set_storage(self._storage)
 
         return V1, V2
 
@@ -81,11 +83,56 @@ class TestMigration(ModularOdmTestCase):
         assert_true(isinstance(self.migrated_record.my_number, int))
         assert_equal(self.migrated_record.my_number, int(self.record.my_number))
 
-    def test_making_field_required(self):
+    def test_making_field_required_without_default_raises_error(self):
+        class V3(StoredObject):
+            _id = fields.StringField(_primary_key=True, index=True)
+            my_string = fields.StringField()
+            my_int = fields.IntegerField(default=5)
+            my_number = fields.IntegerField()
+            my_null = fields.StringField(required=True)
+
+            _meta = {
+                'optimistic': True,
+                'version_of': self.V2,
+                'version': 3,
+                'optimistic': True
+            }
+        V3.set_storage(self._storage)
+        migrated = V3.load(self.migrated_record._primary_key)
+        assert_raises(exceptions.ValidationError, lambda: migrated.save())
+
+    def test_making_field_required_with_default(self):
+        class V3(StoredObject):
+            _id = fields.StringField(_primary_key=True, index=True)
+            my_string = fields.StringField()
+            my_int = fields.IntegerField(default=5)
+            my_number = fields.IntegerField()
+            my_null = fields.StringField(required=True)
+            @classmethod
+            def _migrate(cls, old, new):
+                if not old.my_null:
+                    new.my_null = 'default'
+            _meta = {
+                'optimistic': True,
+                'version_of': self.V2,
+                'version': 3,
+                'optimistic': True
+            }
+        V3.set_storage(self._storage)
+        old = self.V1()
+        old.save()
+        migrated = V3.load(old._primary_key)
+        migrated.save()
+        assert_equal(migrated.my_null, "default")
+
+    def test_migrate_all(self):
+        for i in range(5):
+            rec = self.V1(my_string="foo{0}".format(i))
+            rec.save()
         self.V2.migrate_all()
-        # Need default value
-        assert_raises(exceptions.ValidationError,
-                        lambda: self.V2.migrate_all())
+        assert_greater_equal(self.V2.find(), 5)
+        for record in self.V2.find():
+            assert_true(record.my_string.endswith("yo"))
 
     def test_save_migrated(self):
         try:
