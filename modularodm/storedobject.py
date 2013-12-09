@@ -650,7 +650,8 @@ class StoredObject(object):
                             "for existing records. You can set "
                             "this value in the _migrate() method. "
                             "\nExample: "
-                            "\n\tnew.{name} = 'default value'"
+                            "\n    if not old.{name}:"
+                            "\n        new.{name} = 'default value'"
                             .format(name=field))
                 else:
                     logging.info("Old field {name}: {old_field} differs from new field "
@@ -686,7 +687,7 @@ class StoredObject(object):
         Example:
         ::
 
-            class Foo(StoredObject):
+            class NewSchema(StoredObject):
                 _id = fields.StringField(primary=True, index=True)
                 my_string = fields.StringField()
 
@@ -695,6 +696,7 @@ class StoredObject(object):
                     new.my_string = old.my_string + 'yo'
 
                 _meta = {
+                    'version_of': OldSchema,
                     'version': 2,
                     'optimistic': True
                 }
