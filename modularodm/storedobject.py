@@ -1096,6 +1096,8 @@ def rm_fwd_refs(obj):
         parent_schema = obj._collections[parent_schema_name]
         parent_key_store = parent_schema._pk_to_storage(key)
         parent_object = parent_schema.load(parent_key_store)
+        if parent_object is None:
+            continue
 
         # Remove forward references
         if parent_object._fields[parent_field_name]._list:
@@ -1188,6 +1190,8 @@ def update_backref_keys(obj):
         parent_schema = obj._collections[parent_schema_name]
         parent_key_store = parent_schema._pk_to_storage(key)
         parent_object = parent_schema.load(parent_key_store)
+        if parent_object is None:
+            continue
 
         #
         field_object = parent_object._fields[parent_field_name]
