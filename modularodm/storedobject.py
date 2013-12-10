@@ -901,15 +901,16 @@ class StoredObject(object):
         if isinstance(query, RawQuery):
             field = cls._fields.get(query.attribute)
             if field is None:
-                raise Exception
+                return
             if field._is_foreign:
-                if field._is_abstract:
-                    query.argument = (
-                        query.argument._primary_key,
-                        query.argument._name,
-                    )
-                else:
-                    query.argument = query.argument._primary_key
+                if getattr(query.argument, '_fields', None):
+                    if field._is_abstract:
+                        query.argument = (
+                            query.argument._primary_key,
+                            query.argument._name,
+                        )
+                    else:
+                        query.argument = query.argument._primary_key
         elif isinstance(query, QueryGroup):
             for node in query.nodes:
                 cls._process_query(node)
