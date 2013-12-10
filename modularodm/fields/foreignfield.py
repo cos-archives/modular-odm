@@ -21,8 +21,7 @@ class ForeignField(Field):
             Obj, None = means go to nothing or remove
             Obj, Obj = remove then add or swap
         '''
-
-        if self._backref_field_name == None:
+        if self._backref_field_name is None:
             return
 
         if old_stored_data is not None:

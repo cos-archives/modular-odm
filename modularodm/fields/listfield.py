@@ -147,10 +147,10 @@ class ListField(Field):
             additions = []
             removes = []
 
-        for i in additions:
-            self._field_instance.on_after_save(parent, field_name, None, i)
         for i in removes:
             self._field_instance.on_after_save(parent, field_name, i, None)
+        for i in additions:
+            self._field_instance.on_after_save(parent, field_name, None, i)
 
     @property
     def base_class(self):
