@@ -111,27 +111,6 @@ class URLValidator(RegexValidator):
             pass
             # url = value
 
-class BaseValidator(Validator):
-    compare = lambda self, a, b: a is not b
-
-    def __init__(self, limit_value):
-        self.limit_value = limit_value
-
-    def __call__(self, value):
-        if self.compare(value, self.limit_value):
-            raise ValidationError('Received bad value: <{}>.'.format(value))
-
-class MaxValueValidator(BaseValidator):
-    compare = lambda self, a, b: a > b
-
-class MinValueValidator(BaseValidator):
-    compare = lambda self, a, b: a < b
-
-class MinLengthValidator(BaseValidator):
-    compare = lambda self, a, b: len(a) < b
-
-class MaxLengthValidator(BaseValidator):
-    compare = lambda self, a, b: len(a) > b
 
 class BaseValidator(Validator):
 
