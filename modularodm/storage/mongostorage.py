@@ -175,7 +175,7 @@ class MongoStorage(Storage):
             multi=True
         )
 
-    def remove(self, query):
+    def remove(self, query=None):
         mongo_query = self._translate_query(query)
         self.store.remove(mongo_query)
 

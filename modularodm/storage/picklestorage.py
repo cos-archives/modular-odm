@@ -155,7 +155,7 @@ class PickleStorage(Storage):
         if flush:
             self.flush()
 
-    def remove(self, query):
+    def remove(self, query=None):
         for key in self.find(query, by_pk=True):
             self._remove_by_pk(key, flush=False)
         self.flush()
