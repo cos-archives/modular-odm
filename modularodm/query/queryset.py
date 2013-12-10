@@ -4,10 +4,11 @@
 
 class BaseQuerySet(object):
 
-    def __init__(self, schema):
+    def __init__(self, schema, data=None):
 
         self.schema = schema
         self.primary = schema._primary_name
+        self.data = data
 
     def __getitem__(self, index):
 
