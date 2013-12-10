@@ -201,6 +201,3 @@ class Storage(object):
         """Query the database and return a query set.
         """
         raise NotImplementedError
-
-    def __repr__(self):
-        return str(self.store)
