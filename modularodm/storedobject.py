@@ -396,14 +396,20 @@ class StoredObject(object):
             if strict:
                 raise
 
-    def _update_backref(self, backref_key, parent, parent_field_name, strict=False):
+    def _update_backref(self, backref_key, parent, parent_field_name):
+        updated = False
         try:
             refs = self.__backrefs[backref_key][parent._name][parent_field_name]
-            refs[refs.index(parent._stored_key)] = parent._primary_key
-            self.save(force=True)
+            if refs[refs.index(parent._stored_key)] != parent._primary_key:
+                refs[refs.index(parent._stored_key)] = parent._primary_key
+                updated = True
         except (KeyError, ValueError):
-            if strict:
-                raise
+            self._set_backref(backref_key, parent_field_name, parent)
+            return True
+        if updated:
+            self.save(force=True)
+            return True
+        return False
 
     def _set_backref(self, backref_key, parent_field_name, backref_value):
 
@@ -1123,15 +1129,14 @@ def rm_fwd_refs(obj):
         # Save
         parent_object.save()
 
-def _collect_refs(obj):
+def _collect_refs(obj, fields=None):
     """
 
     """
     refs = []
+    fields = fields or []
 
     for field_name, field_object in obj._fields.items():
-
-        field_refs = []
 
         # Skip if not foreign field
         if not field_object._is_foreign:
@@ -1141,6 +1146,12 @@ def _collect_refs(obj):
         value = getattr(obj, field_name)
         if value is None:
             continue
+
+        # Skip if not in fields
+        if fields and field_name not in fields:
+            continue
+
+        field_refs = []
 
         # Build list of linked objects if ListField, else single field
         if isinstance(field_object, ListField):
@@ -1183,6 +1194,26 @@ def rm_back_refs(obj):
             strict=False
         )
 
+def ensure_backrefs(obj, fields=None):
+    """Ensure that all forward references on the provided object have the
+    appropriate backreferences.
+
+    :param StoredObject obj: Database record
+    :param list fields: Optional list of field names to check
+
+    """
+    for ref in _collect_refs(obj, fields):
+        updated = ref['value']._update_backref(
+            ref['field_instance']._backref_field_name,
+            obj,
+            ref['field_name'],
+        )
+        if updated:
+            logging.debug('Updated reference {}:{}:{}:{}:{}'.format(
+                obj._name, obj._primary_key, ref['field_name'],
+                ref['value']._name, ref['value']._primary_key,
+            ))
+
 def update_backref_keys(obj):
     """
 
@@ -1192,7 +1223,6 @@ def update_backref_keys(obj):
             ref['field_instance']._backref_field_name,
             obj,
             ref['field_name'],
-            strict=False,
         )
 
     for stack, key in obj._backrefs_flat:
