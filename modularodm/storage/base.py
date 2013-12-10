@@ -143,8 +143,8 @@ class Storage(object):
         """Attempt to insert with randomly generated key until insert
         is successful.
 
-        :param value:
-        :param label:
+        :param str primary_name: The name of the primary key.
+        :param dict value: The dictionary representation of the record.
         :param n: Number of characters in random key
 
         """
