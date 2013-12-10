@@ -95,7 +95,7 @@ class Field(object):
         # Check if required
         if value is None:
             if hasattr(self, '_required') and self._required:
-                raise exceptions.ValidationError('Value <{}> is required.'.format(self._field_name))
+                raise exceptions.ValidationError('Value <{0}> is required.'.format(self._field_name))
             return True
 
         # Field-level validation

@@ -641,13 +641,25 @@ class StoredObject(object):
                 continue
 
             # Check for field change
-            if old._fields[field] != new._fields[field]:
-                logging.info("Old field {name}: {old_field} differs from new field "
-                    "{name}: {new_field}. This field will not be automatically "
-                    "migrated. If you want to migrate this field, "
-                    "you should handle this in your migrate() method. "
-                        .format(name=field, old_field=old._fields[field],
-                                new_field=new._fields[field]))
+            old_field_obj = old._fields[field]
+            new_field_obj = new._fields[field]
+            if old_field_obj != new_field_obj:
+                if not old_field_obj._required and new_field_obj._required:
+                    logging.info("Field {name!r} is now required "
+                            "and therefore needs a default value "
+                            "for existing records. You can set "
+                            "this value in the _migrate() method. "
+                            "\nExample: "
+                            "\n    if not old.{name}:"
+                            "\n        new.{name} = 'default value'"
+                            .format(name=field))
+                else:
+                    logging.info("Old field {name}: {old_field} differs from new field "
+                        "{name}: {new_field}. This field will not be "
+                        "automatically migrated. If you want to migrate this field, "
+                        "you should handle this in your migrate() method.")\
+                        .format(name=field, old_field=old_field_obj,
+                                new_field=new_field_obj)
                 continue
 
             # Copy values of retained fields
@@ -675,7 +687,7 @@ class StoredObject(object):
         Example:
         ::
 
-            class Foo(StoredObject):
+            class NewSchema(StoredObject):
                 _id = fields.StringField(primary=True, index=True)
                 my_string = fields.StringField()
 
@@ -684,6 +696,7 @@ class StoredObject(object):
                     new.my_string = old.my_string + 'yo'
 
                 _meta = {
+                    'version_of': OldSchema,
                     'version': 2,
                     'optimistic': True
                 }
@@ -901,15 +914,16 @@ class StoredObject(object):
         if isinstance(query, RawQuery):
             field = cls._fields.get(query.attribute)
             if field is None:
-                raise Exception
+                return
             if field._is_foreign:
-                if field._is_abstract:
-                    query.argument = (
-                        query.argument._primary_key,
-                        query.argument._name,
-                    )
-                else:
-                    query.argument = query.argument._primary_key
+                if getattr(query.argument, '_fields', None):
+                    if field._is_abstract:
+                        query.argument = (
+                            query.argument._primary_key,
+                            query.argument._name,
+                        )
+                    else:
+                        query.argument = query.argument._primary_key
         elif isinstance(query, QueryGroup):
             for node in query.nodes:
                 cls._process_query(node)
@@ -1096,6 +1110,8 @@ def rm_fwd_refs(obj):
         parent_schema = obj._collections[parent_schema_name]
         parent_key_store = parent_schema._pk_to_storage(key)
         parent_object = parent_schema.load(parent_key_store)
+        if parent_object is None:
+            continue
 
         # Remove forward references
         if parent_object._fields[parent_field_name]._list:
@@ -1188,6 +1204,8 @@ def update_backref_keys(obj):
         parent_schema = obj._collections[parent_schema_name]
         parent_key_store = parent_schema._pk_to_storage(key)
         parent_object = parent_schema.load(parent_key_store)
+        if parent_object is None:
+            continue
 
         #
         field_object = parent_object._fields[parent_field_name]
