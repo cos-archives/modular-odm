@@ -183,7 +183,7 @@ class Storage(object):
         """
         raise NotImplementedError
 
-    def remove(self, *query):
+    def remove(self, query):
         """Remove records.
         """
         raise NotImplementedError
