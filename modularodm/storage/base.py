@@ -159,24 +159,47 @@ class Storage(object):
         return key
 
     def insert(self, primary_name, key, value):
+        '''Insert a new record.
+
+        :param str primary_name: Name of primary key
+        :param key: The value of the primary key
+        :param dict value: The dictionary of attribute:value pairs
+        '''
         raise NotImplementedError
 
-    def update(self, key, value):
+    def update(self, query, data):
+        """Update multiple records with new data.
+
+        :param query: A query object.
+        :param dict data: Dictionary of key:value pairs.
+        """
         raise NotImplementedError
 
     def get(self, primary_name, key):
+        """Get a single record.
+
+        :param str primary_name: The name of the primary key.
+        :param key: The value of the primary key.
+        """
         raise NotImplementedError
 
-    def remove(self, key):
+    def remove(self, *query):
+        """Remove records.
+        """
         raise NotImplementedError
 
     def flush(self):
+        """Flush the database."""
         raise NotImplementedError
 
     def find_one(self, query=None, **kwargs):
+        """Find a single record that matches ``query``.
+        """
         raise NotImplementedError
 
     def find(self, query=None, **kwargs):
+        """Query the database and return a query set.
+        """
         raise NotImplementedError
 
     def __repr__(self):
