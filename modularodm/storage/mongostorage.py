@@ -185,11 +185,11 @@ class MongoStorage(Storage):
     def __repr__(self):
         return self.find()
 
-    def _translate_query(self, query=None):
+    def _translate_query(self, query=None, mongo_query=None):
         """
 
         """
-        mongo_query = {}
+        mongo_query = mongo_query or {}
 
         if isinstance(query, RawQuery):
             attribute, operator, argument = \
@@ -200,19 +200,23 @@ class MongoStorage(Storage):
 
             elif operator in COMPARISON_OPERATORS:
                 mongo_operator = '$' + operator
-                mongo_query[attribute] = {mongo_operator : argument}
+                if attribute not in mongo_query:
+                    mongo_query[attribute] = {}
+                mongo_query[attribute][mongo_operator] = argument
 
             elif operator in STRING_OPERATORS:
                 mongo_operator = '$regex'
                 mongo_regex = prepare_query_value(operator, argument)
-                mongo_query[attribute] = {mongo_operator : mongo_regex}
+                if attribute not in mongo_query:
+                    mongo_query[attribute] = {}
+                mongo_query[attribute][mongo_operator] = mongo_regex
 
         elif isinstance(query, QueryGroup):
 
             if query.operator == 'and':
                 mongo_query = {}
                 for node in query.nodes:
-                    mongo_query.update(self._translate_query(node))
+                    mongo_query = self._translate_query(node, mongo_query)
                 return mongo_query
 
             elif query.operator == 'or':
