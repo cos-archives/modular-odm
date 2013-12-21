@@ -182,8 +182,8 @@ class ObjectMeta(type):
                         'Schemas must either define a field named _id or '
                         'specify exactly one field as primary.')
 
-        # Register
-        cls.register_collection()
+            # Register
+            cls.register_collection()
 
     @property
     def _translator(cls):
@@ -759,7 +759,13 @@ class StoredObject(object):
     @has_storage
     @log_storage
     def save(self, force=False):
+        """Save a record.
 
+        :param bool force: Save even if no fields have changed; used to update
+            backreferences
+        :return list: Saved fields
+
+        """
         if self._detached:
             raise exceptions.DatabaseError('Cannot save detached object.')
 
@@ -779,10 +785,7 @@ class StoredObject(object):
 
         # Quit if no diffs
         if not list_on_save_after_fields and not force:
-            return {
-                'success': True,
-                'saved_fields': [],
-            }
+            return []
 
         # Validate
         for field_name in list_on_save_after_fields:
@@ -835,10 +838,7 @@ class StoredObject(object):
 
         self._set_cache(self._primary_key, self)
 
-        return {
-            'success': True,
-            'saved_fields': list_on_save_after_fields,
-        }
+        return list_on_save_after_fields
 
     def reload(self):
 
