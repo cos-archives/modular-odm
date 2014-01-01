@@ -36,8 +36,8 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
 
         # The backreference on bar should be a dict with the necessary info
         self.assertEqual(
-            self.bar.my_foo,
-            {'foo': {'my_bar': [self.foo._id]}}
+            self.bar.my_foo[0],
+            self.foo
         )
 
         # bar._backrefs should contain a dict with all backref information for
@@ -64,7 +64,7 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
         # The first Bar should no longer have a reference to foo
         self.assertEqual(
             self.bar.my_foo,
-            {'foo': {'my_bar': []}}
+            []
         )
 
     def test_assign_foreign_field_to_none(self):
@@ -85,7 +85,7 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
         # The first Bar should no longer have a reference to foo
         self.assertEqual(
             self.bar.my_foo,
-            {'foo': {'my_bar': []}}
+            []
         )
 
     def test_assign_foreign_field_by_id(self):
@@ -144,12 +144,12 @@ class OneToManyAbstractFieldTestCase(ModularOdmTestCase):
 
         # The backreference on bar should be a dict with the necessary info
         self.assertEqual(
-            self.bar.my_foo,
-            {'foo': {'my_abstract': [self.foo1._id]}}
+            self.bar.my_foo[0],
+            self.foo1
         )
         self.assertEqual(
-            self.bob.my_foo,
-            {'foo': {'my_abstract': [self.foo2._id]}}
+            self.bob.my_foo[0],
+            self.foo2
         )
 
         # bar._backrefs should contain a dict with all backref information for
@@ -186,11 +186,11 @@ class OneToManyAbstractFieldTestCase(ModularOdmTestCase):
         # The first Bar should no longer have a reference to foo
         self.assertEqual(
             self.bar.my_foo,
-            {'foo': {'my_abstract': []}}
+            []
         )
         self.assertEqual(
             self.bob.my_foo,
-            {'foo': {'my_abstract': []}}
+            []
         )
 
     def test_assign_foreign_field_to_none(self):
@@ -217,11 +217,11 @@ class OneToManyAbstractFieldTestCase(ModularOdmTestCase):
         # The first Bar should no longer have a reference to foo
         self.assertEqual(
             self.bar.my_foo,
-            {'foo': {'my_abstract': []}}
+            []
         )
         self.assertEqual(
             self.bob.my_foo,
-            {'foo': {'my_abstract': []}}
+            []
         )
 
     def test_assign_foreign_field_by_tuple(self):

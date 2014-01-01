@@ -4,7 +4,7 @@ import logging
 import warnings
 
 from modularodm import exceptions
-from fields import Field, ListField, ForeignList
+from fields import Field, ListField, ForeignList, AbstractForeignList
 from .storage import Storage
 from .query import QueryBase, RawQuery, QueryGroup
 from .frozen import FrozenDict
@@ -861,12 +861,21 @@ class StoredObject(object):
 
     @warn_if_detached
     def __getattr__(self, item):
-        if item in self.__backrefs:
-            return self.__backrefs[item]
+
         errmsg = '{cls} object has no attribute {item}'.format(
             cls=self.__class__.__name__,
             item=item
         )
+
+        if item in self.__backrefs:
+            backrefs = []
+            for parent, rest0 in self.__backrefs[item].iteritems():
+                for field, rest1 in rest0.iteritems():
+                    backrefs.extend([
+                        (key, parent)
+                        for key in rest1
+                    ])
+            return AbstractForeignList(backrefs)
 
         # Retrieve back-references
         if '__' in item and not item.startswith('__'):

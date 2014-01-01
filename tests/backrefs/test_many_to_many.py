@@ -49,14 +49,14 @@ class ManyToManyFieldTestCase(ModularOdmTestCase):
 
         # The backreference on bar should be a dict with the necessary info
         self.assertEqual(
-            self.bar.my_foo,
-            {'foo': {'my_bar': [self.foo._id]}}
+            self.bar.my_foo[0],
+            self.foo
         )
 
         # The backreference on baz should be the same
         self.assertEqual(
-            self.baz.my_foo,
-            {'foo': {'my_bar': [self.foo._id]}}
+            self.baz.my_foo[0],
+            self.foo
         )
 
         # bar._backrefs should contain a dict with all backref information for
@@ -101,7 +101,7 @@ class ManyToManyFieldTestCase(ModularOdmTestCase):
         # The first Bar should no longer have a reference to foo
         self.assertEqual(
             first_bar.my_foo,
-            {'foo': {'my_bar': []}}
+            []
         )
 
     def test_remove(self):
@@ -120,7 +120,7 @@ class ManyToManyFieldTestCase(ModularOdmTestCase):
         # the backref should be removed from the object
         self.assertEqual(
             self.bar.my_foo,
-            {'foo': {'my_bar': []}}
+            []
         )
 
     def test_insert(self):
@@ -143,8 +143,12 @@ class ManyToManyFieldTestCase(ModularOdmTestCase):
 
         # new_bar should have a backref to foo
         self.assertEqual(
-            new_bar.my_foo,
-            {'foo': {'my_bar': [1]}},
+            len(new_bar.my_foo),
+            1
+        )
+        self.assertEqual(
+            new_bar.my_foo[0],
+            self.foo
         )
 
     def test_replace_backref(self):

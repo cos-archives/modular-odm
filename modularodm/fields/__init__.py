@@ -1,4 +1,3 @@
-
 from .field import Field
 
 from .booleanfield import BooleanField
@@ -12,4 +11,4 @@ from .listfield import ListField
 from .objectidfield import ObjectIdField
 from .stringfield import StringField
 
-from .lists import List, ForeignList
+from .lists import List, ForeignList, AbstractForeignList

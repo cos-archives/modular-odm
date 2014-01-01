@@ -23,19 +23,30 @@ class ListField(Field):
 
         # Descriptor data is this type of list object, instantiated as our
         # default
-        if (self._default
-            and not hasattr(self._default, '__iter__')
-            or isinstance(self._default, dict)):
-            raise TypeError(
-                'Default value for list fields must be a list; received {0}'.format(
-                    type(self._default)
+        if self._default:
+            default = self._default() if callable(self._default) else self._default
+            if not hasattr(default, '__iter__') or isinstance(default, dict):
+                raise TypeError(
+                    'Default value for list fields must be a list; received {0}'.format(
+                        type(self._default)
+                    )
                 )
-            )
+        else:
+            default = None
+
+        #if (self._default
+        #    and not hasattr(self._default, '__iter__')
+        #    or isinstance(self._default, dict)):
+        #    raise TypeError(
+        #        'Default value for list fields must be a list; received {0}'.format(
+        #            type(self._default)
+        #        )
+        #    )
 
         # Default is a callable that returns an empty instance of the list class
         # Avoids the need to deepcopy default values for lists, which will break
         # e.g. when validators contain (un-copyable) regular expressions.
-        self._default = lambda: self._list_class(None, base_class=self._field_instance.base_class)
+        self._default = lambda: self._list_class(default, base_class=self._field_instance.base_class)
 
     def __set__(self, instance, value, safe=False, literal=False):
         self._pre_set(instance, safe=safe)
