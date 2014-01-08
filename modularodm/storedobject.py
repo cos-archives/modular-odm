@@ -120,7 +120,7 @@ class ObjectMeta(type):
                     'Multiple primary keys are not supported.')
 
         # Wrap in list
-        if field._list:
+        if field._list and not isinstance(field, ListField):
             field = ListField(
                 field,
                 **field._kwargs
