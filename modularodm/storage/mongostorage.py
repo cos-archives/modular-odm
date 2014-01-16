@@ -216,7 +216,8 @@ class MongoStorage(Storage):
             if query.operator == 'and':
                 mongo_query = {}
                 for node in query.nodes:
-                    mongo_query = self._translate_query(node, mongo_query)
+                    part = self._translate_query(node, mongo_query)
+                    mongo_query.update(part)
                 return mongo_query
 
             elif query.operator == 'or':

@@ -119,6 +119,9 @@ class AbstractForeignList(BaseForeignList):
         return AbstractForeignList(result)
 
     def __contains__(self, item):
+        keys = self._to_primary_keys()
         if hasattr(item, '_primary_key'):
-            return item._primary_key in self._to_primary_keys()
-        return item in self._to_primary_keys()
+            return item._primary_key in keys
+        elif isinstance(item, tuple):
+            return item[0] in keys
+        return item in keys
