@@ -124,19 +124,25 @@ class ListField(Field):
     def from_storage(self, value, translator=None):
         translator = translator or self._schema_class._translator
         if value:
-            method = self._get_translate_func(translator, 'from')
-            if method is not None or translator.null_value is not None:
-                value = [
-                    None if item is translator.null_value
-                    else
-                    item if method is None
-                    else
-                    method(item)
+            if self._uniform_translator:
+                method = self._get_translate_func(translator, 'from')
+                if method is not None or translator.null_value is not None:
+                    value = [
+                        None if item is translator.null_value
+                        else
+                        item if method is None
+                        else
+                        method(item)
+                        for item in value
+                    ]
+                if self._field_instance.mutable:
+                    return copy.deepcopy(value)
+                return copy.copy(value)
+            else:
+                return [
+                    self._field_instance.from_storage(item)
                     for item in value
                 ]
-            if self._field_instance.mutable:
-                return copy.deepcopy(value)
-            return copy.copy(value)
         return []
 
     def on_after_save(self, parent, field_name, old_stored_data, new_value):
