@@ -79,12 +79,17 @@ def logify(func):
     @wraps(func)
     def wrapped(this, *args, **kwargs):
 
-        if this.logger.listening:
+        # Note: Copy value of `this.logger.listening` here in the event that
+        # this value is changed externally during the decorated function call.
+        # TODO: Verify that this produces valid output for concurrent requests
+        listening = this.logger.listening
+
+        if listening:
             start_time = time.time()
 
         out = func(this, *args, **kwargs)
 
-        if this.logger.listening:
+        if listening:
             stop_time = time.time()
             xtra = this.logger.xtra[-1]
             this.logger.record_event(
