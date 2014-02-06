@@ -572,6 +572,9 @@ class StoredObject(object):
         if data is None:
             return None
 
+        # Convert storage data to ODM
+        data = cls.from_storage(data)
+
         if '_version' in data and data['_version'] != cls._version:
 
             old_object = cls._version_of.load(data=data)
