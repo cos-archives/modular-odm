@@ -68,11 +68,22 @@ class ForeignList(BaseForeignList):
         return ForeignList(result, base_class=self._base_class)
 
     def __contains__(self, item):
+        keys = self._to_primary_keys()
         if isinstance(item, self._base_class):
-            return item._primary_key in self._to_primary_keys()
+            return item._primary_key in keys
         if isinstance(item, self._base_class._primary_type):
-            return item in self._to_primary_keys()
+            return item in keys
         return False
+
+    def index(self, value, start=None, stop=None):
+        start = 0 if start is None else start
+        stop = len(self) if stop is None else stop
+        keys = self._to_primary_keys()
+        if isinstance(value, self._base_class):
+            return keys.index(value._primary_key, start, stop)
+        if isinstance(value, self._base_class._primary_type):
+            return keys.index(value, start, stop)
+        raise ValueError('{0} is not in list'.format(value))
 
     def find(self, query=None):
         combined_query = Q(
@@ -125,3 +136,17 @@ class AbstractForeignList(BaseForeignList):
         elif isinstance(item, tuple):
             return item[0] in keys
         return item in keys
+
+    def index(self, value, start=None, stop=None):
+        start = 0 if start is None else start
+        stop = len(self) if stop is None else stop
+        keys = self._to_primary_keys()
+        if hasattr(value, '_primary_key'):
+            return keys.index(value._primary_key, start, stop)
+        elif isinstance(value, tuple):
+            return keys.index(value[0], start, stop)
+        else:
+            try:
+                return keys.index(value, start, stop)
+            except ValueError:
+                raise ValueError('{0} not in list'.format(value))
