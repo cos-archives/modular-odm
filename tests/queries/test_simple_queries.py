@@ -160,7 +160,7 @@ class BasicQueryTestCase(ModularOdmTestCase):
             {5, 6}
         )
 
-    def test_limit_offset_limit(self):
+    def test_limit_offset_offset(self):
         results = self.Foo.find().limit(10).offset(5).offset(2)
         self.assertSetEqual(
             set([x._id for x in results]),
