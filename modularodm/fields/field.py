@@ -3,6 +3,7 @@ import warnings
 import copy
 
 from modularodm import exceptions
+from modularodm.query.querydialect import DefaultQueryDialect as Q
 from .lists import List
 
 def print_arg(arg):
@@ -86,17 +87,28 @@ class Field(object):
         self._is_primary = kwargs.get('primary', False)
         self._list = kwargs.get('list', False)
         self._required = kwargs.get('required', False)
+        self._unique = kwargs.get('unique', False)
         self._editable = kwargs.get('editable', True)
         self._index = kwargs.get('index', self._is_primary)
         self._is_foreign = False
 
-    def do_validate(self, value):
+    def do_validate(self, value, obj):
 
         # Check if required
         if value is None:
-            if hasattr(self, '_required') and self._required:
+            if getattr(self, '_required', None):
                 raise exceptions.ValidationError('Value <{0}> is required.'.format(self._field_name))
             return True
+
+        # Check if unique
+        if self._unique:
+            unique_query = Q(self._field_name, 'eq', value)
+            # If object has primary key, don't crash if unique value is
+            # already associated with its key
+            if obj._is_loaded:
+                unique_query = unique_query & Q(obj._primary_name, 'ne', obj._primary_key)
+            if obj.find(unique_query).limit(1).count():
+                raise ValueError('Value must be unique')
 
         # Field-level validation
         cls = self.__class__

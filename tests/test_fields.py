@@ -15,6 +15,7 @@ class User(StoredObject):
     date_created = fields.DateTimeField(auto_now_add=set_datetime)
     date_updated = fields.DateTimeField(auto_now=set_datetime)
     read_only = fields.StringField(editable=False)
+    unique = fields.StringField(unique=True)
 
     _meta = {'optimistic':True}
 
@@ -36,6 +37,19 @@ class TestField(unittest.TestCase):
     def test_required_field(self):
         u = User()
         assert_raises(exceptions.ValidationError, lambda: u.save())
+
+    def test_unique_field(self):
+        u0 = User(name='bob', unique='foo')
+        u1 = User(name='bob', unique='bar')
+        u2 = User(name='bob', unique='foo')
+        u0.save()
+        u1.save()
+        # Fail on saving repeated value
+        with self.assertRaises(ValueError):
+            u2.save()
+        # Don't fail on saving repeated value if value exists with matching key
+        User._clear_caches()
+        u0.save()
 
 
 class TestListField(unittest.TestCase):

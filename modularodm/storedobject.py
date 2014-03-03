@@ -793,7 +793,7 @@ class StoredObject(object):
         # Validate
         for field_name in list_on_save_after_fields:
             field_object = self._fields[field_name]
-            field_object.do_validate(getattr(self, field_name))
+            field_object.do_validate(getattr(self, field_name), self)
 
         primary_changed = (
             self._primary_key != self._stored_key
