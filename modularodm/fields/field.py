@@ -101,7 +101,7 @@ class Field(object):
             return True
 
         # Check if unique
-        if self._unique:
+        if value is not None and self._unique:
             unique_query = Q(self._field_name, 'eq', value)
             # If object has primary key, don't crash if unique value is
             # already associated with its key

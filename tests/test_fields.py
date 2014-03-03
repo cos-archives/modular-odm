@@ -47,9 +47,18 @@ class TestField(unittest.TestCase):
         # Fail on saving repeated value
         with self.assertRaises(ValueError):
             u2.save()
-        # Don't fail on saving repeated value if value exists with matching key
+
+    def test_unique_ignores_self(self):
+        u0 = User(name='bob', unique='qux')
+        u0.save()
         User._clear_caches()
         u0.save()
+
+    def test_unique_ignores_none(self):
+        u0 = User(name='bob')
+        u1 = User(name='bob')
+        u0.save()
+        u1.save()
 
 
 class TestListField(unittest.TestCase):
