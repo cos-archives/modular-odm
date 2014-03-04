@@ -108,7 +108,7 @@ class Field(object):
             if obj._is_loaded:
                 unique_query = unique_query & Q(obj._primary_name, 'ne', obj._primary_key)
             if obj.find(unique_query).limit(1).count():
-                raise ValueError('Value must be unique')
+                raise exceptions.ValidationValueError('Value must be unique')
 
         # Field-level validation
         cls = self.__class__
