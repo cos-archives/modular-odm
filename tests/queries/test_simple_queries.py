@@ -198,9 +198,3 @@ class BasicQueryTestCase(ModularOdmTestCase):
 
             for result in all_combinations:
                 self.assertListEqual( [x._id for x in result], expect )
-
-    # utilities
-
-    def _listIsSorted(self, results, reverse=False):
-        ids = [x._id for x in results]
-        return sorted(ids, reverse=reverse) == ids
