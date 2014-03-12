@@ -42,21 +42,46 @@ class PickleQuerySet(BaseQuerySet):
 
         super(PickleQuerySet, self).__init__(schema)
         self.data = list(data)
+        self._sort = None
+        self._offset = None
+        self._limit = None
+
+    def _eval(self):
+        if (self._sort is not None):
+            for key in self._sort[::-1]:
+                if key.startswith('-'):
+                    reverse = True
+                    key = key.lstrip('-')
+                else:
+                    reverse = False
+
+            self.data = sorted(self.data, key=lambda record: record[key], reverse=reverse)
+
+        if (self._offset is not None):
+            self.data = self.data[self._offset:]
+
+        if (self._limit is not None):
+            self.data = self.data[:self._limit]
+
+        return self
 
     def __getitem__(self, index, raw=False):
         super(PickleQuerySet, self).__getitem__(index)
+        self._eval()
         key = self.data[index][self.primary]
         if raw:
             return key
         return self.schema.load(key)
 
     def __iter__(self, raw=False):
+        self._eval()
         keys = [obj[self.primary] for obj in self.data]
         if raw:
             return keys
         return (self.schema.load(key) for key in keys)
 
     def __len__(self):
+        self._eval()
         return len(self.data)
 
     count = __len__
@@ -69,27 +94,15 @@ class PickleQuerySet(BaseQuerySet):
 
     def sort(self, *keys):
         """ Iteratively sort data by keys in reverse order. """
-
-        for key in keys[::-1]:
-
-            if key.startswith('-'):
-                reverse = True
-                key = key.lstrip('-')
-            else:
-                reverse = False
-
-            self.data = sorted(self.data, key=lambda record: record[key], reverse=reverse)
-
+        self._sort = keys
         return self
 
     def offset(self, n):
-
-        self.data = self.data[n:]
+        self._offset = n
         return self
 
     def limit(self, n):
-
-        self.data = self.data[:n]
+        self._limit = n
         return self
 
 class PickleStorage(Storage):
