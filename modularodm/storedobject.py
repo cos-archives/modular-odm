@@ -3,11 +3,15 @@ import copy
 import logging
 import warnings
 
-from modularodm import exceptions
+from . import exceptions
 from fields import Field, ListField, ForeignList, AbstractForeignList
 from .storage import Storage
 from .query import QueryBase, RawQuery, QueryGroup
 from .frozen import FrozenDict
+from .writequeue import WriteQueue, WriteAction
+
+
+logger = logging.getLogger(__name__)
 
 
 class ContextLogger(object):
@@ -197,6 +201,7 @@ def deep_assign(dict, value, *keys):
             dict[keys[0]] = {}
         deep_assign(dict[keys[0]], value, *keys[1:])
 
+
 class Cache(object):
     """Simple container for storing cached data. This
     is NOT suitable for working with Flask, since the cache
@@ -229,6 +234,10 @@ class Cache(object):
     def clear_schema(self, schema):
         self.data.pop(schema, None)
 
+    def __nonzero__(self):
+        return bool(self.data)
+
+
 class StoredObject(object):
 
     __metaclass__ = ObjectMeta
@@ -237,6 +246,7 @@ class StoredObject(object):
 
     _cache = Cache()
     _object_cache = Cache()
+    queue = WriteQueue()
 
     def __init__(self, **kwargs):
 
@@ -803,7 +813,9 @@ class StoredObject(object):
 
         if self._is_loaded:
             if primary_changed and not getattr(self, '_updating_key', False):
-                self._storage[0].remove(
+                self.delegate(
+                    self._storage[0].remove,
+                    False,
                     RawQuery(self._primary_name, 'eq', self._stored_key)
                 )
                 self._clear_caches(self._stored_key)
@@ -967,20 +979,74 @@ class StoredObject(object):
             data=stored_data
         )
 
-    # TODO: Broken and unused. Remove me?
+    # Queue-related methods
+
     @classmethod
-    @has_storage
-    def get(cls, key):
-        return cls.load(
-            cls._storage[0].get(
-                cls._primary_name, cls._pk_to_storage(key)
-            )
-        )
+    def delegate(cls, method, conflict=None, *args, **kwargs):
+        """Execute or queue a database action. Variable positional and keyword
+        arguments are passed to the provided method.
+
+        :param function method: Method to execute or queue
+        :param bool conflict: Potential conflict between cache and backend,
+            e.g., in the event of bulk updates or removes that bypass the
+            cache
+
+        """
+        if cls.queue.active:
+            if conflict:
+                logger.warn('Delayed write {0!r} may cause the cache to '
+                            'diverge from the database until changes are '
+                            'committed.')
+            action = WriteAction(method, *args, **kwargs)
+            cls.queue.push(action)
+        else:
+            method(*args, **kwargs)
+
+    @classmethod
+    def start_queue(cls):
+        """Start the queue. Between calling `start_queue` and `commit_queue`,
+        all writes will be deferred to the queue.
+
+        """
+        cls.queue.start()
+
+    @classmethod
+    def clear_queue(cls):
+        """Clear the queue.
+
+        """
+        cls.queue.clear()
+
+    @classmethod
+    def cancel_queue(cls):
+        """Cancel any pending actions. This method clears the queue and also
+        clears caches if any actions are pending.
+
+        """
+        if cls.queue:
+            cls._cache.clear()
+            cls._object_cache.clear()
+        cls.clear_queue()
+
+    @classmethod
+    def commit_queue(cls):
+        """Commit all queued actions. If any actions fail, clear caches. Note:
+        the queue will be cleared whether an error is raised or not.
+
+        """
+        try:
+            cls.queue.commit()
+        except:
+            cls._clear_caches()
+        finally:
+            cls.clear_queue()
 
     @classmethod
     @has_storage
     def insert(cls, key, val):
-        cls._storage[0].insert(
+        cls.delegate(
+            cls._storage[0].insert,
+            False,
             cls._primary_name,
             cls._pk_to_storage(key),
             val
@@ -1032,7 +1098,9 @@ class StoredObject(object):
         obj = cls._which_to_obj(which)
 
         if saved or not includes_foreign:
-            cls._storage[0].update(
+            cls.delegate(
+                cls._storage[0].update,
+                False,
                 RawQuery(
                     cls._primary_name, 'eq', obj._primary_key
                 ),
@@ -1056,7 +1124,12 @@ class StoredObject(object):
         keys = objs.get_keys()
 
         if not includes_foreign:
-            cls._storage[0].update(query, storage_data)
+            cls.delegate(
+                cls._storage[0].update,
+                True,
+                query,
+                storage_data
+            )
             for key in keys:
                 obj = cls._get_cache(key)
                 if obj is not None:
@@ -1088,7 +1161,9 @@ class StoredObject(object):
 
         # Remove from backend
         if rm:
-            cls._storage[0].remove(
+            cls.delegate(
+                cls._storage[0].remove,
+                False,
                 RawQuery(obj._primary_name, 'eq', obj._storage_key)
             )
 
@@ -1097,18 +1172,22 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def remove(cls, *query):
+    def remove(cls, query):
         """Remove objects by query.
 
         :param query: Query object
 
         """
-        objs = cls.find(*query)
+        objs = cls.find(query)
 
         for obj in objs:
             cls.remove_one(obj, rm=False)
 
-        cls._storage[0].remove(*query)
+        cls.delegate(
+            cls._storage[0].remove,
+            False,
+            query
+        )
 
 def rm_fwd_refs(obj):
     """When removing an object, other objects with references to the current
@@ -1265,11 +1344,13 @@ def update_backref_keys(obj):
         # Save
         parent_object.save()
 
+
 from flask import request
 from weakref import WeakKeyDictionary
 
 class DummyRequest(object): pass
 dummy_request = DummyRequest()
+
 
 class FlaskCache(Cache):
     """Subclass of Cache that stores data in a weak key
@@ -1296,6 +1377,7 @@ class FlaskCache(Cache):
     @data.setter
     def data(self, value):
         self._data[self.request] = value
+
 
 class FlaskStoredObject(StoredObject):
     """Subclass of StoredObject with context-local cache data

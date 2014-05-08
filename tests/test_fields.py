@@ -6,8 +6,10 @@ from nose.tools import *  # PEP8 asserts
 
 from modularodm import StoredObject, fields, storage, exceptions
 
+
 def set_datetime():
     return datetime.datetime(1999, 1, 2, 3, 45)
+
 
 class User(StoredObject):
     _id = fields.StringField(primary=True)
@@ -17,13 +19,20 @@ class User(StoredObject):
     read_only = fields.StringField(editable=False)
     unique = fields.StringField(unique=True)
 
-    _meta = {'optimistic':True}
+    _meta = {'optimistic': True}
 
 
-User.set_storage(storage.PickleStorage('fields', prefix="test_"))
+pickle_storage = storage.PickleStorage('fields', prefix='test_')
+User.set_storage(storage.PickleStorage('fields', prefix='test_'))
 
 
 class TestField(unittest.TestCase):
+
+    def setUp(self):
+        pickle_storage._delete_file()
+
+    def tearDown(self):
+        pickle_storage._delete_file()
 
     def test_validators_must_be_callable(self):
         assert_raises(TypeError, lambda: fields.Field(validate="invalid"))
