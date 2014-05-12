@@ -1,6 +1,8 @@
+import copy
+
 from ..fields import Field
 from ..validators import validate_list
-import copy
+
 
 class ListField(Field):
 
@@ -8,7 +10,7 @@ class ListField(Field):
 
     def __init__(self, field_instance, **kwargs):
 
-        super(self.__class__, self).__init__(**kwargs)
+        super(ListField, self).__init__(**kwargs)
 
         self._list_validate, self.list_validate = self._prepare_validators(kwargs.get('list_validate', False))
 
