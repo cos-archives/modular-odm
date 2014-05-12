@@ -134,10 +134,19 @@ class TestModelQueue(QueueTestCase):
 
     def test_cancel_queue(self):
         self.Model.start_queue()
+        self.enqueue_record()
         self.Model.cancel_queue()
         assert_false(self.Model.queue)
         assert_false(self.Model.queue.active)
         assert_false(self.Model._cache)
+
+    def test_cancel_queue_empty(self):
+        self.enqueue_record()
+        self.Model.start_queue()
+        self.Model.cancel_queue()
+        assert_false(self.Model.queue)
+        assert_false(self.Model.queue.active)
+        assert_true(self.Model._cache)
 
     def test_commit_queue(self):
         self.Model.start_queue()

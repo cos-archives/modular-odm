@@ -8,6 +8,7 @@ from fields import Field, ListField, ForeignList, AbstractForeignList
 from .storage import Storage
 from .query import QueryBase, RawQuery, QueryGroup
 from .frozen import FrozenDict
+from .cache import Cache
 from .writequeue import WriteQueue, WriteAction
 
 
@@ -192,50 +193,6 @@ class ObjectMeta(type):
     @property
     def _translator(cls):
         return cls._storage[0].translator
-
-def deep_assign(dict, value, *keys):
-    if len(keys) == 1:
-        dict[keys[0]] = value
-    else:
-        if keys[0] not in dict:
-            dict[keys[0]] = {}
-        deep_assign(dict[keys[0]], value, *keys[1:])
-
-
-class Cache(object):
-    """Simple container for storing cached data. This
-    is NOT suitable for working with Flask, since the cache
-    will be shared across requests; see FlaskCache and
-    FlaskStoredObject, below, for use with Flask.
-
-    """
-    def __init__(self):
-        self.data = {}
-
-    @property
-    def raw(self):
-        return self.data
-
-    def set(self, schema, key, value):
-        deep_assign(self.data, value, schema, key)
-
-    def get(self, schema, key):
-        try:
-            return self.data[schema][key]
-        except KeyError:
-            return None
-
-    def pop(self, schema, key):
-        self.data[schema].pop(key, None)
-
-    def clear(self):
-        self.__init__()
-
-    def clear_schema(self, schema):
-        self.data.pop(schema, None)
-
-    def __nonzero__(self):
-        return bool(self.data)
 
 
 class StoredObject(object):
@@ -484,11 +441,11 @@ class StoredObject(object):
         return cls._cache.get(cls._name, key)
 
     def _get_list_of_differences_from_cache(self, cached_data, storage_data):
-        """Get fields that differ between the cache and the current object.
+        """Get fields that differ between the cache_sandbox and the current object.
         Validation and after_save methods should only be run on diffed
         fields.
 
-        :param cached_data: Storage-formatted data from cache
+        :param cached_data: Storage-formatted data from cache_sandbox
         :param storage_data: Storage-formatted data from object
         :return: List of diffed fields
 
@@ -987,14 +944,14 @@ class StoredObject(object):
         arguments are passed to the provided method.
 
         :param function method: Method to execute or queue
-        :param bool conflict: Potential conflict between cache and backend,
+        :param bool conflict: Potential conflict between cache_sandbox and backend,
             e.g., in the event of bulk updates or removes that bypass the
-            cache
+            cache_sandbox
 
         """
         if cls.queue.active:
             if conflict:
-                logger.warn('Delayed write {0!r} may cause the cache to '
+                logger.warn('Delayed write {0!r} may cause the cache_sandbox to '
                             'diverge from the database until changes are '
                             'committed.')
             action = WriteAction(method, *args, **kwargs)
@@ -1143,7 +1100,7 @@ class StoredObject(object):
     @has_storage
     def remove_one(cls, which, rm=True):
         """Remove an object, along with its references and back-references.
-        Remove the object from the cache and sets its _detached flag to True.
+        Remove the object from the cache_sandbox and sets its _detached flag to True.
 
         :param which: Object selector: Query, StoredObject, or primary key
         :param rm: Remove data from backend
@@ -1156,7 +1113,7 @@ class StoredObject(object):
         rm_fwd_refs(obj)
         rm_back_refs(obj)
 
-        # Remove from cache
+        # Remove from cache_sandbox
         cls._clear_caches(obj._storage_key)
 
         # Remove from backend
@@ -1343,49 +1300,3 @@ def update_backref_keys(obj):
 
         # Save
         parent_object.save()
-
-
-from flask import request
-from weakref import WeakKeyDictionary
-
-class DummyRequest(object): pass
-dummy_request = DummyRequest()
-
-
-class FlaskCache(Cache):
-    """Subclass of Cache that stores data in a weak key
-    dictionary keyed by the current request (or by a dummy
-    request object if working outside a request context).
-
-    """
-    @property
-    def request(self):
-       try:
-           return request._get_current_object()
-       except:
-           return dummy_request
-
-    def __init__(self):
-        self._data = WeakKeyDictionary()
-
-    @property
-    def data(self):
-        if self.request not in self._data:
-            self._data[self.request] = {}
-        return self._data[self.request]
-
-    @data.setter
-    def data(self, value):
-        self._data[self.request] = value
-
-
-class FlaskStoredObject(StoredObject):
-    """Subclass of StoredObject with context-local cache data
-    suitable for use with Flask. Stores cache data in FlaskCache
-    objects, which use weak key dictionaries keyed on the current
-    request object to ensure that data associated with one request
-    cannot leak into another.
-
-    """
-    _cache = FlaskCache()
-    _object_cache = FlaskCache()
