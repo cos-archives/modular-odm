@@ -46,13 +46,6 @@ class LogicalOperatorsBase(ModularOdmTestCase):
 
     def test_not(self):
         """ Finds the inverse of a query."""
-
-        # This is failing in Mongo, but works in Pickle. Mongo is getting:
-        #       {'$not': {'a': 0}}
-        # but it should be getting
-        #       {'a': {'$not': 0}}
-        #
-        # See: http://docs.mongodb.org/manual/reference/operator/not/
         result = self.Foo.find(~Q('a', 'eq', 0))
         self.assertEqual(
             len(result),

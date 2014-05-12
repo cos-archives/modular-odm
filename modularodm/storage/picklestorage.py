@@ -134,6 +134,12 @@ class PickleStorage(Storage):
                 data = fp.read()
                 self.store = pickle.loads(data)
 
+    def _delete_file(self):
+        try:
+            os.remove(self.filename)
+        except OSError:
+            pass
+
     def insert(self, primary_name, key, value):
         """Add key-value pair to storage. Key must not exist.
 
@@ -164,7 +170,10 @@ class PickleStorage(Storage):
         :param key: Key
 
         """
-        del self.store[key]
+        try:
+            del self.store[key]
+        except Exception as error:
+            pass
         if flush:
             self.flush()
 

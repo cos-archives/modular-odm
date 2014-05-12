@@ -1,4 +1,3 @@
-
 import time
 import random
 from functools import wraps
@@ -6,7 +5,10 @@ import itertools
 
 from ..translators import DefaultTranslator
 
-class KeyExistsException(Exception): pass
+
+class KeyExistsException(Exception):
+    pass
+
 
 class Logger(object):
 
