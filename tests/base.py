@@ -53,7 +53,7 @@ class MongoStorageMixin(object):
 
     # DB settings
     DB_HOST = os.environ.get('MONGO_HOST', 'localhost')
-    DB_PORT = int(os.environ.get('MONGO_PORT', '20771'))
+    DB_PORT = int(os.environ.get('MONGO_PORT', '27017'))
 
     # More efficient to set up client at the class level than to re-connect
     # for each test
