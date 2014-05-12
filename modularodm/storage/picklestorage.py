@@ -1,16 +1,21 @@
+# -*- coding utf-8 -*-
+
+import os
+import copy
+
 from .base import Storage, KeyExistsException
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
-from modularodm.exceptions import MultipleResultsFound, NoResultsFound
 
-import os
-import copy
+from modularodm.utils import DirtyField
+from modularodm.exceptions import MultipleResultsFound, NoResultsFound
 
 try:
     import cpickle as pickle
 except ImportError:
     import pickle
+
 
 def _eq(data, test):
     if isinstance(data, list):
@@ -36,32 +41,51 @@ operators = {
 
 }
 
+
 class PickleQuerySet(BaseQuerySet):
+
+    _sort = DirtyField(None)
+    _offset = DirtyField(None)
+    _limit = DirtyField(None)
 
     def __init__(self, schema, data):
 
         super(PickleQuerySet, self).__init__(schema)
-        self.data = list(data)
-        self._sort = None
-        self._offset = None
-        self._limit = None
+
+        self._data = list(data)
+        self._dirty = True
+
+        self.data = []
 
     def _eval(self):
-        if (self._sort is not None):
-            for key in self._sort[::-1]:
-                if key.startswith('-'):
-                    reverse = True
-                    key = key.lstrip('-')
-                else:
-                    reverse = False
 
-            self.data = sorted(self.data, key=lambda record: record[key], reverse=reverse)
+        if self._dirty:
 
-        if (self._offset is not None):
-            self.data = self.data[self._offset:]
+            self.data = self._data[:]
 
-        if (self._limit is not None):
-            self.data = self.data[:self._limit]
+            if self._sort is not None:
+
+                for key in self._sort[::-1]:
+
+                    if key.startswith('-'):
+                        reverse = True
+                        key = key.lstrip('-')
+                    else:
+                        reverse = False
+
+                    self.data = sorted(
+                        self.data,
+                        key=lambda record: record[key],
+                        reverse=reverse
+                    )
+
+            if self._offset is not None:
+                self.data = self.data[self._offset:]
+
+            if self._limit is not None:
+                self.data = self.data[:self._limit]
+
+            self._dirty = False
 
         return self
 
@@ -104,6 +128,7 @@ class PickleQuerySet(BaseQuerySet):
     def limit(self, n):
         self._limit = n
         return self
+
 
 class PickleStorage(Storage):
     """ Storage backend using pickle. """
