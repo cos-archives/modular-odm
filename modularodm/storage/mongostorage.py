@@ -224,7 +224,9 @@ class MongoStorage(Storage):
                 return {'$or' : [self._translate_query(node) for node in query.nodes]}
 
             elif query.operator == 'not':
-                return {'$not' : self._translate_query(query.nodes[0])}
+                # boolean jiggery-pokery: A nor A == not A
+                subquery = self._translate_query(query.nodes[0])
+                return {'$nor' : [subquery, subquery]}
 
             else:
                 raise ValueError('QueryGroup operator must be <and>, <or>, or <not>.')
