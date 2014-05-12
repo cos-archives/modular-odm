@@ -5,6 +5,9 @@ modular-odm
 .. image:: https://badge.fury.io/py/modular-odm.png
     :target: http://badge.fury.io/py/modular-odm
 
+.. image:: https://travis-ci.org/jmcarp/modular-odm.png?branch=develop
+    :target: https://travis-ci.org/jmcarp/modular-odm
+
 A database-agnostic Document-Object Mapper for Python.
 
 
