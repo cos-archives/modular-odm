@@ -20,7 +20,7 @@ class TestWriteAction(unittest.TestCase):
         assert_equal(action.kwargs, {'key': key})
 
     def test_init_method_not_callable(self):
-        with assert_raises(TypeError):
+        with assert_raises(ValueError):
             writequeue.WriteAction(None)
 
     def test_execute(self):
@@ -39,14 +39,14 @@ class TestWriteQueue(unittest.TestCase):
         self.queue.start()
 
     def test_init(self):
-        assert_equal(self.queue.actions, [])
+        assert_false(self.queue.actions)
 
     def test_push(self):
         action1 = writequeue.WriteAction(min)
         action2 = writequeue.WriteAction(max)
         self.queue.push(action1)
         self.queue.push(action2)
-        assert_equal(self.queue.actions, [action1, action2])
+        assert_equal(list(self.queue.actions), [action1, action2])
 
     def test_push_invalid(self):
         with assert_raises(TypeError):
@@ -59,7 +59,7 @@ class TestWriteQueue(unittest.TestCase):
         self.queue.push(action2)
         results = self.queue.commit()
         assert_equal(results, [1, 2])
-        assert_equal(self.queue.actions, [])
+        assert_false(self.queue.actions)
 
     def test_clear(self):
         action1 = writequeue.WriteAction(min)
@@ -67,7 +67,7 @@ class TestWriteQueue(unittest.TestCase):
         self.queue.push(action1)
         self.queue.push(action2)
         self.queue.clear()
-        assert_equal(self.queue.actions, [])
+        assert_false(self.queue.actions, )
 
     def test_bool_true(self):
         self.queue.push(writequeue.WriteAction(zip))
@@ -108,7 +108,7 @@ class TestModelQueue(QueueTestCase):
     def test_start_queue(self):
         self.Model.start_queue()
         assert_true(isinstance(self.Model.queue, writequeue.WriteQueue))
-        assert_equal(self.Model.queue.actions, [])
+        assert_false(self.Model.queue.actions)
 
     def test_start_queue_again(self):
         self.Model.start_queue()
@@ -164,7 +164,8 @@ class TestModelQueue(QueueTestCase):
         record.value = 'error'
         record.save()
         self.Model.remove_one(record)
-        self.Model.commit_queue()
+        with assert_raises(ValueError):
+            self.Model.commit_queue()
         assert_true(self.Model._storage[0].insert.called)
         assert_true(self.Model._storage[0].update.called)
         assert_false(self.Model._storage[0].remove.called)

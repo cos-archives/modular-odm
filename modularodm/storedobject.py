@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+
+import six
 import copy
 import logging
 import warnings
@@ -195,9 +197,8 @@ class ObjectMeta(type):
         return cls._storage[0].translator
 
 
+@six.add_metaclass(ObjectMeta)
 class StoredObject(object):
-
-    __metaclass__ = ObjectMeta
 
     _collections = {}
 
@@ -936,7 +937,7 @@ class StoredObject(object):
             data=stored_data
         )
 
-    # Queue-related methods
+    # Queueing
 
     @classmethod
     def delegate(cls, method, conflict=None, *args, **kwargs):
@@ -950,11 +951,11 @@ class StoredObject(object):
 
         """
         if cls.queue.active:
-            if conflict:
-                logger.warn('Delayed write {0!r} may cause the cache_sandbox to '
-                            'diverge from the database until changes are '
-                            'committed.')
             action = WriteAction(method, *args, **kwargs)
+            if conflict:
+                logger.warn('Delayed write {0!r} may cause the cache to '
+                            'diverge from the database until changes are '
+                            'committed.'.format(action))
             cls.queue.push(action)
         else:
             method(*args, **kwargs)
@@ -993,10 +994,10 @@ class StoredObject(object):
         """
         try:
             cls.queue.commit()
-        except:
-            cls._clear_caches()
-        finally:
             cls.clear_queue()
+        except:
+            cls.cancel_queue()
+            raise
 
     @classmethod
     @has_storage

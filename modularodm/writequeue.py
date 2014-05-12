@@ -1,5 +1,7 @@
-import copy
+# -*- coding: utf-8 -*-
+
 import logging
+import collections
 
 
 logger = logging.getLogger(__name__)
@@ -9,20 +11,29 @@ class WriteAction(object):
 
     def __init__(self, method, *args, **kwargs):
         if not callable(method):
-            raise TypeError('Argument `method` must be callable')
+            raise ValueError('Argument `method` must be callable')
         self.method = method
-        self.args = copy.deepcopy(args)
-        self.kwargs = copy.deepcopy(kwargs)
+        # Note: `args` and `kwargs` must not be mutated after an action is
+        # enqueued and before it is committed, else awful things can happen
+        self.args = args
+        self.kwargs = kwargs
 
     def execute(self):
         return self.method(*self.args, **self.kwargs)
+
+    def __repr__(self):
+        return '{0}(*{1}, **{2})'.format(
+            self.method.__name__,
+            self.args,
+            self.kwargs
+        )
 
 
 class WriteQueue(object):
 
     def __init__(self):
         self.active = False
-        self.actions = []
+        self.actions = collections.deque()
 
     def start(self):
         if self.active:
@@ -43,13 +54,13 @@ class WriteQueue(object):
             raise ValueError('Cannot commit unless queue is active')
         results = []
         while self.actions:
-            action = self.actions.pop(0)
+            action = self.actions.popleft()
             results.append(action.execute())
         return results
 
     def clear(self):
         self.active = False
-        self.actions = []
+        self.actions = collections.deque()
 
     def __nonzero__(self):
         return bool(self.actions)
@@ -57,11 +68,11 @@ class WriteQueue(object):
 
 class QueueContext(object):
 
-    def __init__(self, cls):
-        self.cls = cls
+    def __init__(self, BaseSchema):
+        self.BaseSchema = BaseSchema
 
     def __enter__(self):
-        self.cls.start_queue()
+        self.BaseSchema.start_queue()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.cls.commit_queue()
+        self.BaseSchema.commit_queue()
