@@ -126,6 +126,13 @@ class TestForeignField(unittest.TestCase):
             self.Parent
         )
 
+    def test_string_reference_unknown(self):
+        class Child(StoredObject):
+            _id = fields.IntegerField(primary=True)
+            parent = fields.ForeignField('Grandparent')
+        with assert_raises(exceptions.ModularOdmException):
+            Child._fields['parent'].base_class
+
     def test_class_reference(self):
         class Child(StoredObject):
             _id = fields.IntegerField(primary=True)
@@ -134,13 +141,6 @@ class TestForeignField(unittest.TestCase):
             Child._fields['parent'].base_class,
             self.Parent
         )
-
-    def test_string_reference_unknown(self):
-        class Child(StoredObject):
-            _id = fields.IntegerField(primary=True)
-            parent = fields.ForeignField('Grandparent')
-        with assert_raises(exceptions.ModularOdmException):
-            Child._fields['parent'].base_class
 
 
 if __name__ == '__main__':
