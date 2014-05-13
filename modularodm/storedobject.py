@@ -144,6 +144,7 @@ class ObjectMeta(type):
             # Set parent pointer of child field to list field
             field._field_instance._list_container = field
 
+        # Subscribe to schema events
         field.subscribe(sender=cls)
 
         # Store descriptor to cls, cls._fields
@@ -184,6 +185,7 @@ class ObjectMeta(type):
         # Impute field named _id as primary if no primary field specified;
         # must be exactly one primary field unless abstract
         if cls._fields:
+            cls._is_root = False
             if cls._primary_name is None:
                 if '_id' in cls._fields:
                     primary_field = cls._fields['_id']
@@ -196,9 +198,10 @@ class ObjectMeta(type):
                     raise AttributeError(
                         'Schemas must either define a field named _id or '
                         'specify exactly one field as primary.')
-
             # Register
             cls.register_collection()
+        else:
+            cls._is_root = True
 
     @property
     def _translator(cls):
@@ -534,6 +537,14 @@ class StoredObject(object):
     @log_storage
     def load(cls, key=None, data=None, _is_loaded=True):
         '''Get a record by its primary key.'''
+
+        # Emit load signal
+        signals.load.send(
+            cls,
+            key=key,
+            data=data,
+        )
+
         if key is not None:
             key = cls._check_pk_type(key)
             cached_object = cls._load_from_cache(key)
@@ -1009,6 +1020,17 @@ class StoredObject(object):
         except:
             cls.cancel_queue()
             raise
+
+    @classmethod
+    def subscribe(cls, signal_name, weak=True):
+        try:
+            signal = getattr(signals, signal_name)
+        except AttributeError:
+            raise exceptions.ModularOdmException(
+                'Signal {0} not found'.format(signal_name)
+            )
+        sender = None if cls._is_root else cls
+        return signal.connect_via(sender, weak)
 
     @classmethod
     @has_storage
