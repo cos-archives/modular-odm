@@ -1178,7 +1178,7 @@ class StoredObject(object):
 
     @classmethod
     @has_storage
-    def remove(cls, query):
+    def remove(cls, query=None):
         """Remove objects by query.
 
         :param query: Query object

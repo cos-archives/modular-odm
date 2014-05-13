@@ -83,7 +83,6 @@ class TestListField(unittest.TestCase):
             lambda: fields.ListField(fields.StringField(), default={"default": (1,2)}))
 
 
-
 class TestDateTimeField(unittest.TestCase):
 
     def setUp(self):
@@ -111,6 +110,39 @@ class TestDateTimeField(unittest.TestCase):
                 auto_now=datetime.datetime.now,
                 auto_now_add=datetime.datetime.utcnow
             )
+
+
+class TestForeignField(unittest.TestCase):
+
+    def setUp(self):
+        class Parent(StoredObject):
+            _id = fields.IntegerField(primary=True)
+        self.Parent = Parent
+
+    def test_string_reference(self):
+        class Child(StoredObject):
+            _id = fields.IntegerField(primary=True)
+            parent = fields.ForeignField('Parent')
+        assert_equal(
+            Child._fields['parent'].base_class,
+            self.Parent
+        )
+
+    def test_string_reference_unknown(self):
+        class Child(StoredObject):
+            _id = fields.IntegerField(primary=True)
+            parent = fields.ForeignField('Grandparent')
+        with assert_raises(exceptions.ModularOdmException):
+            Child._fields['parent'].base_class
+
+    def test_class_reference(self):
+        class Child(StoredObject):
+            _id = fields.IntegerField(primary=True)
+            parent = fields.ForeignField(self.Parent)
+        assert_equal(
+            Child._fields['parent'].base_class,
+            self.Parent
+        )
 
 
 if __name__ == '__main__':

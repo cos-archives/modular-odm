@@ -8,9 +8,9 @@ from modularodm.cache import Cache
 from modularodm.writequeue import WriteQueue
 
 
-# Dictionary of proxies, keyed on base schema, proxied class, and extension-
-# specific key (e.g. a Flask request). The final key uses a weak reference to
-# avoid memory leaks.
+# Dictionary of proxies, keyed on base schema, class variable label, and
+# extension-specific key (e.g. a Flask request). The final key uses a weak
+# reference to avoid memory leaks.
 proxies = collections.defaultdict(
     lambda: collections.defaultdict(weakref.WeakKeyDictionary)
 )
@@ -24,10 +24,11 @@ proxied_members = {
 }
 
 
-def proxy_factory(BaseSchema, ProxiedClass, get_key):
+def proxy_factory(BaseSchema, label, ProxiedClass, get_key):
     """Create a proxy to a class instance stored in ``proxies``.
 
     :param class BaseSchema: Base schema (e.g. ``StoredObject``)
+    :param str label: Name of class variable to set
     :param class ProxiedClass: Class to get or create
     :param function get_key: Extension-specific key function; may return e.g.
         the current Flask request
@@ -36,10 +37,10 @@ def proxy_factory(BaseSchema, ProxiedClass, get_key):
     def local():
         key = get_key()
         try:
-            return proxies[BaseSchema][ProxiedClass][key]
+            return proxies[BaseSchema][label][key]
         except KeyError:
-            proxies[BaseSchema][ProxiedClass][key] = ProxiedClass()
-            return proxies[BaseSchema][ProxiedClass][key]
+            proxies[BaseSchema][label][key] = ProxiedClass()
+            return proxies[BaseSchema][label][key]
     return werkzeug.local.LocalProxy(local)
 
 
@@ -54,7 +55,7 @@ def with_proxies(proxy_map, get_key):
     """
     def wrapper(cls):
         for label, ProxiedClass in proxy_map.iteritems():
-            proxy = proxy_factory(cls, ProxiedClass, get_key)
+            proxy = proxy_factory(cls, label, ProxiedClass, get_key)
             setattr(cls, label, proxy)
         return cls
     return wrapper

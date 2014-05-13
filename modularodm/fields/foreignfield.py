@@ -15,7 +15,7 @@ class ForeignField(BaseForeignField):
         super(ForeignField, self).__init__(*args, **kwargs)
 
         self._backref_field_name = kwargs.get('backref', None)
-        self._base_class_name = args[0] # todo allow class references / callable?
+        self._base_class_reference = args[0]
         self._base_class = None
         self._is_foreign = True
         self._is_abstract = False
@@ -64,10 +64,21 @@ class ForeignField(BaseForeignField):
 
     @property
     def base_class(self):
-        if self._base_class is None:
-            # Look up base class in collections of attached schema; all
-            # schemas share collections
-            self._base_class = self._schema_class.get_collection(self._base_class_name)
+        if self._base_class:
+            return self._base_class
+        if isinstance(self._base_class_reference, type):
+            self._base_class = self._base_class_reference
+        else:
+            try:
+                self._base_class = self._schema_class.get_collection(
+                    self._base_class_reference
+                )
+            except KeyError:
+                raise exceptions.ModularOdmException(
+                    'Unknown schema "{0}"'.format(
+                        self._base_class_reference
+                    )
+                )
         return self._base_class
 
     def __set__(self, instance, value, safe=False, literal=False):
