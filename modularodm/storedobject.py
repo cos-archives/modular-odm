@@ -1023,10 +1023,25 @@ class StoredObject(object):
 
     @classmethod
     def subscribe(cls, signal_name, weak=True):
+        """
+
+        :param str signal_name: Name of signal to subscribe to; must be found
+            in ``signals.py``.
+        :param bool weak: Create weak reference to callback
+        :returns: Decorator created by ``Signal::connect_via``
+        :raises: ValueError if signal is not found
+
+        Example usage: ::
+
+            >>> @Schema.subscribe('before_save')
+            ... def listener(cls, instance):
+            ...     instance.value += 1
+
+        """
         try:
             signal = getattr(signals, signal_name)
         except AttributeError:
-            raise exceptions.ModularOdmException(
+            raise ValueError(
                 'Signal {0} not found'.format(signal_name)
             )
         sender = None if cls._is_root else cls

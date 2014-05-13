@@ -38,11 +38,18 @@ class TestSignals(unittest.TestCase):
             False
         )
 
+    def _subscribe_mock(self, signal_name, weak):
+        """Create a mock callback function and subscribe it to the specific
+        signal on ``self.model``.
+
+        """
+        callback = mock.Mock()
+        decorator = self.model.subscribe(signal_name, weak)
+        return decorator(callback)
+
     def test_before_save(self):
 
-        callback = mock.Mock()
-        decorator = self.model.subscribe('before_save', weak=False)
-        connected_callback = decorator(callback)
+        connected_callback = self._subscribe_mock('before_save', weak=False)
 
         record = self.model(_id=1)
         record.save()
@@ -53,9 +60,7 @@ class TestSignals(unittest.TestCase):
 
     def test_save(self):
 
-        callback = mock.Mock()
-        decorator = self.model.subscribe('save', weak=False)
-        connected_callback = decorator(callback)
+        connected_callback = self._subscribe_mock('save', weak=False)
 
         record = self.model(_id=1)
         record.save()
@@ -69,9 +74,7 @@ class TestSignals(unittest.TestCase):
 
     def test_load(self):
 
-        callback = mock.Mock()
-        decorator = self.model.subscribe('load', weak=False)
-        connected_callback = decorator(callback)
+        connected_callback = self._subscribe_mock('load', weak=False)
 
         record = self.model(_id=1)
         record.save()
