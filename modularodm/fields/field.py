@@ -6,10 +6,12 @@ from modularodm import exceptions
 from modularodm.query.querydialect import DefaultQueryDialect as Q
 from .lists import List
 
+
 def print_arg(arg):
     if isinstance(arg, basestring):
         return '"' + arg + '"'
     return arg
+
 
 class Field(object):
 
@@ -25,6 +27,9 @@ class Field(object):
             cls=self.__class__.__name__,
             kwargs=', '.join('{}={}'.format(key, print_arg(val)) for key, val in self._kwargs.items())
         )
+
+    def subscribe(self, sender=None):
+        pass
 
     def _to_comparable(self):
         return {
@@ -91,6 +96,9 @@ class Field(object):
         self._editable = kwargs.get('editable', True)
         self._index = kwargs.get('index', self._is_primary)
         self._is_foreign = False
+
+        # Fields added by ``ObjectMeta``
+        self._field_name = None
 
     def do_validate(self, value, obj):
 

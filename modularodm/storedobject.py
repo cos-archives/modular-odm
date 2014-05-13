@@ -4,7 +4,9 @@ import six
 import copy
 import logging
 import warnings
+from functools import wraps
 
+from . import signals
 from . import exceptions
 from fields import Field, ListField, ForeignList, AbstractForeignList
 from .storage import Storage
@@ -46,12 +48,14 @@ class ContextLogger(object):
             self.logger.clear()
         self.logger.pop()
 
+
 def deref(data, keys, missing=None):
     if keys[0] in data:
         if len(keys) == 1:
             return data[keys[0]]
         return deref(data[keys[0]], keys[1:], missing=missing)
     return missing
+
 
 def flatten_backrefs(data, stack=None):
 
@@ -66,7 +70,6 @@ def flatten_backrefs(data, stack=None):
 
     return out
 
-from functools import wraps
 
 def log_storage(func):
 
@@ -80,6 +83,7 @@ def log_storage(func):
 
     return wrapped
 
+
 def warn_if_detached(func):
     """ Warn if self / cls is detached. """
     @wraps(func)
@@ -90,6 +94,7 @@ def warn_if_detached(func):
             warnings.warn('here')
         return func(this, *args, **kwargs)
     return wrapped
+
 
 def has_storage(func):
     """ Ensure that self/cls contains a Storage backend. """
@@ -105,9 +110,10 @@ def has_storage(func):
         return func(*args, **kwargs)
     return wrapped
 
+
 class ObjectMeta(type):
 
-    def _add_field(cls, name, field):
+    def add_field(cls, name, field):
 
         # Skip if not descriptor
         if not isinstance(field, Field):
@@ -138,6 +144,8 @@ class ObjectMeta(type):
             # Set parent pointer of child field to list field
             field._field_instance._list_container = field
 
+        field.subscribe(sender=cls)
+
         # Store descriptor to cls, cls._fields
         setattr(cls, name, field)
         cls._fields[name] = field
@@ -165,13 +173,13 @@ class ObjectMeta(type):
         cls._primary_type = None
 
         for key, value in cls.__dict__.items():
-            cls._add_field(key, value)
+            cls.add_field(key, value)
 
         for base in bases:
             if not hasattr(base, '_fields') or not isinstance(base._fields, dict):
                 continue
             for key, value in base._fields.items():
-                cls._add_field(key, copy.deepcopy(value))
+                cls.add_field(key, copy.deepcopy(value))
 
         # Impute field named _id as primary if no primary field specified;
         # must be exactly one primary field unless abstract
@@ -441,7 +449,7 @@ class StoredObject(object):
     def _get_cached_data(cls, key):
         return cls._cache.get(cls._name, key)
 
-    def _get_list_of_differences_from_cache(self, cached_data, storage_data):
+    def get_changed_fields(self, cached_data, storage_data):
         """Get fields that differ between the cache_sandbox and the current object.
         Validation and after_save methods should only be run on diffed
         fields.
@@ -733,8 +741,8 @@ class StoredObject(object):
         """Save a record.
 
         :param bool force: Save even if no fields have changed; used to update
-            backreferences
-        :return list: Saved fields
+            back-references
+        :returns: List of changed fields
 
         """
         if self._detached:
@@ -744,29 +752,34 @@ class StoredObject(object):
             if hasattr(field_object, 'on_before_save'):
                 field_object.on_before_save(self)
 
+        signals.before_save.send(
+            self.__class__,
+            instance=self
+        )
+
         cached_data = self._get_cached_data(self._stored_key)
         storage_data = self.to_storage()
 
         if self._primary_key is not None and cached_data is not None:
-            list_on_save_after_fields = self._get_list_of_differences_from_cache(
+            fields_changed = self.get_changed_fields(
                 cached_data, storage_data
             )
         else:
-            list_on_save_after_fields = self._fields.keys()
+            fields_changed = self._fields.keys()
 
         # Quit if no diffs
-        if not list_on_save_after_fields and not force:
+        if not fields_changed and not force:
             return []
 
         # Validate
-        for field_name in list_on_save_after_fields:
+        for field_name in fields_changed:
             field_object = self._fields[field_name]
             field_object.do_validate(getattr(self, field_name), self)
 
         primary_changed = (
             self._primary_key != self._stored_key
             and
-            self._primary_name in list_on_save_after_fields
+            self._primary_name in fields_changed
         )
 
         if self._is_loaded:
@@ -800,18 +813,16 @@ class StoredObject(object):
 
         self._is_loaded = True
 
-        for field_name in list_on_save_after_fields:
-            field_object = self._fields[field_name]
-            if hasattr(field_object, 'on_after_save'):
-                if cached_data is not None:
-                    cached_field = cached_data.get(field_name, None)
-                else:
-                    cached_field = None
-                field_object.on_after_save(self, field_name, cached_field, getattr(self, field_name))
+        signals.save.send(
+            self.__class__,
+            instance=self,
+            fields_changed=fields_changed,
+            cached_data=cached_data or {},
+        )
 
         self._set_cache(self._primary_key, self)
 
-        return list_on_save_after_fields
+        return fields_changed
 
     def reload(self):
 

@@ -71,9 +71,9 @@ class TestStoredObject(unittest.TestCase):
 
     # Datetime tests
 
-    def _times_approx_equal(self, first, second=None, tolerance=0.01):
+    def _times_approx_equal(self, first, second=None, tolerance=0.1):
         self.assertLess(
-            abs((second or datetime.datetime.now()) - first),
+            abs((second or datetime.datetime.utcnow()) - first),
             datetime.timedelta(seconds=tolerance)
         )
 

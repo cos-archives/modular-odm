@@ -1,7 +1,8 @@
+import six
 import time
 import random
-from functools import wraps
 import itertools
+from functools import wraps
 
 from ..translators import DefaultTranslator
 
@@ -60,6 +61,7 @@ class Logger(object):
         self.listening = False
         self.events = []
 
+
 class LogEvent(object):
 
     def __init__(self, func, start_time, stop_time, xtra=None):
@@ -75,6 +77,7 @@ class LogEvent(object):
         return 'LogEvent("{func}", {start_time}, {stop_time}, {xtra})'.format(
             **self.__dict__
         )
+
 
 def logify(func):
 
@@ -107,6 +110,7 @@ def logify(func):
 
     return wrapped
 
+
 class StorageMeta(type):
 
     def __new__(mcs, name, bases, dct):
@@ -121,6 +125,8 @@ class StorageMeta(type):
         # Run super-metaclass __new__
         return super(StorageMeta, mcs).__new__(mcs, name, bases, dct)
 
+
+@six.add_metaclass(StorageMeta)
 class Storage(object):
     """Abstract base class for storage objects. Subclasses (e.g. PickleStorage,
     MongoStorage, etc.) must define insert, update, get, remove, flush, and
@@ -128,7 +134,6 @@ class Storage(object):
 
     """
 
-    __metaclass__ = StorageMeta
     translator = DefaultTranslator()
     logger = Logger()
 

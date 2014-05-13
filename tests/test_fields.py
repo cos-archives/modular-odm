@@ -102,13 +102,15 @@ class TestDateTimeField(unittest.TestCase):
         assert_equal(self.user.date_created, expected)
 
     def test_uncallable_auto_now_param_raises_type_error(self):
-        assert_raises(TypeError,
-            lambda: fields.DateTimeField(auto_now='uncallable'))
+        with assert_raises(ValueError):
+            fields.DateTimeField(auto_now='uncallable')
 
     def test_cant_use_auto_now_and_auto_now_add(self):
-        assert_raises(ValueError,
-            lambda: fields.DateTimeField(auto_now=datetime.datetime.now,
-                            auto_now_add=datetime.datetime.utcnow))
+        with assert_raises(ValueError):
+            fields.DateTimeField(
+                auto_now=datetime.datetime.now,
+                auto_now_add=datetime.datetime.utcnow
+            )
 
 
 if __name__ == '__main__':
