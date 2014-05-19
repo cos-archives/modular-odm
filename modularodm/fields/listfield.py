@@ -1,5 +1,8 @@
+# -*- coding: utf-8 -*-
+
 import copy
 
+from modularodm import signals
 from ..fields import Field
 from ..validators import validate_list
 
@@ -49,6 +52,15 @@ class ListField(Field):
         # Avoids the need to deepcopy default values for lists, which will break
         # e.g. when validators contain (un-copyable) regular expressions.
         self._default = lambda: self._list_class(default, base_class=self._field_instance.base_class)
+
+        # Fields added by ``ObjectMeta``
+        self._field_name = None
+
+    def subscribe(self, sender=None):
+        self.update_backrefs_callback = signals.save.connect(
+            self.update_backrefs_callback,
+            sender=sender,
+        )
 
     def __set__(self, instance, value, safe=False, literal=False):
         self._pre_set(instance, safe=safe)
@@ -147,29 +159,28 @@ class ListField(Field):
                 ]
         return []
 
-    def on_after_save(self, parent, field_name, old_stored_data, new_value):
-        if not hasattr(self._field_instance, 'on_after_save'):
+    def update_backrefs(self, instance, cached_value, current_value):
+
+        for item in current_value:
+            if self._field_instance.to_storage(item) not in cached_value:
+                self._field_instance.update_backrefs(instance, None, item)
+
+        for item in cached_value:
+            if self._field_instance.from_storage(item) not in current_value:
+                self._field_instance.update_backrefs(instance, item, None)
+
+    def update_backrefs_callback(self, cls, instance, fields_changed, cached_data):
+
+        if not hasattr(self._field_instance, 'update_backrefs'):
             return
 
-        if new_value and not old_stored_data:
-            additions = new_value
-            removes = []
-        elif old_stored_data and not new_value:
-            additions = []
-            removes = old_stored_data
-        elif old_stored_data and new_value:
-            additions = [i for i in new_value if self._field_instance.to_storage(i) not in old_stored_data]
-            removes = [i for i in old_stored_data if self._field_instance.from_storage(i) not in new_value]
-        else:
-            # raise Exception('There shouldn\'t be a diff in the first place.')
-            # todo: discuss -- this point can be reached when the object is not loaded and the new value is an empty list
-            additions = []
-            removes = []
+        if self._field_name not in fields_changed:
+            return
 
-        for i in removes:
-            self._field_instance.on_after_save(parent, field_name, i, None)
-        for i in additions:
-            self._field_instance.on_after_save(parent, field_name, None, i)
+        cached_value = cached_data.get(self._field_name, [])
+        current_value = getattr(instance, self._field_name, [])
+
+        self.update_backrefs(instance, cached_value, current_value)
 
     @property
     def base_class(self):

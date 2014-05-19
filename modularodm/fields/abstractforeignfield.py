@@ -1,7 +1,10 @@
-from . import Field
+# -*- coding: utf-8 -*-
+
+from modularodm.fields.foreign import BaseForeignField
 from .lists import AbstractForeignList
 
-class AbstractForeignField(Field):
+
+class AbstractForeignField(BaseForeignField):
 
     _list_class = AbstractForeignList
     _is_foreign = True
@@ -12,28 +15,6 @@ class AbstractForeignField(Field):
         self._backref_field_name = kwargs.get('backref', None)
         self._is_foreign = True
         self._is_abstract = True
-
-    def on_after_save(self, parent, field_name, old_stored_data, new_value):
-        """Update back-references after save; remove self from back-reference
-        list of old referent and add self to back-reference list of new
-        referent.
-
-        :param parent: Parent StoredObject instance
-        :param field_name: Name of parent field mapped to self
-        :param old_stored_data: Old referent of foreign field
-        :param new_value: New referent of foreign field
-
-        """
-        if self._backref_field_name is None:
-            return
-
-        if old_stored_data is not None:
-            old_value = self.get_foreign_object(old_stored_data)
-            if old_value is not None:
-                old_value._remove_backref(self._backref_field_name, parent, field_name)
-
-        if new_value is not None:
-            new_value._set_backref(self._backref_field_name, field_name, parent)
 
     def get_schema_class(self, schema):
         return self._schema_class.get_collection(schema)

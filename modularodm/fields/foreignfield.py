@@ -1,37 +1,27 @@
+# -*- coding: utf-8 -*-
 
 from modularodm import exceptions
-from . import Field
+
+from modularodm.fields.foreign import BaseForeignField
 from .lists import ForeignList
 
-class ForeignField(Field):
+
+class ForeignField(BaseForeignField):
 
     _list_class = ForeignList
 
     def __init__(self, *args, **kwargs):
+
         super(ForeignField, self).__init__(*args, **kwargs)
+
         self._backref_field_name = kwargs.get('backref', None)
         self._base_class_reference = args[0]
         self._base_class = None
         self._is_foreign = True
         self._is_abstract = False
 
-    def on_after_save(self, parent, field_name, old_stored_data, new_value):
-        '''
-            None, Obj = go from nothing or add
-            Obj, None = means go to nothing or remove
-            Obj, Obj = remove then add or swap
-        '''
-        if self._backref_field_name is None:
-            return
-
-        if old_stored_data is not None:
-            old_value = self.base_class.load(old_stored_data)
-            # Note: Added this check to accommodate primary key changes
-            if old_value is not None:
-                old_value._remove_backref(self._backref_field_name, parent, field_name)
-
-        if new_value is not None:
-            new_value._set_backref(self._backref_field_name, field_name, parent)
+    def get_foreign_object(self, value):
+        return self.base_class.load(value)
 
     def to_storage(self, value, translator=None):
 
