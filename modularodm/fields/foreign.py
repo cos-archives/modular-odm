@@ -16,6 +16,9 @@ class BaseForeignField(Field):
 
     def update_backrefs(self, instance, cached_value, current_value):
 
+        if self._backref_field_name is None:
+            return
+
         if cached_value:
             cached_object = self.get_foreign_object(cached_value)
             if cached_object:

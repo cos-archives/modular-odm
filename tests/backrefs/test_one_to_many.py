@@ -1,7 +1,11 @@
+# -*- coding: utf-8 -*-
+
+from nose.tools import *
 
 from modularodm import fields
 
 from tests.base import ModularOdmTestCase, TestObject
+
 
 class OneToManyFieldTestCase(ModularOdmTestCase):
 
@@ -10,6 +14,7 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
         class Foo(TestObject):
             _id = fields.IntegerField()
             my_bar = fields.ForeignField('Bar', backref='my_foo')
+            my_bar_no_backref = fields.ForeignField('Bar')
 
         class Bar(TestObject):
             _id = fields.IntegerField()
@@ -25,6 +30,18 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
 
         self.foo.my_bar = self.bar
         self.foo.save()
+
+    def test_no_backref(self):
+        """Regression test; ensure that backrefs are not saved when no backref
+        key is given.
+        """
+        bar = self.Bar(_id=20)
+        bar.save()
+
+        self.foo.my_bar_no_backref = bar
+        self.foo.save()
+
+        assert_equal(bar._backrefs, {})
 
     def test_one_to_one_backref(self):
 
