@@ -167,6 +167,7 @@ class ObjectMeta(type):
         cls._log_level = my_meta.get('log_level', None)
         cls._version_of = my_meta.get('version_of', None)
         cls._version = my_meta.get('version', 1)
+        cls._record_validators = my_meta.get('validators', [])
 
         # Prepare fields
         cls._fields = {}
@@ -746,6 +747,13 @@ class StoredObject(object):
             self.to_storage()
         )
 
+    def validate_record(self):
+        """Apply record-level validation. Run on `save`.
+
+        """
+        for validator in self._record_validators:
+            validator(self)
+
     @has_storage
     @log_storage
     def save(self, force=False):
@@ -782,10 +790,13 @@ class StoredObject(object):
         if not fields_changed and not force:
             return []
 
-        # Validate
+        # Apply field-level validation
         for field_name in fields_changed:
             field_object = self._fields[field_name]
             field_object.do_validate(getattr(self, field_name), self)
+
+        # Apply record-level validation
+        self.validate_record()
 
         primary_changed = (
             self._primary_key != self._stored_key
