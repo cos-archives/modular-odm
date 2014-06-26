@@ -1,5 +1,6 @@
 from modularodm.query.querydialect import DefaultQueryDialect as Q
 
+
 class List(list):
 
     def __init__(self, value=None, literal=False, **kwargs):
@@ -12,6 +13,7 @@ class List(list):
         else:
             super(List, self).__init__()
             self.extend(value)
+
 
 class BaseForeignList(List):
 
@@ -44,6 +46,7 @@ class BaseForeignList(List):
 
     def remove(self, value):
         super(BaseForeignList, self).remove(self._from_value(value))
+
 
 class ForeignList(BaseForeignList):
 
@@ -94,6 +97,7 @@ class ForeignList(BaseForeignList):
         if query is not None:
             combined_query = combined_query & query
         return self._base_class.find(combined_query)
+
 
 class AbstractForeignList(BaseForeignList):
 

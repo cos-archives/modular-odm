@@ -1,11 +1,12 @@
 import re
 import pymongo
 
-from .base import Storage
+from .base import Storage, KeyExistsException
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
 from modularodm.exceptions import NoResultsFound, MultipleResultsFound
+
 
 # From mongoengine.queryset.transform
 COMPARISON_OPERATORS = ('ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'mod',
@@ -25,6 +26,7 @@ STRING_OPERATORS     = ('contains', 'icontains', 'startswith',
 # UPDATE_OPERATORS     = ('set', 'unset', 'inc', 'dec', 'pop', 'push',
 #                         'push_all', 'pull', 'pull_all', 'add_to_set',
 #                         'set_on_insert')
+
 
 # Adapted from mongoengine.fields
 def prepare_query_value(op, value):
@@ -48,6 +50,7 @@ def prepare_query_value(op, value):
         value = re.compile(regex % value, flags)
 
     return value
+
 
 class MongoQuerySet(BaseQuerySet):
 
@@ -108,6 +111,7 @@ class MongoQuerySet(BaseQuerySet):
         self.data = self.data.limit(n)
         return self
 
+
 class MongoStorage(Storage):
 
     QuerySet = MongoQuerySet
@@ -126,12 +130,13 @@ class MongoStorage(Storage):
     def find_one(self, query=None, **kwargs):
         """ Gets a single object from the collection.
 
-        If no matching documents are found, raises ``NoResultsFound``.
-        If >1 matching documents are found, raises ``MultipleResultsFound``.
+        If no matching documents are found, raises `NoResultsFound`.
+        If >1 matching documents are found, raises `MultipleResultsFound`.
 
-        :params: One or more ``Query`` or ``QuerySet`` objects may be passed
+        :params: One or more `Query` or `QuerySet` objects may be passed
 
         :returns: The selected document
+
         """
         mongo_query = self._translate_query(query)
         matches = self.store.find(mongo_query).limit(2)
@@ -154,7 +159,10 @@ class MongoStorage(Storage):
         if primary_name not in value:
             value = value.copy()
             value[primary_name] = key
-        self.store.insert(value)
+        try:
+            self.store.insert(value)
+        except pymongo.errors.DuplicateKeyError:
+            raise KeyExistsException
 
     def update(self, query, data):
 
