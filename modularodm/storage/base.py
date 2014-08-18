@@ -165,9 +165,9 @@ class Storage(object):
                 key = self._generate_random_id(n)
                 value[primary_name] = key
                 self.insert(primary_name, key, value)
+                break
             except KeyExistsException:
                 pass
-            break
         return key
 
     def insert(self, primary_name, key, value):
