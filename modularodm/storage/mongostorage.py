@@ -113,15 +113,26 @@ class MongoQuerySet(BaseQuerySet):
 
 
 class MongoStorage(Storage):
+    """Wrap a MongoDB collection. Note: `store` is a property instead of an
+    attribute to handle passing `db` as a proxy.
+
+    :param Database db:
+    :param str collection:
+
+    """
 
     QuerySet = MongoQuerySet
 
+    def __init__(self, db, collection):
+        self.db = db
+        self.collection = collection
+
+    @property
+    def store(self):
+        return self.db[self.collection]
+
     def _ensure_index(self, key):
         self.store.ensure_index(key)
-
-    def __init__(self, db, collection):
-        self.collection = collection
-        self.store = db[self.collection]
 
     def find(self, query=None, **kwargs):
         mongo_query = self._translate_query(query)
