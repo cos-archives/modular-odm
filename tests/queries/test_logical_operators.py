@@ -15,7 +15,7 @@ class LogicalOperatorsBase(ModularOdmTestCase):
     def set_up_objects(self):
         self.foos =  []
 
-        for idx, f in  enumerate([(a, b) for a in xrange(3) for b in xrange(3)]):
+        for idx, f in enumerate([(a, b) for a in xrange(3) for b in xrange(3)]):
             self.foos.append(
                 self.Foo(
                     _id = idx,
@@ -27,7 +27,7 @@ class LogicalOperatorsBase(ModularOdmTestCase):
         [x.save() for x in self.foos]
 
     def test_and(self):
-        """ Finds the intersection of two or more queries."""
+        """Find the intersection of two or more queries."""
         result = self.Foo.find(Q('a', 'eq', 0) & Q('b', 'eq', 1))
         self.assertEqual(
             len(result),
@@ -37,7 +37,7 @@ class LogicalOperatorsBase(ModularOdmTestCase):
         self.assertEqual(result[0].b, 1)
 
     def test_or(self):
-        """ Finds the union of two or more queries."""
+        """Find the union of two or more queries."""
         result = self.Foo.find(Q('a', 'eq', 0) | Q('a', 'eq', 1))
         self.assertEqual(
             len(result),
@@ -45,9 +45,23 @@ class LogicalOperatorsBase(ModularOdmTestCase):
         )
 
     def test_not(self):
-        """ Finds the inverse of a query."""
+        """Find the inverse of a query."""
         result = self.Foo.find(~Q('a', 'eq', 0))
         self.assertEqual(
             len(result),
             6,
         )
+
+    def test_and_or(self):
+        """Join multiple OR queries with an AND.
+
+        """
+        result = self.Foo.find(
+            (Q('a', 'eq', 0) | Q('a', 'eq', 1))
+            & (Q('b', 'eq', 1) | Q('b', 'eq', 2))
+        )
+        self.assertEqual(
+            len(result),
+            4,
+        )
+

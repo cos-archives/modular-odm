@@ -55,14 +55,14 @@ class BasicQueryTestCase(ModularOdmTestCase):
 
     def test_find_one_return_zero(self):
         """ Given a query with zero result records, ``.find_one()`` should raise
-         an appropriate error.
+        an appropriate error.
         """
         with self.assertRaises(exceptions.NoResultsFound):
             self.Foo.find_one(Q('_id', 'eq', -1))
 
     def test_find_one_return_many(self):
         """ Given a query with >1 result record, ``.find_one()`` should raise
-          and appropriate error.
+        an appropriate error.
         """
         with self.assertRaises(exceptions.MultipleResultsFound):
             result = self.Foo.find_one()
