@@ -252,19 +252,16 @@ class StoredObject(object):
         try:
             if self is other:
                 return True
+            if self._primary_key != other._primary_key:
+                return False
             return self.to_storage() == other.to_storage()
         except (AttributeError, TypeError):
             # Can't compare with "other". Try the reverse comparison
             return NotImplemented
 
     def __ne__(self, other):
-        try:
-            if self is other:
-                return False
-            return self.to_storage() != other.to_storage()
-        except (AttributeError, TypeError):
-            # Can't compare with "other". Try the reverse comparison
-            return NotImplemented
+        equal = self.__eq__(other)
+        return equal if equal is NotImplemented else not equal
 
     @warn_if_detached
     def __unicode__(self):

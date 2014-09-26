@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import mock
 import unittest
 import datetime
 import os
@@ -99,6 +100,26 @@ class TestStoredObject(unittest.TestCase):
         tag = Tag()
         tag.save()
         self._times_approx_equal(tag.date_modified)
+
+    @mock.patch('modularodm.storedobject.StoredObject.to_storage')
+    def test_eq_same_object_does_not_call_serialize(self, mock_serialize):
+        tag = Tag()
+        assert_true(tag == tag)
+        assert_false(tag != tag)
+        assert_false(mock_serialize.called)
+
+    @mock.patch('modularodm.storedobject.StoredObject.to_storage')
+    def test_eq_different_object_different_keys_does_not_call_serialize(self, mock_serialize):
+        tag1, tag2 = Tag(_id='foo'), Tag(_id='bar')
+        assert_false(tag1 == tag2)
+        assert_true(tag1 != tag2)
+        assert_false(mock_serialize.called)
+
+    @mock.patch('modularodm.storedobject.StoredObject.to_storage')
+    def test_eq_different_object_same_keys_calls_serialize(self, mock_serialize):
+        tag1, tag2 = Tag(_id='foo'), Tag(_id='foo')
+        tag1 == tag2
+        assert_true(mock_serialize.called)
 
     # Foreign tests
     def test_foreign_many_to_one_set(self):
