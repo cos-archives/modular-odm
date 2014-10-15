@@ -64,6 +64,8 @@ class ForeignList(BaseForeignList):
 
     def __getitem__(self, item):
         result = super(ForeignList, self).__getitem__(item)
+        if isinstance(item, slice):
+            return ForeignList(result, base_class=self._base_class)
         return self._base_class.load(result)
 
     def __getslice__(self, i, j):
@@ -127,6 +129,8 @@ class AbstractForeignList(BaseForeignList):
 
     def __getitem__(self, item):
         result = super(AbstractForeignList, self).__getitem__(item)
+        if isinstance(item, slice):
+            return AbstractForeignList(result)
         return self.get_foreign_object(result)
 
     def __getslice__(self, i, j):

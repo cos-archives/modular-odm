@@ -250,21 +250,6 @@ class TestStoredObject(unittest.TestCase):
         assert_not_equal(user, different)
         assert_not_equal(None, user)
 
-    # def test_find_match(self):
-    #     tag = Tag()
-    #     tag.value = 'test_query_match'
-    #     tag.save()
-    #     results = Tag.find(Q('value', valu='test_query_match'))
-    #     results = list(results)
-    #     self.assertEqual(len(results), 1)
-    #
-    # def test_find_match_no_result(self):
-    #     tag = Tag()
-    #     tag.value = 'test_query_match'
-    #     tag.save()
-    #     results = Tag.find(Q('value', valu='no_matches_should_be_found!'))
-    #     results = list(results)
-    #     self.assertEqual(len(results), 0)
 
 if __name__ == '__main__':
     unittest.main()
