@@ -843,6 +843,11 @@ class StoredObject(object):
 
         return fields_changed
 
+    def update_fields(self, **kwargs):
+        for key, value in kwargs.items():
+            self._fields[key].__set__(self, value, safe=True)
+
+
     def reload(self):
 
         storage_data = self._storage[0].get(self._primary_name, self._storage_key)
