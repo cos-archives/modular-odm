@@ -3,7 +3,12 @@ import re
 import sys
 import subprocess
 from setuptools import setup, find_packages
-from pip.req import parse_requirements
+
+INSTALL_REQUIRES = [
+    'flask',
+    'pymongo',
+    'python-dateutil',
+]
 
 def find_version(fname):
     '''Attempts to find the version number in the file names fname.
@@ -77,10 +82,7 @@ setup(
     description='A Pythonic Object Data Manager',
     long_description=read("README.rst"),
     packages=find_packages(exclude=("test*",)),
-    install_requires=[
-        str(req.req)
-        for req in parse_requirements('requirements.txt')
-    ],
+    install_requires=INSTALL_REQUIRES,
     tests_require=["nose"],
     keywords=["odm", "nosql", "mongo", "mongodb"],
 )
