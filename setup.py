@@ -6,6 +6,7 @@ from setuptools import setup, find_packages
 
 INSTALL_REQUIRES = [
     'flask',
+    'blinker',
     'pymongo',
     'python-dateutil',
 ]
