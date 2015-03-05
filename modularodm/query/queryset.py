@@ -11,11 +11,7 @@ class BaseQuerySet(object):
         self.data = data
 
     def __getitem__(self, index):
-
-        if index < 0:
-            raise IndexError('Negative indexing not supported.')
-        if index >= self.count():
-            raise IndexError('Index out of range.')
+        raise NotImplementedError
 
     def __iter__(self):
         raise NotImplementedError

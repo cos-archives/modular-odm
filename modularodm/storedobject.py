@@ -246,7 +246,7 @@ class StoredObject(object):
                 setattr(self, key, value)
 
         if self._is_loaded:
-            self._set_cache(self._primary_key, self)
+            self._set_cache(self._primary_key, self, kwargs)
 
     def __eq__(self, other):
         try:
@@ -435,11 +435,10 @@ class StoredObject(object):
         return cls._object_cache.get(cls._name, trans_key)
 
     @classmethod
-    def _set_cache(cls, key, obj):
-
+    def _set_cache(cls, key, obj, data=None):
         trans_key = cls._pk_to_storage(key)
         cls._object_cache.set(cls._name, trans_key, obj)
-        cls._cache.set(cls._name, trans_key, obj.to_storage())
+        cls._cache.set(cls._name, trans_key, data)
 
     @classmethod
     def _get_cache(cls, key):
@@ -466,7 +465,7 @@ class StoredObject(object):
         return [
             field
             for field in self._fields
-            if cached_data[field] != storage_data[field]
+            if cached_data.get(field) != storage_data.get(field)
         ]
 
     # Cache clearing
@@ -534,8 +533,8 @@ class StoredObject(object):
     @has_storage
     @log_storage
     def load(cls, key=None, data=None, _is_loaded=True):
-        '''Get a record by its primary key.'''
-
+        """Get a record by its primary key.
+        """
         # Emit load signal
         signals.load.send(
             cls,
@@ -560,8 +559,7 @@ class StoredObject(object):
         # Convert storage data to ODM
         data = cls.from_storage(data)
 
-        if '_version' in data and data['_version'] != cls._version:
-
+        if cls._version_of and '_version' in data and data['_version'] != cls._version:
             old_object = cls._version_of.load(data=data)
             new_object = cls(_is_loaded=_is_loaded)
 
@@ -570,10 +568,10 @@ class StoredObject(object):
 
             return new_object
 
-        rv = cls(_is_loaded=_is_loaded, **data)
-        rv._stored_key = rv._primary_key
+        ret = cls(_is_loaded=_is_loaded, **data)
+        ret._stored_key = ret._primary_key
 
-        return rv
+        return ret
 
     @classmethod
     def migrate_all(cls):
@@ -759,7 +757,6 @@ class StoredObject(object):
         :param bool force: Save even if no fields have changed; used to update
             back-references
         :returns: List of changed fields
-
         """
         if self._detached:
             raise exceptions.DatabaseError('Cannot save detached object.')
@@ -839,7 +836,8 @@ class StoredObject(object):
             cached_data=cached_data or {},
         )
 
-        self._set_cache(self._primary_key, self)
+        storage_data[self._primary_name] = self._storage_key
+        self._set_cache(self._primary_key, self, storage_data)
 
         return fields_changed
 
@@ -860,7 +858,7 @@ class StoredObject(object):
                 self._StoredObject__backrefs = value
 
         self._stored_key = self._primary_key
-        self._set_cache(self._storage_key, self)
+        self._set_cache(self._storage_key, self, storage_data)
 
     @warn_if_detached
     def __getattr__(self, item):

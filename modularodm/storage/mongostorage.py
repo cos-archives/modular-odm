@@ -109,25 +109,25 @@ def translate_query(query=None, mongo_query=None):
 class MongoQuerySet(BaseQuerySet):
 
     def __init__(self, schema, cursor):
-
         super(MongoQuerySet, self).__init__(schema)
         self.data = cursor
 
     def __getitem__(self, index, raw=False):
-        super(MongoQuerySet, self).__getitem__(index)
-        key = self.data[index][self.primary]
+        if isinstance(index, slice):
+            return MongoQuerySet(self.schema, self.data.clone()[index])
+        result = self.data[index]
         if raw:
-            return key
-        return self.schema.load(key)
+            return result[self.primary]
+        return self.schema.load(data=result)
 
     def __iter__(self, raw=False):
         keys = [obj[self.primary] for obj in self.data.clone()]
+        cursor = self.data.clone()
         if raw:
-            return keys
-        return (self.schema.load(key) for key in keys)
+            return [each[self.primary] for each in cursor]
+        return (self.schema.load(data=each) for each in cursor)
 
     def __len__(self):
-
         return self.data.count(with_limit_and_skip=True)
 
     count = __len__
@@ -139,7 +139,6 @@ class MongoQuerySet(BaseQuerySet):
         return list(self.__iter__(raw=True))
 
     def sort(self, *keys):
-
         sort_key = []
 
         for key in keys:
@@ -156,12 +155,10 @@ class MongoQuerySet(BaseQuerySet):
         return self
 
     def offset(self, n):
-
         self.data = self.data.skip(n)
         return self
 
     def limit(self, n):
-
         self.data = self.data.limit(n)
         return self
 
@@ -172,9 +169,7 @@ class MongoStorage(Storage):
 
     :param Database db:
     :param str collection:
-
     """
-
     QuerySet = MongoQuerySet
 
     def __init__(self, db, collection):
@@ -201,7 +196,6 @@ class MongoStorage(Storage):
         :params: One or more `Query` or `QuerySet` objects may be passed
 
         :returns: The selected document
-
         """
         mongo_query = translate_query(query)
         matches = self.store.find(mongo_query).limit(2)
@@ -230,7 +224,6 @@ class MongoStorage(Storage):
             raise KeyExistsException
 
     def update(self, query, data):
-
         mongo_query = translate_query(query)
 
         # Field "_id" shouldn't appear in both search and update queries; else

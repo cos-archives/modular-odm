@@ -68,6 +68,11 @@ class BasicQueryTestCase(ModularOdmTestCase):
             result = self.Foo.find_one()
             logger.debug(result)
 
+    def test_slice(self):
+        queryset = self.Foo.find()
+        queryslice = queryset[1:]
+        self.assertEqual(queryset.count(), queryslice.count() + 1)
+        self.assertEqual(queryset[1], queryslice[0])
 
     # individual filter tests (limit, offset, sort)
 

@@ -90,19 +90,20 @@ class PickleQuerySet(BaseQuerySet):
         return self
 
     def __getitem__(self, index, raw=False):
-        super(PickleQuerySet, self).__getitem__(index)
         self._eval()
+        if isinstance(index, slice):
+            return PickleQuerySet(self.schema, self.data[index])
         key = self.data[index][self.primary]
+        result = self.data[index]
         if raw:
-            return key
-        return self.schema.load(key)
+            return result[self.primary]
+        return self.schema.load(data=result)
 
     def __iter__(self, raw=False):
         self._eval()
-        keys = [obj[self.primary] for obj in self.data]
         if raw:
-            return keys
-        return (self.schema.load(key) for key in keys)
+            return [each[self.primary] for each in self.data]
+        return (self.schema.load(data=each) for each in self.data)
 
     def __len__(self):
         self._eval()
@@ -173,13 +174,14 @@ class PickleStorage(Storage):
 
         """
         if key not in self.store:
-            self.store[key] = value
+            self.store[key] = copy.deepcopy(value)
             self.flush()
         else:
             msg = 'Key ({key}) already exists'.format(key=key)
             raise KeyExistsException(msg)
 
     def update(self, query, data):
+        data = copy.deepcopy(data)
         for pk in self.find(query, by_pk=True):
             for key, value in data.items():
                 self.store[pk][key] = value
