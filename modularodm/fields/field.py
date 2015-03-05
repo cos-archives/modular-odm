@@ -181,6 +181,8 @@ class Field(object):
 
     def __set__(self, instance, value, safe=False, literal=False):
         self._pre_set(instance, safe=safe)
+        if self.mutable:
+            data = copy.deepcopy(value)
         self.data[instance] = value
 
     def _touch(self, instance):
