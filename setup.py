@@ -2,8 +2,9 @@
 import re
 import sys
 import subprocess
+
+import pip
 from setuptools import setup, find_packages
-from pip.req import parse_requirements
 
 def find_version(fname):
     '''Attempts to find the version number in the file names fname.
@@ -79,7 +80,10 @@ setup(
     packages=find_packages(exclude=("test*",)),
     install_requires=[
         str(req.req)
-        for req in parse_requirements('requirements.txt')
+        for req in pip.req.parse_requirements(
+            'requirements.txt',
+            session=pip.download.PipSession(),
+        )
     ],
     tests_require=["nose"],
     keywords=["odm", "nosql", "mongo", "mongodb"],
