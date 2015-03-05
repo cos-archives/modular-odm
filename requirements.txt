@@ -1,4 +1,0 @@
-flask
-blinker
-pymongo
-python-dateutil

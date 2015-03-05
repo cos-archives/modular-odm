@@ -6,6 +6,13 @@ import subprocess
 import pip
 from setuptools import setup, find_packages
 
+INSTALL_REQUIRES = [
+    'flask',
+    'blinker',
+    'pymongo',
+    'python-dateutil',
+]
+
 def find_version(fname):
     '''Attempts to find the version number in the file names fname.
     Raises RuntimeError if not found.
@@ -78,13 +85,7 @@ setup(
     description='A Pythonic Object Data Manager',
     long_description=read("README.rst"),
     packages=find_packages(exclude=("test*",)),
-    install_requires=[
-        str(req.req)
-        for req in pip.req.parse_requirements(
-            'requirements.txt',
-            session=pip.download.PipSession(),
-        )
-    ],
+    install_requires=INSTALL_REQUIRES,
     tests_require=["nose"],
     keywords=["odm", "nosql", "mongo", "mongodb"],
 )
