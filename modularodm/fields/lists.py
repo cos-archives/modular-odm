@@ -1,6 +1,12 @@
+# -*- coding: utf-8 -*-
+
+import abc
+import six
+
 from modularodm.query.querydialect import DefaultQueryDialect as Q
 
 
+@six.add_metaclass(abc.ABCMeta)
 class List(list):
 
     def __init__(self, value=None, literal=False, **kwargs):
@@ -17,11 +23,13 @@ class List(list):
 
 class BaseForeignList(List):
 
+    @abc.abstractmethod
     def _to_primary_keys(self):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def _from_value(self, value):
-        raise NotImplementedError
+        pass
 
     def _to_data(self):
         return list(super(BaseForeignList, self).__iter__())

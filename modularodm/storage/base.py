@@ -1,3 +1,4 @@
+import abc
 import six
 import time
 import random
@@ -111,7 +112,7 @@ def logify(func):
     return wrapped
 
 
-class StorageMeta(type):
+class StorageMeta(abc.ABCMeta):
 
     def __new__(mcs, name, bases, dct):
 
@@ -131,9 +132,7 @@ class Storage(object):
     """Abstract base class for storage objects. Subclasses (e.g. PickleStorage,
     MongoStorage, etc.) must define insert, update, get, remove, flush, and
     find_all methods.
-
     """
-
     translator = DefaultTranslator()
     logger = Logger()
 
@@ -146,7 +145,6 @@ class Storage(object):
         """Generated random alphanumeric key.
 
         :param n: Number of characters in random key
-
         """
         alphabet = '23456789abcdefghijkmnpqrstuvwxyz'
         return ''.join(random.sample(alphabet, n))
@@ -158,7 +156,6 @@ class Storage(object):
         :param str primary_name: The name of the primary key.
         :param dict value: The dictionary representation of the record.
         :param n: Number of characters in random key
-
         """
         while True:
             try:
@@ -170,6 +167,7 @@ class Storage(object):
                 pass
         return key
 
+    @abc.abstractmethod
     def insert(self, primary_name, key, value):
         '''Insert a new record.
 
@@ -177,39 +175,45 @@ class Storage(object):
         :param key: The value of the primary key
         :param dict value: The dictionary of attribute:value pairs
         '''
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def update(self, query, data):
         """Update multiple records with new data.
 
         :param query: A query object.
         :param dict data: Dictionary of key:value pairs.
         """
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def get(self, primary_name, key):
         """Get a single record.
 
         :param str primary_name: The name of the primary key.
         :param key: The value of the primary key.
         """
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def remove(self, query=None):
         """Remove records.
         """
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def flush(self):
         """Flush the database."""
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def find_one(self, query=None, **kwargs):
         """Find a single record that matches ``query``.
         """
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def find(self, query=None, **kwargs):
         """Query the database and return a query set.
         """
-        raise NotImplementedError
+        pass

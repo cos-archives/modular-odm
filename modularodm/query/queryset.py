@@ -1,7 +1,10 @@
+# -*- coding: utf-8 -*-
 
-# todo groupby
-# todo indexing
+import abc
+import six
 
+
+@six.add_metaclass(abc.ABCMeta)
 class BaseQuerySet(object):
 
     def __init__(self, schema, data=None):
@@ -10,23 +13,30 @@ class BaseQuerySet(object):
         self.primary = schema._primary_name
         self.data = data
 
+    @abc.abstractmethod
     def __getitem__(self, index):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def __iter__(self):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def __len__(self):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def count(self):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def sort(self, *keys):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def offset(self, n):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def limit(self, n):
-        raise NotImplementedError
+        pass
