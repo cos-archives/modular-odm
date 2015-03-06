@@ -112,7 +112,7 @@ class MongoQuerySet(BaseQuerySet):
         super(MongoQuerySet, self).__init__(schema)
         self.data = cursor
 
-    def __getitem__(self, index, raw=False):
+    def _do_getitem(self, index, raw=False):
         if isinstance(index, slice):
             return MongoQuerySet(self.schema, self.data.clone()[index])
         result = self.data[index]

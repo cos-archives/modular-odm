@@ -89,7 +89,7 @@ class PickleQuerySet(BaseQuerySet):
 
         return self
 
-    def __getitem__(self, index, raw=False):
+    def _do_getitem(self, index, raw=False):
         self._eval()
         if isinstance(index, slice):
             return PickleQuerySet(self.schema, self.data[index])

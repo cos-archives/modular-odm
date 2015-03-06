@@ -13,8 +13,20 @@ class BaseQuerySet(object):
         self.primary = schema._primary_name
         self.data = data
 
-    @abc.abstractmethod
     def __getitem__(self, index):
+        if isinstance(index, slice):
+            if index.step:
+                raise IndexError('Slice steps not supported')
+            if (index.start is not None and index.start < 0) or (index.stop is not None and index.stop < 0):
+                raise IndexError('Negative indexing not supported')
+            if index.stop is not None and index.stop < index.start:
+                raise IndexError('Stop index must be greater than start index')
+        if index < 0:
+            raise IndexError('Negative indexing not supported')
+        return self._do_getitem(index)
+
+    @abc.abstractmethod
+    def _do_getitem(self, index):
         pass
 
     @abc.abstractmethod

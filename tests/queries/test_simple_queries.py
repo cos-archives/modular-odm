@@ -74,6 +74,26 @@ class BasicQueryTestCase(ModularOdmTestCase):
         self.assertEqual(queryset.count(), queryslice.count() + 1)
         self.assertEqual(queryset[1], queryslice[0])
 
+    def test_slice_negative_index(self):
+        queryset = self.Foo.find()
+        with self.assertRaises(IndexError):
+            queryset[-1]
+
+    def test_slice_negative_slice(self):
+        queryset = self.Foo.find()
+        with self.assertRaises(IndexError):
+            queryset[-5:-1]
+
+    def test_slice_step(self):
+        queryset = self.Foo.find()
+        with self.assertRaises(IndexError):
+            queryset[::2]
+
+    def test_slice_reverse(self):
+        queryset = self.Foo.find()
+        with self.assertRaises(IndexError):
+            queryset[5:0]
+
     # individual filter tests (limit, offset, sort)
 
     def test_limit(self):
