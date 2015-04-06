@@ -35,7 +35,7 @@ class InheritableObjectMeta(ObjectMeta):
 class InheritableStoredObject(StoredObject):
     """StoredObject subclass for models which will share a single collection.
 
-    Modeled after SQLAlchemy's "Joined Table Inheritance":
+    Modeled after SQLAlchemy's "single table inheritance":
         http://docs.sqlalchemy.org/en/rel_0_9/orm/inheritance.html
     """
 
@@ -84,7 +84,8 @@ class InheritableStoredObject(StoredObject):
 
     @classmethod
     def gather_subclasses(cls):
-        """Return a set of classes which inherent from this one"""
+        """Return a set of classes inheriting from this one, including this one
+        """
         if cls is InheritableStoredObject:
             raise RuntimeError("Cannot gather subclasses for inheritable base")
         subclasses = set()
