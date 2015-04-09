@@ -646,12 +646,15 @@ class StoredObject(object):
                             "\n        new.{name} = 'default value'"
                             .format(name=field))
                 else:
-                    logging.info("Old field {name}: {old_field} differs from new field "
+                    logging.info(
+                        "Old field {name}: {old_field} differs from new field "
                         "{name}: {new_field}. This field will not be "
-                        "automatically migrated. If you want to migrate this field, "
-                        "you should handle this in your migrate() method.")\
-                        .format(name=field, old_field=old_field_obj,
-                                new_field=new_field_obj)
+                        "automatically migrated. If you want to migrate this "
+                        "field, you should handle this in your migrate() "
+                        "method.".format(name=field,
+                                         old_field=old_field_obj,
+                                         new_field=new_field_obj)
+                    )
                 continue
 
             # Copy values of retained fields
