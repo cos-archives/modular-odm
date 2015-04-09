@@ -84,6 +84,7 @@ class TestMigration(ModularOdmTestCase):
         assert_equal(self.migrated_record.my_number, int(self.record.my_number))
 
     def test_making_field_required_without_default_raises_error(self):
+        # TODO: This test raises a warning for setting a non-field value
         class V3(StoredObject):
             _id = fields.StringField(_primary_key=True, index=True)
             my_string = fields.StringField()
