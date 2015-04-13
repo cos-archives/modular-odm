@@ -3,6 +3,8 @@
 import os
 import copy
 
+import six
+
 from .base import Storage, KeyExistsException
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
@@ -258,10 +260,11 @@ class PickleStorage(Storage):
 
         """
         if query is None:
-            for key, value in self.store.iteritems():
+            for key, value in six.iteritems(self.store):
                 yield value
         else:
-            for key, value in self.store.items():
+            # TODO: Making this a generator breaks it, since it can change
+            for key, value in list(six.iteritems(self.store)):
                 if self._match(value, query):
                     if kwargs.get('by_pk'):
                         yield key

@@ -23,7 +23,7 @@ class BasicQueryTestCase(ModularOdmTestCase):
     def set_up_objects(self):
         self.foos = []
 
-        for idx in xrange(self.COUNT):
+        for idx in range(self.COUNT):
             foo = self.Foo(_id=idx)
             foo.save()
             self.foos.append(foo)
@@ -128,7 +128,7 @@ class BasicQueryTestCase(ModularOdmTestCase):
         results = self.Foo.find().sort('-_id')
         self.assertListEqual(
             [x._id for x in results],
-            range(self.COUNT)[::-1],
+            list(range(self.COUNT))[::-1],
         )
 
 
@@ -157,7 +157,7 @@ class BasicQueryTestCase(ModularOdmTestCase):
 
     def test_limit_sort(self):
         limit, sort, = [10, '-_id']
-        expect = range(self.COUNT-limit, self.COUNT)[::-1]
+        expect = list(range(self.COUNT-limit, self.COUNT)[::-1])
 
         results = self.Foo.find().limit(limit).sort(sort)
         self.assertListEqual([x._id for x in results], expect)
@@ -179,7 +179,7 @@ class BasicQueryTestCase(ModularOdmTestCase):
 
     def test_offset_sort(self):
         offset, sort = [27, '-_id']
-        expect = range(self.COUNT-offset)[::-1]
+        expect = list(range(self.COUNT-offset)[::-1])
 
         results = self.Foo.find().offset(offset).sort(sort)
         self.assertListEqual([x._id for x in results], expect)
@@ -192,12 +192,12 @@ class BasicQueryTestCase(ModularOdmTestCase):
         results = self.Foo.find().sort('-_id').sort('_id')
         self.assertListEqual(
             [x._id for x in results],
-            range(self.COUNT),
+            list(range(self.COUNT)),
         )
         results = self.Foo.find().sort('_id').sort('-_id')
         self.assertListEqual(
             [x._id for x in results],
-            range(self.COUNT)[::-1],
+            list(range(self.COUNT)[::-1]),
         )
 
 
@@ -206,9 +206,9 @@ class BasicQueryTestCase(ModularOdmTestCase):
     def test_limit_offset_sort(self):
         test_sets = [
             # limit offset sort    expect
-            [ 10,   7,     '-_id', range(self.COUNT-7-10, self.COUNT-7)[::-1], ],
-            [ 20,   17,    '_id',  range(17, self.COUNT),                      ],
-            [ 10,   5,     '_id',  range(5, 5+10),                             ],
+            [ 10,   7,     '-_id', list(range(self.COUNT-7-10, self.COUNT-7)[::-1]), ],
+            [ 20,   17,    '_id',  list(range(17, self.COUNT)),                      ],
+            [ 10,   5,     '_id',  list(range(5, 5+10)),                             ],
         ]
         for test in test_sets:
             limit, offset, sort, expect = test

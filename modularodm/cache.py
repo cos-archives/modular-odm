@@ -52,3 +52,6 @@ class Cache(object):
 
     def __nonzero__(self):
         return bool(self.data)
+
+    # Python 3
+    __bool__ = __nonzero__

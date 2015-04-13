@@ -65,6 +65,9 @@ class WriteQueue(object):
     def __nonzero__(self):
         return bool(self.actions)
 
+    # Python 3
+    __bool__ = __nonzero__
+
 
 class QueueContext(object):
 

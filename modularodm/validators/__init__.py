@@ -1,3 +1,6 @@
+import six
+from six.moves.urllib_parse import urlsplit, urlunsplit
+
 from modularodm.exceptions import (
     ValidationError,
     ValidationTypeError,
@@ -15,7 +18,7 @@ class TypeValidator(Validator):
 
     def _as_list(self, value):
 
-        if isinstance(value, list):
+        if isinstance(value, (tuple, list)):
             return value
         return [value]
 
@@ -43,7 +46,7 @@ class TypeValidator(Validator):
             )
         )
 
-validate_string = TypeValidator(basestring)
+validate_string = TypeValidator(six.string_types)
 validate_integer = TypeValidator(
     allowed_types=int,
     forbidden_types=bool
@@ -79,7 +82,6 @@ class RegexValidator(Validator):
             )
 
 # Adapted from Django URLValidator
-from urlparse import urlsplit, urlunsplit
 class URLValidator(RegexValidator):
     regex = re.compile(
         r'^(?:http|ftp)s?://'  # http:// or https://

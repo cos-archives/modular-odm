@@ -8,7 +8,7 @@ from functools import wraps
 
 from . import signals
 from . import exceptions
-from fields import Field, ListField, ForeignList, AbstractForeignList
+from .fields import Field, ListField, ForeignList, AbstractForeignList
 from .storage import Storage
 from .query import QueryBase, RawQuery, QueryGroup
 from .frozen import FrozenDict
@@ -262,6 +262,10 @@ class StoredObject(object):
     def __ne__(self, other):
         equal = self.__eq__(other)
         return equal if equal is NotImplemented else not equal
+
+    def __hash__(self):
+        # TODO: Is this the right thing to do?
+        return id(self)
 
     @warn_if_detached
     def __unicode__(self):
@@ -777,11 +781,11 @@ class StoredObject(object):
         storage_data = self.to_storage()
 
         if self._primary_key is not None and cached_data is not None:
-            fields_changed = self.get_changed_fields(
-                cached_data, storage_data
+            fields_changed = set(
+                self.get_changed_fields(cached_data, storage_data)
             )
         else:
-            fields_changed = self._fields.keys()
+            fields_changed = set(self._fields.keys())
 
         # Quit if no diffs
         if not fields_changed and not force:
@@ -873,8 +877,8 @@ class StoredObject(object):
 
         if item in self.__backrefs:
             backrefs = []
-            for parent, rest0 in self.__backrefs[item].iteritems():
-                for field, rest1 in rest0.iteritems():
+            for parent, rest0 in six.iteritems(self.__backrefs[item]):
+                for field, rest1 in six.iteritems(rest0):
                     backrefs.extend([
                         (key, parent)
                         for key in rest1

@@ -131,7 +131,9 @@ class TestMigration(ModularOdmTestCase):
             rec = self.V1(my_string="foo{0}".format(i))
             rec.save()
         self.V2.migrate_all()
-        assert_greater_equal(self.V2.find(), 5)
+        # TODO: This used to be self.V2.find() (without the "count")
+        #       WHY WOULD THIS WORK?!
+        assert_greater_equal(self.V2.find().count(), 5)
         for record in self.V2.find():
             assert_true(record.my_string.endswith("yo"))
 

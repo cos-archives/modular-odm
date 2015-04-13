@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import weakref
-import werkzeug
 import collections
+import six
+from werkzeug.local import LocalProxy
 
 from modularodm.cache import Cache
 from modularodm.writequeue import WriteQueue
@@ -41,7 +42,7 @@ def proxy_factory(BaseSchema, label, ProxiedClass, get_key):
         except KeyError:
             proxies[BaseSchema][label][key] = ProxiedClass()
             return proxies[BaseSchema][label][key]
-    return werkzeug.local.LocalProxy(local)
+    return LocalProxy(local)
 
 
 def with_proxies(proxy_map, get_key):
@@ -54,7 +55,7 @@ def with_proxies(proxy_map, get_key):
 
     """
     def wrapper(cls):
-        for label, ProxiedClass in proxy_map.iteritems():
+        for label, ProxiedClass in six.iteritems(proxy_map):
             proxy = proxy_factory(cls, label, ProxiedClass, get_key)
             setattr(cls, label, proxy)
         return cls
