@@ -1,6 +1,7 @@
 import weakref
 import warnings
 import copy
+import six
 
 from modularodm import exceptions
 from modularodm.query.querydialect import DefaultQueryDialect as Q
@@ -8,7 +9,7 @@ from .lists import List
 
 
 def print_arg(arg):
-    if isinstance(arg, basestring):
+    if isinstance(arg, six.string_types):
         return '"' + arg + '"'
     return arg
 
@@ -120,8 +121,7 @@ class Field(object):
 
         # Field-level validation
         cls = self.__class__
-        if hasattr(cls, 'validate') and \
-                self.validate != False:
+        if hasattr(cls, 'validate') and self.validate is not False:
             cls.validate(value)
 
         # Schema-level validation

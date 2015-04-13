@@ -15,7 +15,7 @@ class LogicalOperatorsBase(ModularOdmTestCase):
     def set_up_objects(self):
         self.foos =  []
 
-        for idx, f in enumerate([(a, b) for a in xrange(3) for b in xrange(3)]):
+        for idx, f in enumerate([(a, b) for a in range(3) for b in range(3)]):
             self.foos.append(
                 self.Foo(
                     _id = idx,

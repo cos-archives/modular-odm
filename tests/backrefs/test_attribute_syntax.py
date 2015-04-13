@@ -1,5 +1,7 @@
 import unittest
 
+import six
+
 from modularodm import fields
 from modularodm.storedobject import ContextLogger
 from modularodm import StoredObject
@@ -33,7 +35,7 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
         self.bar.save()
 
         self.foos = []
-        for i in xrange(5):
+        for i in range(5):
             foo = self.Foo()
             if i > 0:
                 foo.my_bar = self.bar
@@ -81,7 +83,7 @@ class OneToManyFieldTestCase(ModularOdmTestCase):
             # Two calls so far - .find_one() and .find()
             self.assertNotIn(
                 'foo',
-                [k[0] for k, v in c.report().iteritems()],
+                [k[0] for k, v in six.iteritems(c.report())],
             )
 
             # access a member of the ForeignList, forcing that member to load
@@ -124,7 +126,7 @@ class OneToManyAbstractFieldTestCase(ModularOdmTestCase):
         self.bob.save()
 
         self.foos = []
-        for i in xrange(5):
+        for i in range(5):
             foo = self.Foo()
             if i > 0:
                 foo.my_abstract = self.bar
@@ -174,7 +176,7 @@ class OneToManyAbstractFieldTestCase(ModularOdmTestCase):
             # Two calls so far - .find_one() and .find()
             self.assertNotIn(
                 'foo',
-                [k[0] for k, v in c.report().iteritems()],
+                [k[0] for k, v in six.iteritems(c.report())],
             )
 
             # access a member of the ForeignList, forcing that member to load

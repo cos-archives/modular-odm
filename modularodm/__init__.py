@@ -2,7 +2,8 @@
 
 __version__ = "0.2.1"
 
-from storedobject import StoredObject
-from ext.odmflask import FlaskStoredObject
+from .storedobject import StoredObject
+from .ext.inheritable import InheritableStoredObject
+from .ext.odmflask import FlaskStoredObject
 
-from query.querydialect import DefaultQueryDialect as Q
+from .query.querydialect import DefaultQueryDialect as Q

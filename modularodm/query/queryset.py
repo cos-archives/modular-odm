@@ -21,7 +21,7 @@ class BaseQuerySet(object):
                 raise IndexError('Negative indexing not supported')
             if index.stop is not None and index.stop < index.start:
                 raise IndexError('Stop index must be greater than start index')
-        if index < 0:
+        elif index < 0:
             raise IndexError('Negative indexing not supported')
         return self._do_getitem(index)
 

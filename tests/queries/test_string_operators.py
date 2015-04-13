@@ -31,7 +31,7 @@ class StringComparisonTestCase(ModularOdmTestCase):
             'third value',
         )
 
-        for idx in xrange(len(field_values)):
+        for idx in range(len(field_values)):
             foo = self.Foo(
                 _id=idx,
                 string_field=field_values[idx],
