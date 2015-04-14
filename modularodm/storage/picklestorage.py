@@ -169,12 +169,6 @@ class PickleStorage(Storage):
             pass
 
     def insert(self, primary_name, key, value):
-        """Add key-value pair to storage. Key must not exist.
-
-        :param key: Key
-        :param value: Value
-
-        """
         if key not in self.store:
             self.store[key] = copy.deepcopy(value)
             self.flush()
@@ -212,7 +206,6 @@ class PickleStorage(Storage):
         self.flush()
 
     def flush(self):
-        """ Save store to file. """
         with open(self.filename, 'wb') as fp:
             pickle.dump(self.store, fp, -1)
 
@@ -253,12 +246,6 @@ class PickleStorage(Storage):
             raise TypeError('Query must be a QueryGroup or Query object.')
 
     def find(self, query=None, **kwargs):
-        """
-        Return generator over query results. Takes optional
-        by_pk keyword argument; if true, return keys rather than
-        values.
-
-        """
         if query is None:
             for key, value in six.iteritems(self.store):
                 yield value

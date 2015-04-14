@@ -1,0 +1,410 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>modularodm.storage.mongostorage &mdash; Modular-ODM 0.2.1 documentation</title>
+  
+
+  
+  
+
+  
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic|Roboto+Slab:400,700|Inconsolata:400,700&subset=latin,cyrillic' rel='stylesheet' type='text/css'>
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Modular-ODM 0.2.1 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/modernizr/2.6.2/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-nav-search">
+        
+          <a href="../../../index.html" class="fa fa-home"> Modular-ODM</a>
+        
+        
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        
+          
+          
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../storedobject.html">StoredObject</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../backends.html">Backends</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../backends.html#ephemeral">Ephemeral</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../backends.html#mongo">Mongo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../backends.html#pickle">Pickle</a></li>
+</ul>
+</li>
+</ul>
+
+          
+        
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../index.html">Modular-ODM</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      
+    <li>modularodm.storage.mongostorage</li>
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document">
+            
+  <h1>Source code for modularodm.storage.mongostorage</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*_</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">pymongo</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="kn">import</span> <span class="n">Storage</span><span class="p">,</span> <span class="n">KeyExistsException</span>
+<span class="kn">from</span> <span class="nn">..query.queryset</span> <span class="kn">import</span> <span class="n">BaseQuerySet</span>
+<span class="kn">from</span> <span class="nn">..query.query</span> <span class="kn">import</span> <span class="n">QueryGroup</span>
+<span class="kn">from</span> <span class="nn">..query.query</span> <span class="kn">import</span> <span class="n">RawQuery</span>
+<span class="kn">from</span> <span class="nn">modularodm.exceptions</span> <span class="kn">import</span> <span class="n">NoResultsFound</span><span class="p">,</span> <span class="n">MultipleResultsFound</span>
+
+
+<span class="c"># From mongoengine.queryset.transform</span>
+<span class="n">COMPARISON_OPERATORS</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;ne&#39;</span><span class="p">,</span> <span class="s">&#39;gt&#39;</span><span class="p">,</span> <span class="s">&#39;gte&#39;</span><span class="p">,</span> <span class="s">&#39;lt&#39;</span><span class="p">,</span> <span class="s">&#39;lte&#39;</span><span class="p">,</span> <span class="s">&#39;in&#39;</span><span class="p">,</span> <span class="s">&#39;nin&#39;</span><span class="p">,</span> <span class="s">&#39;mod&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;all&#39;</span><span class="p">,</span> <span class="s">&#39;size&#39;</span><span class="p">,</span> <span class="s">&#39;exists&#39;</span><span class="p">,</span> <span class="s">&#39;not&#39;</span><span class="p">,</span> <span class="s">&#39;elemMatch&#39;</span><span class="p">)</span>
+<span class="c"># GEO_OPERATORS        = (&#39;within_distance&#39;, &#39;within_spherical_distance&#39;,</span>
+<span class="c">#                         &#39;within_box&#39;, &#39;within_polygon&#39;, &#39;near&#39;, &#39;near_sphere&#39;,</span>
+<span class="c">#                         &#39;max_distance&#39;, &#39;geo_within&#39;, &#39;geo_within_box&#39;,</span>
+<span class="c">#                         &#39;geo_within_polygon&#39;, &#39;geo_within_center&#39;,</span>
+<span class="c">#                         &#39;geo_within_sphere&#39;, &#39;geo_intersects&#39;)</span>
+<span class="n">STRING_OPERATORS</span>     <span class="o">=</span> <span class="p">(</span><span class="s">&#39;contains&#39;</span><span class="p">,</span> <span class="s">&#39;icontains&#39;</span><span class="p">,</span> <span class="s">&#39;startswith&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;istartswith&#39;</span><span class="p">,</span> <span class="s">&#39;endswith&#39;</span><span class="p">,</span> <span class="s">&#39;iendswith&#39;</span><span class="p">,</span>
+                        <span class="s">&#39;exact&#39;</span><span class="p">,</span> <span class="s">&#39;iexact&#39;</span><span class="p">)</span>
+<span class="c"># CUSTOM_OPERATORS     = (&#39;match&#39;,)</span>
+<span class="c"># MATCH_OPERATORS      = (COMPARISON_OPERATORS + GEO_OPERATORS +</span>
+<span class="c">#                         STRING_OPERATORS + CUSTOM_OPERATORS)</span>
+
+<span class="c"># UPDATE_OPERATORS     = (&#39;set&#39;, &#39;unset&#39;, &#39;inc&#39;, &#39;dec&#39;, &#39;pop&#39;, &#39;push&#39;,</span>
+<span class="c">#                         &#39;push_all&#39;, &#39;pull&#39;, &#39;pull_all&#39;, &#39;add_to_set&#39;,</span>
+<span class="c">#                         &#39;set_on_insert&#39;)</span>
+
+
+<span class="c"># Adapted from mongoengine.fields</span>
+<span class="k">def</span> <span class="nf">prepare_query_value</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+
+    <span class="k">if</span> <span class="n">op</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s">&#39;i&#39;</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;startswith&#39;</span><span class="p">,</span> <span class="s">&#39;endswith&#39;</span><span class="p">,</span> <span class="s">&#39;contains&#39;</span><span class="p">,</span> <span class="s">&#39;exact&#39;</span><span class="p">):</span>
+        <span class="n">flags</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">op</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;i&#39;</span><span class="p">):</span>
+            <span class="n">flags</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s">&#39;i&#39;</span><span class="p">)</span>
+
+        <span class="n">regex</span> <span class="o">=</span> <span class="s">r&#39;</span><span class="si">%s</span><span class="s">&#39;</span>
+        <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s">&#39;startswith&#39;</span><span class="p">:</span>
+            <span class="n">regex</span> <span class="o">=</span> <span class="s">r&#39;^</span><span class="si">%s</span><span class="s">&#39;</span>
+        <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s">&#39;endswith&#39;</span><span class="p">:</span>
+            <span class="n">regex</span> <span class="o">=</span> <span class="s">r&#39;</span><span class="si">%s</span><span class="s">$&#39;</span>
+        <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s">&#39;exact&#39;</span><span class="p">:</span>
+            <span class="n">regex</span> <span class="o">=</span> <span class="s">r&#39;^</span><span class="si">%s</span><span class="s">$&#39;</span>
+
+        <span class="c"># escape unsafe characters which could lead to a re.error</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">regex</span> <span class="o">%</span> <span class="n">value</span><span class="p">,</span> <span class="n">flags</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="c"># TODO: Test me</span>
+<span class="k">def</span> <span class="nf">translate_query</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">mongo_query</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mongo_query</span> <span class="o">=</span> <span class="n">mongo_query</span> <span class="ow">or</span> <span class="p">{}</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">RawQuery</span><span class="p">):</span>
+        <span class="n">attribute</span><span class="p">,</span> <span class="n">operator</span><span class="p">,</span> <span class="n">argument</span> <span class="o">=</span> \
+            <span class="n">query</span><span class="o">.</span><span class="n">attribute</span><span class="p">,</span> <span class="n">query</span><span class="o">.</span><span class="n">operator</span><span class="p">,</span> <span class="n">query</span><span class="o">.</span><span class="n">argument</span>
+
+        <span class="k">if</span> <span class="n">operator</span> <span class="o">==</span> <span class="s">&#39;eq&#39;</span><span class="p">:</span>
+            <span class="n">mongo_query</span><span class="p">[</span><span class="n">attribute</span><span class="p">]</span> <span class="o">=</span> <span class="n">argument</span>
+
+        <span class="k">elif</span> <span class="n">operator</span> <span class="ow">in</span> <span class="n">COMPARISON_OPERATORS</span><span class="p">:</span>
+            <span class="n">mongo_operator</span> <span class="o">=</span> <span class="s">&#39;$&#39;</span> <span class="o">+</span> <span class="n">operator</span>
+            <span class="k">if</span> <span class="n">attribute</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mongo_query</span><span class="p">:</span>
+                <span class="n">mongo_query</span><span class="p">[</span><span class="n">attribute</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">mongo_query</span><span class="p">[</span><span class="n">attribute</span><span class="p">][</span><span class="n">mongo_operator</span><span class="p">]</span> <span class="o">=</span> <span class="n">argument</span>
+
+        <span class="k">elif</span> <span class="n">operator</span> <span class="ow">in</span> <span class="n">STRING_OPERATORS</span><span class="p">:</span>
+            <span class="n">mongo_operator</span> <span class="o">=</span> <span class="s">&#39;$regex&#39;</span>
+            <span class="n">mongo_regex</span> <span class="o">=</span> <span class="n">prepare_query_value</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">argument</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">attribute</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mongo_query</span><span class="p">:</span>
+                <span class="n">mongo_query</span><span class="p">[</span><span class="n">attribute</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">mongo_query</span><span class="p">[</span><span class="n">attribute</span><span class="p">][</span><span class="n">mongo_operator</span><span class="p">]</span> <span class="o">=</span> <span class="n">mongo_regex</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">QueryGroup</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">query</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s">&#39;and&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s">&#39;$and&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">translate_query</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">query</span><span class="o">.</span><span class="n">nodes</span><span class="p">]}</span>
+
+        <span class="k">elif</span> <span class="n">query</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s">&#39;or&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s">&#39;$or&#39;</span> <span class="p">:</span> <span class="p">[</span><span class="n">translate_query</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">query</span><span class="o">.</span><span class="n">nodes</span><span class="p">]}</span>
+
+        <span class="k">elif</span> <span class="n">query</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s">&#39;not&#39;</span><span class="p">:</span>
+            <span class="c"># Hack: A nor A == not A</span>
+            <span class="n">subquery</span> <span class="o">=</span> <span class="n">translate_query</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s">&#39;$nor&#39;</span> <span class="p">:</span> <span class="p">[</span><span class="n">subquery</span><span class="p">,</span> <span class="n">subquery</span><span class="p">]}</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;QueryGroup operator must be &lt;and&gt;, &lt;or&gt;, or &lt;not&gt;.&#39;</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">query</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{}</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;Query must be a QueryGroup or Query object.&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">mongo_query</span>
+
+
+<span class="k">class</span> <span class="nc">MongoQuerySet</span><span class="p">(</span><span class="n">BaseQuerySet</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">cursor</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">MongoQuerySet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">cursor</span>
+
+    <span class="k">def</span> <span class="nf">_do_getitem</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">raw</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">MongoQuerySet</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">clone</span><span class="p">()[</span><span class="n">index</span><span class="p">])</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">raw</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">primary</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">raw</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">obj</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">primary</span><span class="p">]</span> <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">clone</span><span class="p">()]</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">raw</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">each</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">primary</span><span class="p">]</span> <span class="k">for</span> <span class="n">each</span> <span class="ow">in</span> <span class="n">cursor</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">each</span><span class="p">)</span> <span class="k">for</span> <span class="n">each</span> <span class="ow">in</span> <span class="n">cursor</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">with_limit_and_skip</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="n">count</span> <span class="o">=</span> <span class="n">__len__</span>
+
+    <span class="k">def</span> <span class="nf">get_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">raw</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_keys</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__iter__</span><span class="p">(</span><span class="n">raw</span><span class="o">=</span><span class="bp">True</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">sort</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">keys</span><span class="p">):</span>
+        <span class="n">sort_key</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+
+            <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">):</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">)</span>
+                <span class="n">sign</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">DESCENDING</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sign</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">ASCENDING</span>
+
+            <span class="n">sort_key</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="n">sign</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">sort_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">offset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">skip</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">limit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+
+<div class="viewcode-block" id="MongoStorage"><a class="viewcode-back" href="../../../backends.html#modularodm.storage.mongostorage.MongoStorage">[docs]</a><span class="k">class</span> <span class="nc">MongoStorage</span><span class="p">(</span><span class="n">Storage</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Wrap a MongoDB collection. Note: `store` is a property instead of an</span>
+<span class="sd">    attribute to handle passing `db` as a proxy.</span>
+
+<span class="sd">    :param Database db:</span>
+<span class="sd">    :param str collection:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">QuerySet</span> <span class="o">=</span> <span class="n">MongoQuerySet</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">db</span><span class="p">,</span> <span class="n">collection</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db</span> <span class="o">=</span> <span class="n">db</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">collection</span> <span class="o">=</span> <span class="n">collection</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">store</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_ensure_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MongoStorage.find"><a class="viewcode-back" href="../../../backends.html#modularodm.storage.mongostorage.MongoStorage.find">[docs]</a>    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">mongo_query</span> <span class="o">=</span> <span class="n">translate_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">mongo_query</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MongoStorage.find_one"><a class="viewcode-back" href="../../../backends.html#modularodm.storage.mongostorage.MongoStorage.find_one">[docs]</a>    <span class="k">def</span> <span class="nf">find_one</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">mongo_query</span> <span class="o">=</span> <span class="n">translate_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="n">matches</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">mongo_query</span><span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">matches</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">matches</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NoResultsFound</span><span class="p">()</span>
+
+        <span class="k">raise</span> <span class="n">MultipleResultsFound</span><span class="p">(</span>
+            <span class="s">&#39;Query for find_one must return exactly one result; &#39;</span>
+            <span class="s">&#39;returned {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">matches</span><span class="o">.</span><span class="n">count</span><span class="p">())</span>
+        <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MongoStorage.get"><a class="viewcode-back" href="../../../backends.html#modularodm.storage.mongostorage.MongoStorage.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">primary_name</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="n">primary_name</span> <span class="p">:</span> <span class="n">key</span><span class="p">})</span>
+</div>
+<div class="viewcode-block" id="MongoStorage.insert"><a class="viewcode-back" href="../../../backends.html#modularodm.storage.mongostorage.MongoStorage.insert">[docs]</a>    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">primary_name</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">primary_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">value</span><span class="p">[</span><span class="n">primary_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">key</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">DuplicateKeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">KeyExistsException</span>
+</div>
+<div class="viewcode-block" id="MongoStorage.update"><a class="viewcode-back" href="../../../backends.html#modularodm.storage.mongostorage.MongoStorage.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">mongo_query</span> <span class="o">=</span> <span class="n">translate_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+
+        <span class="c"># Field &quot;_id&quot; shouldn&#39;t appear in both search and update queries; else</span>
+        <span class="c"># MongoDB will raise a &quot;Mod on _id not allowed&quot; error</span>
+        <span class="k">if</span> <span class="s">&#39;_id&#39;</span> <span class="ow">in</span> <span class="n">mongo_query</span><span class="p">:</span>
+            <span class="n">update_data</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s">&#39;_id&#39;</span><span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">update_data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="n">update_query</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;$set&#39;</span><span class="p">:</span> <span class="n">update_data</span><span class="p">}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="n">mongo_query</span><span class="p">,</span>
+            <span class="n">update_query</span><span class="p">,</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+            <span class="n">multi</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+        <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MongoStorage.remove"><a class="viewcode-back" href="../../../backends.html#modularodm.storage.mongostorage.MongoStorage.remove">[docs]</a>    <span class="k">def</span> <span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">mongo_query</span> <span class="o">=</span> <span class="n">translate_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">mongo_query</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MongoStorage.flush"><a class="viewcode-back" href="../../../backends.html#modularodm.storage.mongostorage.MongoStorage.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+</div>
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">find</span><span class="p">()</span>
+</pre></div></div>
+
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright Center For Open Science.
+    </p>
+  </div>
+
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+  
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.2.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

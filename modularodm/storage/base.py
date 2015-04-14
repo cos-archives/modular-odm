@@ -129,9 +129,10 @@ class StorageMeta(abc.ABCMeta):
 
 @six.add_metaclass(StorageMeta)
 class Storage(object):
-    """Abstract base class for storage objects. Subclasses (e.g. PickleStorage,
-    MongoStorage, etc.) must define insert, update, get, remove, flush, and
-    find_all methods.
+    """Abstract base class for storage objects. Subclasses (e.g.
+    :class:`~modularodm.storage.picklestorage.PickleStorage`,
+    :class:`~modularodm.storage.mongostorage.MongoStorage`, etc.)
+    must define insert, update, get, remove, flush, and find_all methods.
     """
     translator = DefaultTranslator()
     logger = Logger()
@@ -169,12 +170,12 @@ class Storage(object):
 
     @abc.abstractmethod
     def insert(self, primary_name, key, value):
-        '''Insert a new record.
+        """Insert a new record.
 
         :param str primary_name: Name of primary key
         :param key: The value of the primary key
         :param dict value: The dictionary of attribute:value pairs
-        '''
+        """
         pass
 
     @abc.abstractmethod
@@ -208,12 +209,26 @@ class Storage(object):
 
     @abc.abstractmethod
     def find_one(self, query=None, **kwargs):
-        """Find a single record that matches ``query``.
+        """ Gets a single object from the collection.
+
+        If no matching documents are found, raises `NoResultsFound`.
+        If >1 matching documents are found, raises `MultipleResultsFound`.
+
+        :params: One or more `Query` or `QuerySet` objects may be passed
+
+        :returns: The selected document
         """
         pass
 
     @abc.abstractmethod
     def find(self, query=None, **kwargs):
-        """Query the database and return a query set.
+        """
+        Return a generator of query results. Takes optional `by_pk` keyword
+        argument; if true, return keys rather than
+        values.
+
+        :param query:
+
+        :return: a generator of :class:`~.storedobject.StoredObject` instances
         """
         pass

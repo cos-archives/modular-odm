@@ -211,6 +211,9 @@ class ObjectMeta(type):
 
 @six.add_metaclass(ObjectMeta)
 class StoredObject(object):
+    """
+    Base class to be used for models.
+    """
 
     _collections = {}
 
@@ -955,6 +958,12 @@ class StoredObject(object):
     @has_storage
     @log_storage
     def find(cls, query=None, **kwargs):
+        """
+
+        :param query:
+        :param kwargs:
+        :return: an iterable of :class:`StoredObject` instances
+        """
         cls._process_query(query)
         return cls._storage[0].QuerySet(
             cls,

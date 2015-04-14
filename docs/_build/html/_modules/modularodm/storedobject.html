@@ -1,0 +1,1540 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>modularodm.storedobject &mdash; Modular-ODM 0.2.1 documentation</title>
+  
+
+  
+  
+
+  
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic|Roboto+Slab:400,700|Inconsolata:400,700&subset=latin,cyrillic' rel='stylesheet' type='text/css'>
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Modular-ODM 0.2.1 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/modernizr/2.6.2/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-nav-search">
+        
+          <a href="../../index.html" class="fa fa-home"> Modular-ODM</a>
+        
+        
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        
+          
+          
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../storedobject.html">StoredObject</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../backends.html">Backends</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../backends.html#ephemeral">Ephemeral</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../backends.html#mongo">Mongo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../backends.html#pickle">Pickle</a></li>
+</ul>
+</li>
+</ul>
+
+          
+        
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">Modular-ODM</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+    <li>modularodm.storedobject</li>
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document">
+            
+  <h1>Source code for modularodm.storedobject</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">import</span> <span class="nn">six</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">signals</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">exceptions</span>
+<span class="kn">from</span> <span class="nn">.fields</span> <span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">ListField</span><span class="p">,</span> <span class="n">ForeignList</span><span class="p">,</span> <span class="n">AbstractForeignList</span>
+<span class="kn">from</span> <span class="nn">.storage</span> <span class="kn">import</span> <span class="n">Storage</span>
+<span class="kn">from</span> <span class="nn">.query</span> <span class="kn">import</span> <span class="n">QueryBase</span><span class="p">,</span> <span class="n">RawQuery</span><span class="p">,</span> <span class="n">QueryGroup</span>
+<span class="kn">from</span> <span class="nn">.frozen</span> <span class="kn">import</span> <span class="n">FrozenDict</span>
+<span class="kn">from</span> <span class="nn">.cache</span> <span class="kn">import</span> <span class="n">Cache</span>
+<span class="kn">from</span> <span class="nn">.writequeue</span> <span class="kn">import</span> <span class="n">WriteQueue</span><span class="p">,</span> <span class="n">WriteAction</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ContextLogger</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">sort_func</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">xtra</span><span class="o">.</span><span class="n">_name</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">xtra</span> <span class="k">else</span> <span class="bp">None</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">report</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sort_func</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">report</span><span class="p">(</span><span class="n">sort_func</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">sort_func</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">log_level</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">xtra</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">sort_func</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_level</span> <span class="o">=</span> <span class="n">log_level</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">xtra</span> <span class="o">=</span> <span class="n">xtra</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sort_func</span> <span class="o">=</span> <span class="n">sort_func</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">sort_func</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">Storage</span><span class="o">.</span><span class="n">logger</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">listening</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">xtra</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_val</span><span class="p">,</span> <span class="n">exc_tb</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">listening</span><span class="p">:</span>
+            <span class="n">report</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">report</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">xtra</span><span class="o">.</span><span class="n">_name</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">xtra</span> <span class="k">else</span> <span class="bp">None</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_level</span><span class="p">,</span> <span class="n">report</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">deref</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">missing</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="k">return</span> <span class="n">deref</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">missing</span><span class="o">=</span><span class="n">missing</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">missing</span>
+
+
+<span class="k">def</span> <span class="nf">flatten_backrefs</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">stack</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+
+    <span class="n">stack</span> <span class="o">=</span> <span class="n">stack</span> <span class="ow">or</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">stack</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+
+    <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">flatten_backrefs</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">stack</span> <span class="o">+</span> <span class="p">[</span><span class="n">key</span><span class="p">]))</span>
+
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span> <span class="nf">log_storage</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapped</span><span class="p">(</span><span class="n">this</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="n">cls</span> <span class="o">=</span> <span class="n">this</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">this</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="k">else</span> <span class="nb">type</span><span class="p">(</span><span class="n">this</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">ContextLogger</span><span class="p">(</span><span class="n">log_level</span><span class="o">=</span><span class="n">this</span><span class="o">.</span><span class="n">_log_level</span><span class="p">,</span> <span class="n">xtra</span><span class="o">=</span><span class="n">cls</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">this</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">wrapped</span>
+
+
+<span class="k">def</span> <span class="nf">warn_if_detached</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Warn if self / cls is detached. &quot;&quot;&quot;</span>
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapped</span><span class="p">(</span><span class="n">this</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c"># Check for _detached in __dict__ instead of using hasattr</span>
+        <span class="c"># to avoid infinite loop in __getattr__</span>
+        <span class="k">if</span> <span class="s">&#39;_detached&#39;</span> <span class="ow">in</span> <span class="n">this</span><span class="o">.</span><span class="n">__dict__</span> <span class="ow">and</span> <span class="n">this</span><span class="o">.</span><span class="n">_detached</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;here&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">this</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">wrapped</span>
+
+
+<span class="k">def</span> <span class="nf">has_storage</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Ensure that self/cls contains a Storage backend. &quot;&quot;&quot;</span>
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapped</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">me</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">me</span><span class="p">,</span> <span class="s">&#39;_storage&#39;</span><span class="p">)</span> <span class="ow">or</span> \
+                <span class="ow">not</span> <span class="n">me</span><span class="o">.</span><span class="n">_storage</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">ImproperConfigurationError</span><span class="p">(</span>
+                <span class="s">&#39;No storage backend attached to schema &lt;{0}&gt;.&#39;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">me</span><span class="o">.</span><span class="n">_name</span><span class="o">.</span><span class="n">upper</span><span class="p">())</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">wrapped</span>
+
+
+<span class="k">class</span> <span class="nc">ObjectMeta</span><span class="p">(</span><span class="nb">type</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">add_field</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+
+        <span class="c"># Skip if not descriptor</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">Field</span><span class="p">):</span>
+            <span class="k">return</span>
+
+        <span class="c"># Memorize parent references</span>
+        <span class="n">field</span><span class="o">.</span><span class="n">_schema_class</span> <span class="o">=</span> <span class="n">cls</span>
+        <span class="n">field</span><span class="o">.</span><span class="n">_field_name</span> <span class="o">=</span> <span class="n">name</span>
+
+        <span class="c"># Check for primary key</span>
+        <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">_is_primary</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span> <span class="o">=</span> <span class="n">name</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_primary_type</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">data_type</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+                    <span class="s">&#39;Multiple primary keys are not supported.&#39;</span><span class="p">)</span>
+
+        <span class="c"># Wrap in list</span>
+        <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">_list</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">ListField</span><span class="p">):</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="n">ListField</span><span class="p">(</span>
+                <span class="n">field</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">field</span><span class="o">.</span><span class="n">_kwargs</span>
+            <span class="p">)</span>
+            <span class="c"># Memorize parent references</span>
+            <span class="n">field</span><span class="o">.</span><span class="n">_schema_class</span> <span class="o">=</span> <span class="n">cls</span>
+            <span class="n">field</span><span class="o">.</span><span class="n">_field_name</span> <span class="o">=</span> <span class="n">name</span>
+            <span class="c"># Set parent pointer of child field to list field</span>
+            <span class="n">field</span><span class="o">.</span><span class="n">_field_instance</span><span class="o">.</span><span class="n">_list_container</span> <span class="o">=</span> <span class="n">field</span>
+
+        <span class="c"># Subscribe to schema events</span>
+        <span class="n">field</span><span class="o">.</span><span class="n">subscribe</span><span class="p">(</span><span class="n">sender</span><span class="o">=</span><span class="n">cls</span><span class="p">)</span>
+
+        <span class="c"># Store descriptor to cls, cls._fields</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">field</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dct</span><span class="p">):</span>
+
+        <span class="c"># Run super-metaclass __init__</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ObjectMeta</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dct</span><span class="p">)</span>
+
+        <span class="c"># Store prettified name</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+        <span class="c"># Store parameters from _meta</span>
+        <span class="n">my_meta</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;_meta&#39;</span><span class="p">,</span> <span class="p">{})</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_is_optimistic</span> <span class="o">=</span> <span class="n">my_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;optimistic&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_is_abstract</span> <span class="o">=</span> <span class="n">my_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;abstract&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_log_level</span> <span class="o">=</span> <span class="n">my_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;log_level&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_version_of</span> <span class="o">=</span> <span class="n">my_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;version_of&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_version</span> <span class="o">=</span> <span class="n">my_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;version&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_record_validators</span> <span class="o">=</span> <span class="n">my_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;validators&#39;</span><span class="p">,</span> <span class="p">[])</span>
+
+        <span class="c"># Prepare fields</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_primary_type</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">add_field</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">bases</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="s">&#39;_fields&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">_fields</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">base</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">add_field</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+        <span class="c"># Impute field named _id as primary if no primary field specified;</span>
+        <span class="c"># must be exactly one primary field unless abstract</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_is_root</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s">&#39;_id&#39;</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+                    <span class="n">primary_field</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="s">&#39;_id&#39;</span><span class="p">]</span>
+                    <span class="n">primary_field</span><span class="o">.</span><span class="n">_is_primary</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">if</span> <span class="s">&#39;index&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">primary_field</span><span class="o">.</span><span class="n">_kwargs</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">primary_field</span><span class="o">.</span><span class="n">_kwargs</span><span class="p">[</span><span class="s">&#39;index&#39;</span><span class="p">]:</span>
+                        <span class="n">primary_field</span><span class="o">.</span><span class="n">_index</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span> <span class="o">=</span> <span class="s">&#39;_id&#39;</span>
+                    <span class="n">cls</span><span class="o">.</span><span class="n">_primary_type</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="s">&#39;_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data_type</span>
+                <span class="k">elif</span> <span class="ow">not</span> <span class="n">cls</span><span class="o">.</span><span class="n">_is_abstract</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+                        <span class="s">&#39;Schemas must either define a field named _id or &#39;</span>
+                        <span class="s">&#39;specify exactly one field as primary.&#39;</span><span class="p">)</span>
+            <span class="c"># Register</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">register_collection</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_is_root</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_translator</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">translator</span>
+
+
+<span class="nd">@six.add_metaclass</span><span class="p">(</span><span class="n">ObjectMeta</span><span class="p">)</span>
+<div class="viewcode-block" id="StoredObject"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject">[docs]</a><span class="k">class</span> <span class="nc">StoredObject</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class to be used for models.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_collections</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">_cache</span> <span class="o">=</span> <span class="n">Cache</span><span class="p">()</span>
+    <span class="n">_object_cache</span> <span class="o">=</span> <span class="n">Cache</span><span class="p">()</span>
+    <span class="n">queue</span> <span class="o">=</span> <span class="n">WriteQueue</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c"># Crash if abstract</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_abstract</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;Cannot instantiate abstract schema&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dirty</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_detached</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_loaded</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;_is_loaded&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stored_key</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="c"># Impute non-lazy default values (e.g. datetime with auto_now=True)</span>
+        <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">lazy_default</span><span class="p">:</span>
+                <span class="n">value</span><span class="o">.</span><span class="n">__set__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">_gen_default</span><span class="p">(),</span> <span class="n">safe</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="c"># Add kwargs to instance</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">field</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="n">field</span><span class="o">.</span><span class="n">__set__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s">&#39;__backrefs&#39;</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="s">&#39;_StoredObject__backrefs&#39;</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_loaded</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_cache</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span> <span class="ow">is</span> <span class="n">other</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">True</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">False</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_storage</span><span class="p">()</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">to_storage</span><span class="p">()</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+            <span class="c"># Can&#39;t compare with &quot;other&quot;. Try the reverse comparison</span>
+            <span class="k">return</span> <span class="bp">NotImplemented</span>
+
+    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="n">equal</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">equal</span> <span class="k">if</span> <span class="n">equal</span> <span class="ow">is</span> <span class="bp">NotImplemented</span> <span class="k">else</span> <span class="ow">not</span> <span class="n">equal</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># TODO: Is this the right thing to do?</span>
+        <span class="k">return</span> <span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@warn_if_detached</span>
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">unicode</span><span class="p">({</span><span class="n">field</span> <span class="p">:</span> <span class="nb">unicode</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">))</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">})</span>
+
+    <span class="nd">@warn_if_detached</span>
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;ascii&#39;</span><span class="p">,</span> <span class="s">&#39;replace&#39;</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">register_collection</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_collections</span><span class="p">[</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">cls</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">get_collection</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_collections</span><span class="p">[</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_primary_key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">)</span>
+
+    <span class="nd">@_primary_key.setter</span>
+    <span class="k">def</span> <span class="nf">_primary_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_storage_key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Primary key passed through translator. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@has_storage</span>
+    <span class="k">def</span> <span class="nf">_translator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">_translator</span>
+
+    <span class="nd">@has_storage</span>
+    <span class="k">def</span> <span class="nf">to_storage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">translator</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">clone</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">field_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+
+            <span class="c"># Ignore primary and foreign fields if cloning</span>
+            <span class="c"># TODO: test this</span>
+            <span class="k">if</span> <span class="n">clone</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">field_object</span><span class="o">.</span><span class="n">_is_primary</span> <span class="ow">or</span> <span class="n">field_object</span><span class="o">.</span><span class="n">_is_foreign</span><span class="p">:</span>
+                    <span class="k">continue</span>
+            <span class="n">field_value</span> <span class="o">=</span> <span class="n">field_object</span><span class="o">.</span><span class="n">to_storage</span><span class="p">(</span>
+                <span class="n">field_object</span><span class="o">.</span><span class="n">_get_underlying_data</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span>
+                <span class="n">translator</span>
+            <span class="p">)</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">field_value</span>
+
+        <span class="n">data</span><span class="p">[</span><span class="s">&#39;_version&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_version</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">clone</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s">&#39;__backrefs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span>
+
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+    <span class="k">def</span> <span class="nf">from_storage</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">translator</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+
+            <span class="n">field_object</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field_object</span><span class="p">,</span> <span class="n">Field</span><span class="p">):</span>
+                <span class="n">data_value</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">data_value</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="bp">None</span>
+                    <span class="n">result</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">field_object</span><span class="o">.</span><span class="n">from_storage</span><span class="p">(</span><span class="n">data_value</span><span class="p">,</span> <span class="n">translator</span><span class="p">)</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">clone</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">load</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">to_storage</span><span class="p">(</span><span class="n">clone</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span>
+            <span class="n">_is_loaded</span><span class="o">=</span><span class="bp">False</span>
+        <span class="p">)</span>
+
+    <span class="c"># Backreferences</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_backrefs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">FrozenDict</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">)</span>
+
+    <span class="nd">@_backrefs.setter</span>
+    <span class="k">def</span> <span class="nf">_backrefs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">ModularOdmException</span><span class="p">(</span><span class="s">&#39;Cannot modify _backrefs.&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_backrefs_flat</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">flatten_backrefs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_remove_backref</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">backref_key</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">backref_key</span><span class="p">][</span><span class="n">parent</span><span class="o">.</span><span class="n">_name</span><span class="p">][</span><span class="n">parent_field_name</span><span class="p">]</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">parent</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">strict</span><span class="p">:</span>
+                <span class="k">raise</span>
+
+    <span class="k">def</span> <span class="nf">_update_backref</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">backref_key</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">):</span>
+        <span class="n">updated</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">refs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">backref_key</span><span class="p">][</span><span class="n">parent</span><span class="o">.</span><span class="n">_name</span><span class="p">][</span><span class="n">parent_field_name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">refs</span><span class="p">[</span><span class="n">refs</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">parent</span><span class="o">.</span><span class="n">_stored_key</span><span class="p">)]</span> <span class="o">!=</span> <span class="n">parent</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">:</span>
+                <span class="n">refs</span><span class="p">[</span><span class="n">refs</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">parent</span><span class="o">.</span><span class="n">_stored_key</span><span class="p">)]</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">_primary_key</span>
+                <span class="n">updated</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_backref</span><span class="p">(</span><span class="n">backref_key</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">if</span> <span class="n">updated</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">_set_backref</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">backref_key</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">,</span> <span class="n">backref_value</span><span class="p">):</span>
+
+        <span class="n">backref_value_class_name</span> <span class="o">=</span> <span class="n">backref_value</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">_name</span>
+        <span class="n">backref_value_primary_key</span> <span class="o">=</span> <span class="n">backref_value</span><span class="o">.</span><span class="n">_primary_key</span>
+
+        <span class="k">if</span> <span class="n">backref_value_primary_key</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">DatabaseError</span><span class="p">(</span><span class="s">&#39;backref object</span><span class="se">\&#39;</span><span class="s">s primary key must be saved first&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">backref_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">backref_key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">backref_value_class_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">backref_key</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">backref_key</span><span class="p">][</span><span class="n">backref_value_class_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">parent_field_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">backref_key</span><span class="p">][</span><span class="n">backref_value_class_name</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">backref_key</span><span class="p">][</span><span class="n">backref_value_class_name</span><span class="p">][</span><span class="n">parent_field_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">append_to</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">backref_key</span><span class="p">][</span><span class="n">backref_value_class_name</span><span class="p">][</span><span class="n">parent_field_name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">backref_value_primary_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">append_to</span><span class="p">:</span>
+            <span class="n">append_to</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">backref_value_primary_key</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">set_storage</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">storage</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">storage</span><span class="p">,</span> <span class="n">Storage</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;Argument to set_storage must be an instance of Storage.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="s">&#39;_storage&#39;</span><span class="p">):</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">field_object</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">field_object</span><span class="o">.</span><span class="n">_index</span><span class="p">:</span>
+                <span class="n">storage</span><span class="o">.</span><span class="n">_ensure_index</span><span class="p">(</span><span class="n">field_name</span><span class="p">)</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">storage</span><span class="p">)</span>
+
+    <span class="c"># Caching ################################################################</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_is_cached</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_object_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_load_from_cache</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="n">trans_key</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_object_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">trans_key</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_set_cache</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">trans_key</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_object_cache</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">trans_key</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">trans_key</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_cache</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="n">trans_key</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_object_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">trans_key</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_cached_data</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StoredObject.get_changed_fields"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.get_changed_fields">[docs]</a>    <span class="k">def</span> <span class="nf">get_changed_fields</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cached_data</span><span class="p">,</span> <span class="n">storage_data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get fields that differ between the cache_sandbox and the current object.</span>
+<span class="sd">        Validation and after_save methods should only be run on diffed</span>
+<span class="sd">        fields.</span>
+
+<span class="sd">        :param cached_data: Storage-formatted data from cache_sandbox</span>
+<span class="sd">        :param storage_data: Storage-formatted data from object</span>
+<span class="sd">        :return: List of diffed fields</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_loaded</span> <span class="ow">or</span> <span class="n">cached_data</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">field</span>
+            <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span>
+            <span class="k">if</span> <span class="n">cached_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">field</span><span class="p">)</span> <span class="o">!=</span> <span class="n">storage_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">field</span><span class="p">)</span>
+        <span class="p">]</span>
+
+    <span class="c"># Cache clearing</span>
+</div>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_clear_data_cache</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">clear_schema</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_clear_object_cache</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_object_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_object_cache</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_object_cache</span><span class="o">.</span><span class="n">clear_schema</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_name</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_clear_caches</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_clear_data_cache</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_clear_object_cache</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="c">###########################################################################</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_to_primary_key</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">value</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">cls</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">_primary_key</span>
+
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_check_pk_type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_check_pk_type</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">cls</span><span class="o">.</span><span class="n">_primary_type</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">key</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_primary_type</span><span class="p">()</span>
+            <span class="n">cast_type</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_primary_type</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">cast_type</span> <span class="o">=</span> <span class="nb">str</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">cast_type</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s">&#39;Invalid key type: {key}, {type}, {ptype}.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">type</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="n">ptype</span><span class="o">=</span><span class="n">cast_type</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">key</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+    <span class="nd">@log_storage</span>
+<div class="viewcode-block" id="StoredObject.load"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.load">[docs]</a>    <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">_is_loaded</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get a record by its primary key.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># Emit load signal</span>
+        <span class="n">signals</span><span class="o">.</span><span class="n">load</span><span class="o">.</span><span class="n">send</span><span class="p">(</span>
+            <span class="n">cls</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_check_pk_type</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="n">cached_object</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_load_from_cache</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">cached_object</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">cached_object</span>
+
+        <span class="c"># Try loading from backend</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span> <span class="n">cls</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+
+        <span class="c"># if not found, return None</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+
+        <span class="c"># Convert storage data to ODM</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">from_storage</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_version_of</span> <span class="ow">and</span> <span class="s">&#39;_version&#39;</span> <span class="ow">in</span> <span class="n">data</span> <span class="ow">and</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;_version&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_version</span><span class="p">:</span>
+            <span class="n">old_object</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_version_of</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">new_object</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">_is_loaded</span><span class="o">=</span><span class="n">_is_loaded</span><span class="p">)</span>
+
+            <span class="n">cls</span><span class="o">.</span><span class="n">migrate</span><span class="p">(</span><span class="n">old_object</span><span class="p">,</span> <span class="n">new_object</span><span class="p">)</span>
+            <span class="n">new_object</span><span class="o">.</span><span class="n">_stored_key</span> <span class="o">=</span> <span class="n">new_object</span><span class="o">.</span><span class="n">_primary_key</span>
+
+            <span class="k">return</span> <span class="n">new_object</span>
+
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">_is_loaded</span><span class="o">=</span><span class="n">_is_loaded</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">_stored_key</span> <span class="o">=</span> <span class="n">ret</span><span class="o">.</span><span class="n">_primary_key</span>
+
+        <span class="k">return</span> <span class="n">ret</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="StoredObject.migrate_all"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.migrate_all">[docs]</a>    <span class="k">def</span> <span class="nf">migrate_all</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Migrate all records in this collection.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">find</span><span class="p">():</span>
+            <span class="n">record</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="StoredObject.migrate"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.migrate">[docs]</a>    <span class="k">def</span> <span class="nf">migrate</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">dry_run</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">rm_refs</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Migrate record to new schema.</span>
+
+<span class="sd">        :param old: Record from original schema</span>
+<span class="sd">        :param new: Record from new schema</span>
+<span class="sd">        :param verbose: Print detailed info</span>
+<span class="sd">        :param dry_run: Dry run; make no changes if true</span>
+<span class="sd">        :param rm_refs: Remove references on deleted fields</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">format</span><span class="o">=</span><span class="s">&#39;</span><span class="si">%(levelname)s</span><span class="s"> </span><span class="si">%(filename)s</span><span class="s">: </span><span class="si">%(message)s</span><span class="s">&#39;</span><span class="p">,</span>
+                                <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="c"># Check deleted, added fields</span>
+        <span class="n">deleted_fields</span> <span class="o">=</span> <span class="p">[</span><span class="n">field</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">old</span><span class="o">.</span><span class="n">_fields</span> <span class="k">if</span> <span class="n">field</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">new</span><span class="o">.</span><span class="n">_fields</span><span class="p">]</span>
+        <span class="n">added_fields</span> <span class="o">=</span> <span class="p">[</span><span class="n">field</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">new</span><span class="o">.</span><span class="n">_fields</span> <span class="k">if</span> <span class="n">field</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">old</span><span class="o">.</span><span class="n">_fields</span><span class="p">]</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Will delete fields: {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">deleted_fields</span><span class="p">))</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Will add fields: {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">added_fields</span><span class="p">))</span>
+
+        <span class="c"># Check change in primary key</span>
+        <span class="k">if</span> <span class="n">old</span><span class="o">.</span><span class="n">_primary_name</span> <span class="o">!=</span> <span class="n">new</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;The primary key will change from {old_name}: {old_field} to &quot;</span>
+                <span class="s">&quot;{new_name}: {new_field} in this migration. Primary keys and &quot;</span>
+                <span class="s">&quot;backreferences will not be automatically migrated. If you want &quot;</span>
+                <span class="s">&quot;to migrate primary keys, you should handle this in your &quot;</span>
+                <span class="s">&quot;migrate() method.&quot;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">old_name</span><span class="o">=</span><span class="n">old</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span>
+                            <span class="n">old_field</span><span class="o">=</span><span class="n">old</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">old</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">],</span>
+                            <span class="n">new_name</span><span class="o">=</span><span class="n">new</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span>
+                            <span class="n">new_field</span><span class="o">=</span><span class="n">new</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">new</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">]))</span>
+
+        <span class="c"># Copy fields to new object</span>
+        <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">old</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+
+            <span class="c"># Delete forward references on deleted fields</span>
+            <span class="k">if</span> <span class="n">field</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">rm_refs</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Backreferences to this object keyed on foreign &quot;</span>
+                        <span class="s">&quot;field {name}: {field} will be deleted in this migration. &quot;</span>
+                        <span class="s">&quot;To prevent this behavior, re-run with &lt;rm_fwd_refs&gt; &quot;</span>
+                        <span class="s">&quot;set to False.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">field</span><span class="p">,</span>
+                                              <span class="n">field</span><span class="o">=</span><span class="n">old</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">field</span><span class="p">]))</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">dry_run</span><span class="p">:</span>
+                        <span class="n">rm_fwd_refs</span><span class="p">(</span><span class="n">old</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Backreferences to this object keyed on foreign field &quot;</span>
+                        <span class="s">&quot;{name}: {field} will be not deleted in this migration. &quot;</span>
+                        <span class="s">&quot;To add this behavior, re-run with &lt;rm_fwd_refs&gt; &quot;</span>
+                        <span class="s">&quot;set to True.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">field</span><span class="p">,</span>
+                                            <span class="n">field</span><span class="o">=</span><span class="n">old</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">field</span><span class="p">]))</span>
+                <span class="k">continue</span>
+
+            <span class="c"># Check for field change</span>
+            <span class="n">old_field_obj</span> <span class="o">=</span> <span class="n">old</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
+            <span class="n">new_field_obj</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">old_field_obj</span> <span class="o">!=</span> <span class="n">new_field_obj</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">old_field_obj</span><span class="o">.</span><span class="n">_required</span> <span class="ow">and</span> <span class="n">new_field_obj</span><span class="o">.</span><span class="n">_required</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Field {name!r} is now required &quot;</span>
+                            <span class="s">&quot;and therefore needs a default value &quot;</span>
+                            <span class="s">&quot;for existing records. You can set &quot;</span>
+                            <span class="s">&quot;this value in the _migrate() method. &quot;</span>
+                            <span class="s">&quot;</span><span class="se">\n</span><span class="s">Example: &quot;</span>
+                            <span class="s">&quot;</span><span class="se">\n</span><span class="s">    if not old.{name}:&quot;</span>
+                            <span class="s">&quot;</span><span class="se">\n</span><span class="s">        new.{name} = &#39;default value&#39;&quot;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">field</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="s">&quot;Old field {name}: {old_field} differs from new field &quot;</span>
+                        <span class="s">&quot;{name}: {new_field}. This field will not be &quot;</span>
+                        <span class="s">&quot;automatically migrated. If you want to migrate this &quot;</span>
+                        <span class="s">&quot;field, you should handle this in your migrate() &quot;</span>
+                        <span class="s">&quot;method.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">field</span><span class="p">,</span>
+                                         <span class="n">old_field</span><span class="o">=</span><span class="n">old_field_obj</span><span class="p">,</span>
+                                         <span class="n">new_field</span><span class="o">=</span><span class="n">new_field_obj</span><span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="c"># Copy values of retained fields</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">dry_run</span><span class="p">:</span>
+                <span class="n">field_object</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
+                <span class="n">field_object</span><span class="o">.</span><span class="n">__set__</span><span class="p">(</span>
+                    <span class="n">new</span><span class="p">,</span>
+                    <span class="nb">getattr</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">field</span><span class="p">),</span>
+                    <span class="n">safe</span><span class="o">=</span><span class="bp">True</span>
+                <span class="p">)</span>
+
+        <span class="c"># Copy backreferences</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dry_run</span><span class="p">:</span>
+            <span class="n">new</span><span class="o">.</span><span class="n">__backrefs</span> <span class="o">=</span> <span class="n">old</span><span class="o">.</span><span class="n">__backrefs</span>
+
+        <span class="c"># Run custom migration</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dry_run</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_migrate</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
+</div>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_migrate</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Subclasses can override this class to perform a custom migration.</span>
+<span class="sd">        This is run after the migrate() method.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">        ::</span>
+
+<span class="sd">            class NewSchema(StoredObject):</span>
+<span class="sd">                _id = fields.StringField(primary=True, index=True)</span>
+<span class="sd">                my_string = fields.StringField()</span>
+
+<span class="sd">                @classmethod</span>
+<span class="sd">                def _migrate(cls, old, new):</span>
+<span class="sd">                    new.my_string = old.my_string + &#39;yo&#39;</span>
+
+<span class="sd">                _meta = {</span>
+<span class="sd">                    &#39;version_of&#39;: OldSchema,</span>
+<span class="sd">                    &#39;version&#39;: 2,</span>
+<span class="sd">                    &#39;optimistic&#39;: True</span>
+<span class="sd">                }</span>
+
+<span class="sd">        :param old: Record from original schema</span>
+<span class="sd">        :param new: Record from new schema</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">new</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">explain_migration</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">format</span><span class="o">=</span><span class="s">&#39;</span><span class="si">%(levelname)s</span><span class="s"> </span><span class="si">%(filename)s</span><span class="s">: </span><span class="si">%(message)s</span><span class="s">&#39;</span><span class="p">,</span>
+                            <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+
+        <span class="n">classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">cls</span><span class="p">]</span>
+        <span class="n">methods</span> <span class="o">=</span> <span class="p">[</span><span class="n">cls</span><span class="o">.</span><span class="n">_migrate</span><span class="p">]</span>
+        <span class="n">klass</span> <span class="o">=</span> <span class="n">cls</span>
+        <span class="k">while</span> <span class="n">klass</span><span class="o">.</span><span class="n">_version</span> <span class="ow">and</span> <span class="n">klass</span><span class="o">.</span><span class="n">_version_of</span><span class="p">:</span>
+            <span class="n">classes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">klass</span><span class="o">.</span><span class="n">_version_of</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">methods</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">klass</span><span class="o">.</span><span class="n">_migrate</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="n">methods</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="n">klass</span> <span class="o">=</span> <span class="n">klass</span><span class="o">.</span><span class="n">_version_of</span>
+
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">classes</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+
+            <span class="n">fr</span> <span class="o">=</span> <span class="n">classes</span><span class="p">[</span><span class="n">step</span><span class="p">]</span>
+            <span class="n">to</span> <span class="o">=</span> <span class="n">classes</span><span class="p">[</span><span class="n">step</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;From schema {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fr</span><span class="o">.</span><span class="n">_name</span><span class="p">))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\t</span><span class="s">{0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">field</span><span class="p">)</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fr</span><span class="o">.</span><span class="n">_fields</span><span class="p">))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;To schema {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">to</span><span class="o">.</span><span class="n">_name</span><span class="p">))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\t</span><span class="s">{0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">field</span><span class="p">)</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">to</span><span class="o">.</span><span class="n">_fields</span><span class="p">))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+
+            <span class="n">to</span><span class="o">.</span><span class="n">migrate</span><span class="p">(</span><span class="n">fr</span><span class="p">,</span> <span class="n">to</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">dry_run</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_must_be_loaded</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">_is_loaded</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">DatabaseError</span><span class="p">(</span><span class="s">&#39;Record must be loaded.&#39;</span><span class="p">)</span>
+
+    <span class="nd">@has_storage</span>
+    <span class="nd">@log_storage</span>
+    <span class="k">def</span> <span class="nf">_optimistic_insert</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">_optimistic_insert</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">to_storage</span><span class="p">()</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="StoredObject.validate_record"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.validate_record">[docs]</a>    <span class="k">def</span> <span class="nf">validate_record</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Apply record-level validation. Run on `save`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">validator</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record_validators</span><span class="p">:</span>
+            <span class="n">validator</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+</div>
+    <span class="nd">@has_storage</span>
+    <span class="nd">@log_storage</span>
+<div class="viewcode-block" id="StoredObject.save"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.save">[docs]</a>    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Save a record.</span>
+
+<span class="sd">        :param bool force: Save even if no fields have changed; used to update</span>
+<span class="sd">            back-references</span>
+<span class="sd">        :returns: List of changed fields</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_detached</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">DatabaseError</span><span class="p">(</span><span class="s">&#39;Cannot save detached object.&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">field_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">field_object</span><span class="p">,</span> <span class="s">&#39;on_before_save&#39;</span><span class="p">):</span>
+                <span class="n">field_object</span><span class="o">.</span><span class="n">on_before_save</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="n">signals</span><span class="o">.</span><span class="n">before_save</span><span class="o">.</span><span class="n">send</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span>
+            <span class="n">instance</span><span class="o">=</span><span class="bp">self</span>
+        <span class="p">)</span>
+
+        <span class="n">cached_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_cached_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stored_key</span><span class="p">)</span>
+        <span class="n">storage_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_storage</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">cached_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">fields_changed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">get_changed_fields</span><span class="p">(</span><span class="n">cached_data</span><span class="p">,</span> <span class="n">storage_data</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fields_changed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+        <span class="c"># Quit if no diffs</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">fields_changed</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">force</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="c"># Apply field-level validation</span>
+        <span class="k">for</span> <span class="n">field_name</span> <span class="ow">in</span> <span class="n">fields_changed</span><span class="p">:</span>
+            <span class="n">field_object</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span>
+            <span class="n">field_object</span><span class="o">.</span><span class="n">do_validate</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_name</span><span class="p">),</span> <span class="bp">self</span><span class="p">)</span>
+
+        <span class="c"># Apply record-level validation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">validate_record</span><span class="p">()</span>
+
+        <span class="n">primary_changed</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stored_key</span>
+            <span class="ow">and</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_primary_name</span> <span class="ow">in</span> <span class="n">fields_changed</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_loaded</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">primary_changed</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;_updating_key&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">delegate</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">remove</span><span class="p">,</span>
+                    <span class="bp">False</span><span class="p">,</span>
+                    <span class="n">RawQuery</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span> <span class="s">&#39;eq&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stored_key</span><span class="p">)</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_clear_caches</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stored_key</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span> <span class="n">storage_data</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">update_one</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">storage_data</span><span class="o">=</span><span class="n">storage_data</span><span class="p">,</span> <span class="n">saved</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">inmem</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_optimistic</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_optimistic_insert</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span> <span class="n">storage_data</span><span class="p">)</span>
+
+        <span class="c"># if primary key has changed, follow back references and update</span>
+        <span class="c"># AND</span>
+        <span class="c"># run after_save or after_save_on_difference</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_loaded</span> <span class="ow">and</span> <span class="n">primary_changed</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;_updating_key&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_updating_key</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="n">update_backref_keys</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_stored_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_updating_key</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stored_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_loaded</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="n">signals</span><span class="o">.</span><span class="n">save</span><span class="o">.</span><span class="n">send</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span>
+            <span class="n">instance</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+            <span class="n">fields_changed</span><span class="o">=</span><span class="n">fields_changed</span><span class="p">,</span>
+            <span class="n">cached_data</span><span class="o">=</span><span class="n">cached_data</span> <span class="ow">or</span> <span class="p">{},</span>
+        <span class="p">)</span>
+
+        <span class="n">storage_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_storage_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_cache</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">storage_data</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">fields_changed</span>
+</div>
+    <span class="k">def</span> <span class="nf">reload</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">storage_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_storage_key</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">storage_data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">field_object</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field_object</span><span class="p">,</span> <span class="n">Field</span><span class="p">):</span>
+                <span class="n">data_value</span> <span class="o">=</span> <span class="n">storage_data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">data_value</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">field_object</span><span class="o">.</span><span class="n">from_storage</span><span class="p">(</span><span class="n">data_value</span><span class="p">)</span>
+                <span class="n">field_object</span><span class="o">.</span><span class="n">__set__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s">&#39;__backrefs&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_StoredObject__backrefs</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stored_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_cache</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_storage_key</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">storage_data</span><span class="p">)</span>
+
+    <span class="nd">@warn_if_detached</span>
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+
+        <span class="n">errmsg</span> <span class="o">=</span> <span class="s">&#39;{cls} object has no attribute {item}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">cls</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span>
+            <span class="n">item</span><span class="o">=</span><span class="n">item</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">:</span>
+            <span class="n">backrefs</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">parent</span><span class="p">,</span> <span class="n">rest0</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">[</span><span class="n">item</span><span class="p">]):</span>
+                <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">rest1</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">rest0</span><span class="p">):</span>
+                    <span class="n">backrefs</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+                        <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">rest1</span>
+                    <span class="p">])</span>
+            <span class="k">return</span> <span class="n">AbstractForeignList</span><span class="p">(</span><span class="n">backrefs</span><span class="p">)</span>
+
+        <span class="c"># Retrieve back-references</span>
+        <span class="k">if</span> <span class="s">&#39;__&#39;</span> <span class="ow">in</span> <span class="n">item</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">item</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;__&#39;</span><span class="p">):</span>
+            <span class="n">item_split</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;__&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">item_split</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">parent_schema_name</span><span class="p">,</span> <span class="n">backref_key</span> <span class="o">=</span> <span class="n">item_split</span>
+                <span class="n">backrefs</span> <span class="o">=</span> <span class="n">deref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">,</span> <span class="p">[</span><span class="n">backref_key</span><span class="p">,</span> <span class="n">parent_schema_name</span><span class="p">],</span> <span class="n">missing</span><span class="o">=</span><span class="p">{})</span>
+                <span class="n">ids</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+                    <span class="n">backrefs</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span>
+                    <span class="p">[]</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">item_split</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">parent_schema_name</span><span class="p">,</span> <span class="n">backref_key</span><span class="p">,</span> <span class="n">parent_field_name</span> <span class="o">=</span> <span class="n">item_split</span>
+                <span class="n">ids</span> <span class="o">=</span> <span class="n">deref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__backrefs</span><span class="p">,</span> <span class="p">[</span><span class="n">backref_key</span><span class="p">,</span> <span class="n">parent_schema_name</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">],</span> <span class="n">missing</span><span class="o">=</span><span class="p">[])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="n">errmsg</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">base_class</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_collection</span><span class="p">(</span><span class="n">parent_schema_name</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">exceptions</span><span class="o">.</span><span class="n">ModularOdmException</span><span class="p">(</span>
+                    <span class="s">&#39;Unknown schema &lt;{0}&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">parent_schema_name</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="k">return</span> <span class="n">ForeignList</span><span class="p">(</span><span class="n">ids</span><span class="p">,</span> <span class="n">literal</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">base_class</span><span class="o">=</span><span class="n">base_class</span><span class="p">)</span>
+
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="n">errmsg</span><span class="p">)</span>
+
+    <span class="nd">@warn_if_detached</span>
+    <span class="k">def</span> <span class="nf">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;_&#39;</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;Setting an attribute that is neither a field nor a protected value.&#39;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">StoredObject</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="c"># Querying ######</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_key_value</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">StoredObject</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span> <span class="n">value</span>
+        <span class="k">return</span> <span class="n">value</span><span class="p">,</span> <span class="n">cls</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+    <span class="k">def</span> <span class="nf">_pk_to_storage</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">]</span><span class="o">.</span><span class="n">to_storage</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_process_query</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">RawQuery</span><span class="p">):</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">attribute</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">field</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">_is_foreign</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">argument</span><span class="p">,</span> <span class="s">&#39;_fields&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">_is_abstract</span><span class="p">:</span>
+                        <span class="n">query</span><span class="o">.</span><span class="n">argument</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="n">query</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span>
+                            <span class="n">query</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">query</span><span class="o">.</span><span class="n">argument</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">_primary_key</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">QueryGroup</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">query</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_process_query</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+    <span class="nd">@log_storage</span>
+<div class="viewcode-block" id="StoredObject.find"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.find">[docs]</a>    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param query:</span>
+<span class="sd">        :param kwargs:</span>
+<span class="sd">        :return: an iterable of :class:`StoredObject` instances</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_process_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">QuerySet</span><span class="p">(</span>
+            <span class="n">cls</span><span class="p">,</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="p">)</span>
+</div>
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+    <span class="nd">@log_storage</span>
+    <span class="k">def</span> <span class="nf">find_one</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_process_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="n">stored_data</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">find_one</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">load</span><span class="p">(</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">stored_data</span><span class="p">[</span><span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">],</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">stored_data</span>
+        <span class="p">)</span>
+
+    <span class="c"># Queueing</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="StoredObject.delegate"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.delegate">[docs]</a>    <span class="k">def</span> <span class="nf">delegate</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">conflict</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Execute or queue a database action. Variable positional and keyword</span>
+<span class="sd">        arguments are passed to the provided method.</span>
+
+<span class="sd">        :param function method: Method to execute or queue</span>
+<span class="sd">        :param bool conflict: Potential conflict between cache_sandbox and backend,</span>
+<span class="sd">            e.g., in the event of bulk updates or removes that bypass the</span>
+<span class="sd">            cache_sandbox</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">queue</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="n">WriteAction</span><span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">conflict</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;Delayed write {0!r} may cause the cache to &#39;</span>
+                            <span class="s">&#39;diverge from the database until changes are &#39;</span>
+                            <span class="s">&#39;committed.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">action</span><span class="p">))</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">queue</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">method</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="StoredObject.start_queue"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.start_queue">[docs]</a>    <span class="k">def</span> <span class="nf">start_queue</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Start the queue. Between calling `start_queue` and `commit_queue`,</span>
+<span class="sd">        all writes will be deferred to the queue.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">queue</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="StoredObject.clear_queue"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.clear_queue">[docs]</a>    <span class="k">def</span> <span class="nf">clear_queue</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Clear the queue.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">queue</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="StoredObject.cancel_queue"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.cancel_queue">[docs]</a>    <span class="k">def</span> <span class="nf">cancel_queue</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cancel any pending actions. This method clears the queue and also</span>
+<span class="sd">        clears caches if any actions are pending.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">queue</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_object_cache</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">clear_queue</span><span class="p">()</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="StoredObject.commit_queue"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.commit_queue">[docs]</a>    <span class="k">def</span> <span class="nf">commit_queue</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Commit all queued actions. If any actions fail, clear caches. Note:</span>
+<span class="sd">        the queue will be cleared whether an error is raised or not.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">queue</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">clear_queue</span><span class="p">()</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">cancel_queue</span><span class="p">()</span>
+            <span class="k">raise</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="StoredObject.subscribe"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.subscribe">[docs]</a>    <span class="k">def</span> <span class="nf">subscribe</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">signal_name</span><span class="p">,</span> <span class="n">weak</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param str signal_name: Name of signal to subscribe to; must be found</span>
+<span class="sd">            in ``signals.py``.</span>
+<span class="sd">        :param bool weak: Create weak reference to callback</span>
+<span class="sd">        :returns: Decorator created by ``Signal::connect_via``</span>
+<span class="sd">        :raises: ValueError if signal is not found</span>
+
+<span class="sd">        Example usage: ::</span>
+
+<span class="sd">            &gt;&gt;&gt; @Schema.subscribe(&#39;before_save&#39;)</span>
+<span class="sd">            ... def listener(cls, instance):</span>
+<span class="sd">            ...     instance.value += 1</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">signal</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">signals</span><span class="p">,</span> <span class="n">signal_name</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s">&#39;Signal {0} not found&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">signal_name</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="n">sender</span> <span class="o">=</span> <span class="bp">None</span> <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_is_root</span> <span class="k">else</span> <span class="n">cls</span>
+        <span class="k">return</span> <span class="n">signal</span><span class="o">.</span><span class="n">connect_via</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">weak</span><span class="p">)</span>
+</div>
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">delegate</span><span class="p">(</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">insert</span><span class="p">,</span>
+            <span class="bp">False</span><span class="p">,</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">key</span><span class="p">),</span>
+            <span class="n">val</span>
+        <span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_includes_foreign</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span> <span class="ow">and</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">_is_foreign</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_data_to_storage</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+
+        <span class="n">storage_data</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">:</span>
+                <span class="n">field_object</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">storage_data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">field_object</span><span class="o">.</span><span class="n">to_storage</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">storage_data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="k">return</span> <span class="n">storage_data</span>
+
+    <span class="k">def</span> <span class="nf">_update_in_memory</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">storage_data</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">data_value</span> <span class="ow">in</span> <span class="n">storage_data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">field_object</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span>
+            <span class="n">field_object</span><span class="o">.</span><span class="n">__set__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data_value</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_which_to_obj</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">which</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">which</span><span class="p">,</span> <span class="n">QueryBase</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">find_one</span><span class="p">(</span><span class="n">which</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">which</span><span class="p">,</span> <span class="n">StoredObject</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">which</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">which</span><span class="p">))</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+    <span class="k">def</span> <span class="nf">update_one</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">which</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">storage_data</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">saved</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">inmem</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+
+        <span class="n">storage_data</span> <span class="o">=</span> <span class="n">storage_data</span> <span class="ow">or</span> <span class="n">cls</span><span class="o">.</span><span class="n">_data_to_storage</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">includes_foreign</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_includes_foreign</span><span class="p">(</span><span class="n">storage_data</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_which_to_obj</span><span class="p">(</span><span class="n">which</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">saved</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">includes_foreign</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">delegate</span><span class="p">(</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">,</span>
+                <span class="bp">False</span><span class="p">,</span>
+                <span class="n">RawQuery</span><span class="p">(</span>
+                    <span class="n">cls</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span> <span class="s">&#39;eq&#39;</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_primary_key</span>
+                <span class="p">),</span>
+                <span class="n">storage_data</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">obj</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">inmem</span><span class="p">:</span>
+                <span class="n">obj</span><span class="o">.</span><span class="n">_dirty</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">saved</span><span class="p">:</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_clear_caches</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">_storage_key</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">obj</span><span class="o">.</span><span class="n">_update_in_memory</span><span class="p">(</span><span class="n">storage_data</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">storage_data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+
+        <span class="n">storage_data</span> <span class="o">=</span> <span class="n">storage_data</span> <span class="ow">or</span> <span class="n">cls</span><span class="o">.</span><span class="n">_data_to_storage</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">includes_foreign</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_includes_foreign</span><span class="p">(</span><span class="n">storage_data</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+        <span class="n">objs</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="n">objs</span><span class="o">.</span><span class="n">get_keys</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">includes_foreign</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">delegate</span><span class="p">(</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">,</span>
+                <span class="bp">True</span><span class="p">,</span>
+                <span class="n">query</span><span class="p">,</span>
+                <span class="n">storage_data</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+                <span class="n">obj</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_get_cache</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">obj</span><span class="o">.</span><span class="n">_dirty</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">objs</span><span class="p">:</span>
+                <span class="n">obj</span><span class="o">.</span><span class="n">_update_in_memory</span><span class="p">(</span><span class="n">storage_data</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+<div class="viewcode-block" id="StoredObject.remove_one"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.remove_one">[docs]</a>    <span class="k">def</span> <span class="nf">remove_one</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">which</span><span class="p">,</span> <span class="n">rm</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove an object, along with its references and back-references.</span>
+<span class="sd">        Remove the object from the cache_sandbox and sets its _detached flag to True.</span>
+
+<span class="sd">        :param which: Object selector: Query, StoredObject, or primary key</span>
+<span class="sd">        :param rm: Remove data from backend</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># Look up object</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_which_to_obj</span><span class="p">(</span><span class="n">which</span><span class="p">)</span>
+
+        <span class="c"># Remove references</span>
+        <span class="n">rm_fwd_refs</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="n">rm_back_refs</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+        <span class="c"># Remove from cache_sandbox</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_clear_caches</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">_storage_key</span><span class="p">)</span>
+
+        <span class="c"># Remove from backend</span>
+        <span class="k">if</span> <span class="n">rm</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">delegate</span><span class="p">(</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">remove</span><span class="p">,</span>
+                <span class="bp">False</span><span class="p">,</span>
+                <span class="n">RawQuery</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">_primary_name</span><span class="p">,</span> <span class="s">&#39;eq&#39;</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_storage_key</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="c"># Set detached</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_detached</span> <span class="o">=</span> <span class="bp">True</span>
+</div>
+    <span class="nd">@classmethod</span>
+    <span class="nd">@has_storage</span>
+<div class="viewcode-block" id="StoredObject.remove"><a class="viewcode-back" href="../../storedobject.html#modularodm.storedobject.StoredObject.remove">[docs]</a>    <span class="k">def</span> <span class="nf">remove</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove objects by query.</span>
+
+<span class="sd">        :param query: Query object</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">objs</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">objs</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">remove_one</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">rm</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">delegate</span><span class="p">(</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">remove</span><span class="p">,</span>
+            <span class="bp">False</span><span class="p">,</span>
+            <span class="n">query</span>
+        <span class="p">)</span>
+</div></div>
+<span class="k">def</span> <span class="nf">rm_fwd_refs</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;When removing an object, other objects with references to the current</span>
+<span class="sd">    object should remove those references. This function identifies objects</span>
+<span class="sd">    with forward references to the current object, then removes those</span>
+<span class="sd">    references.</span>
+
+<span class="sd">    :param obj: Object to which forward references should be removed</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">stack</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">_backrefs_flat</span><span class="p">:</span>
+
+        <span class="c"># Unpack stack</span>
+        <span class="n">backref_key</span><span class="p">,</span> <span class="n">parent_schema_name</span><span class="p">,</span> <span class="n">parent_field_name</span> <span class="o">=</span> <span class="n">stack</span>
+
+        <span class="c"># Get parent info</span>
+        <span class="n">parent_schema</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_collections</span><span class="p">[</span><span class="n">parent_schema_name</span><span class="p">]</span>
+        <span class="n">parent_key_store</span> <span class="o">=</span> <span class="n">parent_schema</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">parent_object</span> <span class="o">=</span> <span class="n">parent_schema</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">parent_key_store</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">parent_object</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c"># Remove forward references</span>
+        <span class="k">if</span> <span class="n">parent_object</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">parent_field_name</span><span class="p">]</span><span class="o">.</span><span class="n">_list</span><span class="p">:</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">parent_object</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">)</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">parent_field_object</span> <span class="o">=</span> <span class="n">parent_object</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">parent_field_name</span><span class="p">]</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">parent_object</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">,</span> <span class="n">parent_field_object</span><span class="o">.</span><span class="n">_gen_default</span><span class="p">())</span>
+
+        <span class="c"># Save</span>
+        <span class="n">parent_object</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">_collect_refs</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">fields</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">refs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">fields</span> <span class="o">=</span> <span class="n">fields</span> <span class="ow">or</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">field_object</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+
+        <span class="c"># Skip if not foreign field</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">field_object</span><span class="o">.</span><span class="n">_is_foreign</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c"># Skip if value is None</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">field_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c"># Skip if not in fields</span>
+        <span class="k">if</span> <span class="n">fields</span> <span class="ow">and</span> <span class="n">field_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">field_refs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c"># Build list of linked objects if ListField, else single field</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field_object</span><span class="p">,</span> <span class="n">ListField</span><span class="p">):</span>
+            <span class="n">field_refs</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value</span> <span class="k">if</span> <span class="n">v</span><span class="p">])</span>
+            <span class="n">field_instance</span> <span class="o">=</span> <span class="n">field_object</span><span class="o">.</span><span class="n">_field_instance</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">field_refs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">field_instance</span> <span class="o">=</span> <span class="n">field_object</span>
+
+        <span class="c"># Skip if field does not specify back-references</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">field_instance</span><span class="o">.</span><span class="n">_backref_field_name</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">refs</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+            <span class="p">{</span>
+                <span class="s">&#39;value&#39;</span><span class="p">:</span> <span class="n">ref</span><span class="p">,</span>
+                <span class="s">&#39;field_name&#39;</span><span class="p">:</span> <span class="n">field_name</span><span class="p">,</span>
+                <span class="s">&#39;field_instance&#39;</span><span class="p">:</span> <span class="n">field_instance</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">field_refs</span>
+        <span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">refs</span>
+
+<span class="k">def</span> <span class="nf">rm_back_refs</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;When removing an object with foreign fields, back-references from</span>
+<span class="sd">    other objects to the current object should be deleted. This function</span>
+<span class="sd">    identifies foreign fields of the specified object whose values are not</span>
+<span class="sd">    None and which specify back-reference keys, then removes back-references</span>
+<span class="sd">    from linked objects to the specified object.</span>
+
+<span class="sd">    :param obj: Object for which back-references should be removed</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">_collect_refs</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+        <span class="n">ref</span><span class="p">[</span><span class="s">&#39;value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_remove_backref</span><span class="p">(</span>
+            <span class="n">ref</span><span class="p">[</span><span class="s">&#39;field_instance&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_backref_field_name</span><span class="p">,</span>
+            <span class="n">obj</span><span class="p">,</span>
+            <span class="n">ref</span><span class="p">[</span><span class="s">&#39;field_name&#39;</span><span class="p">],</span>
+            <span class="n">strict</span><span class="o">=</span><span class="bp">False</span>
+        <span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">ensure_backrefs</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">fields</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Ensure that all forward references on the provided object have the</span>
+<span class="sd">    appropriate backreferences.</span>
+
+<span class="sd">    :param StoredObject obj: Database record</span>
+<span class="sd">    :param list fields: Optional list of field names to check</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">_collect_refs</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">fields</span><span class="p">):</span>
+        <span class="n">updated</span> <span class="o">=</span> <span class="n">ref</span><span class="p">[</span><span class="s">&#39;value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_update_backref</span><span class="p">(</span>
+            <span class="n">ref</span><span class="p">[</span><span class="s">&#39;field_instance&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_backref_field_name</span><span class="p">,</span>
+            <span class="n">obj</span><span class="p">,</span>
+            <span class="n">ref</span><span class="p">[</span><span class="s">&#39;field_name&#39;</span><span class="p">],</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">updated</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;Updated reference {}:{}:{}:{}:{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">obj</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span> <span class="n">ref</span><span class="p">[</span><span class="s">&#39;field_name&#39;</span><span class="p">],</span>
+                <span class="n">ref</span><span class="p">[</span><span class="s">&#39;value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_name</span><span class="p">,</span> <span class="n">ref</span><span class="p">[</span><span class="s">&#39;value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span>
+            <span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">update_backref_keys</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">ref</span> <span class="ow">in</span> <span class="n">_collect_refs</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+        <span class="n">ref</span><span class="p">[</span><span class="s">&#39;value&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_update_backref</span><span class="p">(</span>
+            <span class="n">ref</span><span class="p">[</span><span class="s">&#39;field_instance&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_backref_field_name</span><span class="p">,</span>
+            <span class="n">obj</span><span class="p">,</span>
+            <span class="n">ref</span><span class="p">[</span><span class="s">&#39;field_name&#39;</span><span class="p">],</span>
+        <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">stack</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">_backrefs_flat</span><span class="p">:</span>
+
+        <span class="c"># Unpack stack</span>
+        <span class="n">backref_key</span><span class="p">,</span> <span class="n">parent_schema_name</span><span class="p">,</span> <span class="n">parent_field_name</span> <span class="o">=</span> <span class="n">stack</span>
+
+        <span class="c"># Get parent info</span>
+        <span class="n">parent_schema</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_collections</span><span class="p">[</span><span class="n">parent_schema_name</span><span class="p">]</span>
+        <span class="n">parent_key_store</span> <span class="o">=</span> <span class="n">parent_schema</span><span class="o">.</span><span class="n">_pk_to_storage</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">parent_object</span> <span class="o">=</span> <span class="n">parent_schema</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">parent_key_store</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">parent_object</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c">#</span>
+        <span class="n">field_object</span> <span class="o">=</span> <span class="n">parent_object</span><span class="o">.</span><span class="n">_fields</span><span class="p">[</span><span class="n">parent_field_name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">field_object</span><span class="o">.</span><span class="n">_list</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">parent_object</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">field_object</span><span class="o">.</span><span class="n">_is_abstract</span><span class="p">:</span>
+                <span class="n">idx</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">index</span><span class="p">((</span><span class="n">obj</span><span class="o">.</span><span class="n">_stored_key</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_name</span><span class="p">))</span>
+                <span class="n">value</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">_primary_key</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_name</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">idx</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">_stored_key</span><span class="p">)</span>
+                <span class="n">value</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">obj</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">parent_object</span><span class="p">,</span> <span class="n">parent_field_name</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+
+        <span class="c"># Save</span>
+        <span class="n">parent_object</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright Center For Open Science.
+    </p>
+  </div>
+
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+  
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'0.2.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
