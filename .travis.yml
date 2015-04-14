@@ -3,6 +3,9 @@ services: mongodb
 
 python:
     - "2.7"
+    - "3.3"
+    - "pypy"
+    - "pypy3"
 
 install:
     - "pip install --upgrade ."
