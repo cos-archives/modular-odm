@@ -9,8 +9,10 @@ Welcome to Modular-ODM's documentation!
 Contents:
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 3
 
+    basic_usage
+    query_syntax
     storedobject
     backends
 
