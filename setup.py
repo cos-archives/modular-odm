@@ -6,12 +6,14 @@ import subprocess
 import pip
 from setuptools import setup, find_packages
 
-INSTALL_REQUIRES = [
-    'flask',
-    'blinker',
-    'pymongo',
-    'python-dateutil',
-]
+
+def parse_requirements(requirements):
+    with open(requirements) as f:
+        return [
+            l.strip('\n') for l
+            in f if l.strip('\n') and not l.startswith('#')
+        ]
+
 
 def find_version(fname):
     '''Attempts to find the version number in the file names fname.
@@ -28,6 +30,7 @@ def find_version(fname):
     if not version:
         raise RuntimeError('Cannot find version information')
     return version
+
 
 __version__ = find_version("modularodm/__init__.py")
 
@@ -85,7 +88,7 @@ setup(
     description='A Pythonic Object Data Manager',
     long_description=read("README.rst"),
     packages=find_packages(exclude=("test*",)),
-    install_requires=INSTALL_REQUIRES,
+    install_requires=parse_requirements('requirements.txt'),
     tests_require=["nose"],
     keywords=["odm", "nosql", "mongo", "mongodb"],
 )
