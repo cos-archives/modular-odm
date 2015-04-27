@@ -44,14 +44,13 @@ nosetests.xml
 .hg
 .hgignore
 .env
+.ropeproject
 
 # Coverage
 cover
 
-# OSF-specific
-#######################
-Site/Cache/*
-Site/Uploads/*
-
 # Readme build
 README.html
+
+# Docs build
+_build

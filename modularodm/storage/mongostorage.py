@@ -188,15 +188,6 @@ class MongoStorage(Storage):
         return self.store.find(mongo_query)
 
     def find_one(self, query=None, **kwargs):
-        """ Gets a single object from the collection.
-
-        If no matching documents are found, raises `NoResultsFound`.
-        If >1 matching documents are found, raises `MultipleResultsFound`.
-
-        :params: One or more `Query` or `QuerySet` objects may be passed
-
-        :returns: The selected document
-        """
         mongo_query = translate_query(query)
         matches = self.store.find(mongo_query).limit(2)
 

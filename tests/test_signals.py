@@ -68,7 +68,7 @@ class TestSignals(unittest.TestCase):
         connected_callback.assert_called_once_with(
             record.__class__,
             instance=record,
-            fields_changed=['_id', 'value'],
+            fields_changed={'_id', 'value'},
             cached_data={},
         )
 

@@ -1,4 +1,8 @@
-import mock
+# use unittest.mock in Python3
+try:
+    from unittest import mock
+except ImportError:
+    import mock
 
 from modularodm import StoredObject, fields, storage
 from modularodm.translators import DefaultTranslator

@@ -18,7 +18,7 @@ class UpdateQueryTestCase(ModularOdmTestCase):
     def set_up_objects(self):
         self.foos = []
 
-        for idx in xrange(5):
+        for idx in range(5):
             foo = self.Foo(
                 _id=idx
             )

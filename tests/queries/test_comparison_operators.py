@@ -33,7 +33,7 @@ class ComparisonOperatorsTestCase(ModularOdmTestCase):
     def set_up_objects(self):
         self.foos = []
 
-        for idx in xrange(3):
+        for idx in range(3):
             foo = self.Foo(
                 _id=idx,
                 integer_field = idx,
