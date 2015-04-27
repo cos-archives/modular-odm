@@ -44,6 +44,7 @@ nosetests.xml
 .hg
 .hgignore
 .env
+.ropeproject
 
 # Coverage
 cover
