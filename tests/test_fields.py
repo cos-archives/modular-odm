@@ -34,6 +34,12 @@ class TestField(unittest.TestCase):
     def tearDown(self):
         pickle_storage._delete_file()
 
+    def test_update_fields(self):
+        u = User(name='foo')
+        u.update_fields(name="bazzle", _id=932)
+        assert_equal(u.name, "bazzle")
+        assert_equal(u._id, 932)
+
     def test_validators_must_be_callable(self):
         assert_raises(TypeError, lambda: fields.Field(validate="invalid"))
         assert_raises(TypeError, lambda: fields.Field(validate=["invalid"]))
