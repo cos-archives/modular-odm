@@ -852,6 +852,20 @@ class StoredObject(object):
         return fields_changed
 
     def update_fields(self, **kwargs):
+        """Update multiple fields, specified by keyword arguments.
+
+        Example::
+
+            person.update(given_name='Fred', family_name='Mercury')
+
+        ... is equivalent to ... ::
+
+
+            person.given_name = 'Fred'
+            person.family_name = 'Mercury'
+
+        :param **kwargs: field names and the values to set
+        """
         for key, value in kwargs.items():
             self._fields[key].__set__(self, value, safe=True)
 
