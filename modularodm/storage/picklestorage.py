@@ -257,6 +257,3 @@ class PickleStorage(Storage):
                         yield key
                     else:
                         yield value
-
-    def __repr__(self):
-        return str(self.store)
