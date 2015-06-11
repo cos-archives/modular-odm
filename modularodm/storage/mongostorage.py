@@ -238,7 +238,3 @@ class MongoStorage(Storage):
 
     def flush(self):
         pass
-
-    def __repr__(self):
-        return self.find()
-
