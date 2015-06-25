@@ -5,13 +5,17 @@ import copy
 
 import six
 
-from .base import Storage, KeyExistsException
+from .base import Storage
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
 
 from modularodm.utils import DirtyField
-from modularodm.exceptions import MultipleResultsFound, NoResultsFound
+from modularodm.exceptions import (
+    KeyExistsException,
+    MultipleResultsFound,
+    NoResultsFound,
+)
 
 try:
     import cpickle as pickle

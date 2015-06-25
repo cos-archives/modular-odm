@@ -3,11 +3,15 @@
 import re
 import pymongo
 
-from .base import Storage, KeyExistsException
+from .base import Storage
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
-from modularodm.exceptions import NoResultsFound, MultipleResultsFound
+from modularodm.exceptions import (
+    KeyExistsException,
+    MultipleResultsFound,
+    NoResultsFound,
+)
 
 
 # From mongoengine.queryset.transform

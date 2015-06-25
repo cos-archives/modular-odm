@@ -9,6 +9,12 @@ class QueryException(ModularOdmException):
     pass
 
 
+class KeyExistsException(QueryException):
+    """Raised when a insert in an object with a primary key that already exists.
+    """
+    pass
+
+
 class MultipleResultsFound(QueryException):
     """ Raised when multiple results match the passed query, and only a single
     object may be returned """
