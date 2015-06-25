@@ -6,10 +6,7 @@ import itertools
 from functools import wraps
 
 from ..translators import DefaultTranslator
-
-
-class KeyExistsException(Exception):
-    pass
+from modularodm.exceptions import KeyExistsException
 
 
 class Logger(object):
