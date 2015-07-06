@@ -82,6 +82,8 @@ Creating and Querying
     >>> c = Comment.find(Q("text", "startswith", "And now"))[0]
     >>> c.text
     'And now for something completely different.'
+    
+For more information regarding querying syntax, please visit the related readthedocs page at <http://modular-odm.readthedocs.org/en/latest/query_syntax.html>.
 
 Migrations
 ----------
