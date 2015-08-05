@@ -94,7 +94,8 @@ def logify(func):
 
         if listening:
             stop_time = time.time()
-            xtra = this.logger.xtra[-1]
+            # TODO: This is a temporary fix for a suspected concurrency issue.
+            xtra = this.logger.xtra[-1] if this.logger.xtra else None
             this.logger.record_event(
                 LogEvent(
                     func,
