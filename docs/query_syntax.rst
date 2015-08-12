@@ -26,8 +26,8 @@ Comparison
 =========== =============== ====================================
 Keyword     Operator        Description
 =========== =============== ====================================
-gt          less than
-gte         less than or
+gt          greater than
+gte         greater than or
             equal to
 lt          less than
 lte         less than or
