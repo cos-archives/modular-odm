@@ -376,7 +376,7 @@ class StoredObject(object):
         try:
             self.__backrefs[backref_key][parent._name][parent_field_name].remove(parent._primary_key)
             self.save(force=True)
-        except ValueError:
+        except (KeyError, ValueError):
             if strict:
                 raise
 
