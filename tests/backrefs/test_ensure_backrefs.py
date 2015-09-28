@@ -94,3 +94,25 @@ class TestEnsureBackrefs(ModularOdmTestCase):
                 foo.bar__my_ref_list[0],
                 bar
             )
+
+    def test_missing_backref_removed_from_list(self):
+
+        bar = self.Bar(ref_list=self.foos)
+        bar.save()
+
+        for foo in self.foos:
+
+            # Delete backrefs for some reason
+            foo._StoredObject__backrefs = {}
+            foo.save()
+
+            # Assert that backrefs are gone
+            assert_equal(
+                len(foo.bar__my_ref_list),
+                0
+            )
+
+        bar.ref_list.pop()
+
+        # Ensure save does not raise an uncaught KeyError from storedobject._remove_backref
+        bar.save()
