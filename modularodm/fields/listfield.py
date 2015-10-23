@@ -166,6 +166,8 @@ class ListField(Field):
         return []
 
     def update_backrefs(self, instance, cached_value, current_value):
+        if self._field_instance._backref_field_name is None:
+            return
 
         for item in current_value:
             if self._field_instance.to_storage(item) not in cached_value:
