@@ -83,9 +83,11 @@ class ListField(Field):
 
     def do_validate(self, value, obj):
 
-        # Child-level validation
-        for part in value:
-            self._field_instance.do_validate(part, obj)
+        inst = self._field_instance
+        if getattr(inst, 'validate', False) or inst._unique or inst._required:
+            # Child-level validation
+            for part in value:
+                self._field_instance.do_validate(part, obj)
 
         # Field-level list validation
         if hasattr(self.__class__, 'validate'):
