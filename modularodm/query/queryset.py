@@ -7,6 +7,8 @@ import six
 @six.add_metaclass(abc.ABCMeta)
 class BaseQuerySet(object):
 
+    _NEGATIVE_INDEXING = False
+
     def __init__(self, schema, data=None):
 
         self.schema = schema
@@ -21,7 +23,7 @@ class BaseQuerySet(object):
                 raise IndexError('Negative indexing not supported')
             if index.stop is not None and index.stop < index.start:
                 raise IndexError('Stop index must be greater than start index')
-        elif index < 0:
+        elif not self.__class__._NEGATIVE_INDEXING and index < 0:
             raise IndexError('Negative indexing not supported')
         return self._do_getitem(index)
 

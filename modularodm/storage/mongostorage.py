@@ -112,14 +112,21 @@ def translate_query(query=None, mongo_query=None):
 
 class MongoQuerySet(BaseQuerySet):
 
+    _NEGATIVE_INDEXING = True
+
     def __init__(self, schema, cursor):
         super(MongoQuerySet, self).__init__(schema)
         self.data = cursor
+        self._order = [('_id', 1)]  # Default sorting
 
     def _do_getitem(self, index, raw=False):
         if isinstance(index, slice):
             return MongoQuerySet(self.schema, self.data.clone()[index])
-        result = self.data[index]
+        if index < 0:
+            clone = self.data.clone().sort([(o[0], o[1] * -1) for o in self._order])
+            result = clone[(index * -1) - 1]
+        else:
+            result = self.data[index]
         if raw:
             return result[self.primary]
         return self.schema.load(data=result)
@@ -155,6 +162,7 @@ class MongoQuerySet(BaseQuerySet):
 
             sort_key.append((key, sign))
 
+        self._order = sort_key
         self.data = self.data.sort(sort_key)
         return self
 
