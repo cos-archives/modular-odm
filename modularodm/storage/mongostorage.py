@@ -132,7 +132,6 @@ class MongoQuerySet(BaseQuerySet):
         return self.schema.load(data=result)
 
     def __iter__(self, raw=False):
-        keys = [obj[self.primary] for obj in self.data.clone()]
         cursor = self.data.clone()
         if raw:
             return [each[self.primary] for each in cursor]
