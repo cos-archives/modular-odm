@@ -19,7 +19,7 @@ class QueryGroup(QueryBase):
         self.nodes = []
         for node in args:
             if not isinstance(node, QueryBase):
-                raise Exception('Nodes must be Query objects.')
+                raise TypeError('Nodes must be Query objects.')
             if isinstance(node, QueryGroup) and node.operator == operator:
                 self.nodes += node.nodes
             else:
@@ -27,7 +27,7 @@ class QueryGroup(QueryBase):
 
     def __repr__(self):
 
-        return '{}({})'.format(
+        return '{0}({1})'.format(
             self.operator.upper(),
             ', '.join(repr(node) for node in self.nodes)
         )
@@ -35,11 +35,6 @@ class QueryGroup(QueryBase):
 class RawQuery(QueryBase):
 
     def __init__(self, attribute, operator, argument):
-
-        try:
-            argument = argument._primary_key
-        except AttributeError:
-            pass
 
         self.attribute = attribute
         self.operator = operator

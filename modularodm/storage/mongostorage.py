@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*_
+
 import re
 import pymongo
 
@@ -5,11 +7,16 @@ from .base import Storage
 from ..query.queryset import BaseQuerySet
 from ..query.query import QueryGroup
 from ..query.query import RawQuery
-from modularodm.exceptions import NoResultsFound, MultipleResultsFound
+from modularodm.exceptions import (
+    KeyExistsException,
+    MultipleResultsFound,
+    NoResultsFound,
+)
+
 
 # From mongoengine.queryset.transform
 COMPARISON_OPERATORS = ('ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'mod',
-                        'all', 'size', 'exists', 'not')
+                        'all', 'size', 'exists', 'not', 'elemMatch')
 # GEO_OPERATORS        = ('within_distance', 'within_spherical_distance',
 #                         'within_box', 'within_polygon', 'near', 'near_sphere',
 #                         'max_distance', 'geo_within', 'geo_within_box',
@@ -25,6 +32,7 @@ STRING_OPERATORS     = ('contains', 'icontains', 'startswith',
 # UPDATE_OPERATORS     = ('set', 'unset', 'inc', 'dec', 'pop', 'push',
 #                         'push_all', 'pull', 'pull_all', 'add_to_set',
 #                         'set_on_insert')
+
 
 # Adapted from mongoengine.fields
 def prepare_query_value(op, value):
@@ -49,28 +57,87 @@ def prepare_query_value(op, value):
 
     return value
 
+
+# TODO: Test me
+def translate_query(query=None, mongo_query=None):
+    """
+
+    """
+    mongo_query = mongo_query or {}
+
+    if isinstance(query, RawQuery):
+        attribute, operator, argument = \
+            query.attribute, query.operator, query.argument
+
+        if operator == 'eq':
+            mongo_query[attribute] = argument
+
+        elif operator in COMPARISON_OPERATORS:
+            mongo_operator = '$' + operator
+            if attribute not in mongo_query:
+                mongo_query[attribute] = {}
+            mongo_query[attribute][mongo_operator] = argument
+
+        elif operator in STRING_OPERATORS:
+            mongo_operator = '$regex'
+            mongo_regex = prepare_query_value(operator, argument)
+            if attribute not in mongo_query:
+                mongo_query[attribute] = {}
+            mongo_query[attribute][mongo_operator] = mongo_regex
+
+    elif isinstance(query, QueryGroup):
+
+        if query.operator == 'and':
+            return {'$and': [translate_query(node) for node in query.nodes]}
+
+        elif query.operator == 'or':
+            return {'$or' : [translate_query(node) for node in query.nodes]}
+
+        elif query.operator == 'not':
+            # Hack: A nor A == not A
+            subquery = translate_query(query.nodes[0])
+            return {'$nor' : [subquery, subquery]}
+
+        else:
+            raise ValueError('QueryGroup operator must be <and>, <or>, or <not>.')
+
+    elif query is None:
+        return {}
+
+    else:
+        raise TypeError('Query must be a QueryGroup or Query object.')
+
+    return mongo_query
+
+
 class MongoQuerySet(BaseQuerySet):
 
-    def __init__(self, schema, cursor):
+    _NEGATIVE_INDEXING = True
 
+    def __init__(self, schema, cursor):
         super(MongoQuerySet, self).__init__(schema)
         self.data = cursor
+        self._order = [('_id', 1)]  # Default sorting
 
-    def __getitem__(self, index, raw=False):
-        super(MongoQuerySet, self).__getitem__(index)
-        key = self.data[index][self.primary]
+    def _do_getitem(self, index, raw=False):
+        if isinstance(index, slice):
+            return MongoQuerySet(self.schema, self.data.clone()[index])
+        if index < 0:
+            clone = self.data.clone().sort([(o[0], o[1] * -1) for o in self._order])
+            result = clone[(index * -1) - 1]
+        else:
+            result = self.data[index]
         if raw:
-            return key
-        return self.schema.load(key)
+            return result[self.primary]
+        return self.schema.load(data=result)
 
     def __iter__(self, raw=False):
-        keys = [obj[self.primary] for obj in self.data.clone()]
+        cursor = self.data.clone()
         if raw:
-            return keys
-        return (self.schema.load(key) for key in keys)
+            return [each[self.primary] for each in cursor]
+        return (self.schema.load(data=each) for each in cursor)
 
     def __len__(self):
-
         return self.data.count(with_limit_and_skip=True)
 
     count = __len__
@@ -82,7 +149,6 @@ class MongoQuerySet(BaseQuerySet):
         return list(self.__iter__(raw=True))
 
     def sort(self, *keys):
-
         sort_key = []
 
         for key in keys:
@@ -95,45 +161,45 @@ class MongoQuerySet(BaseQuerySet):
 
             sort_key.append((key, sign))
 
+        self._order = sort_key
         self.data = self.data.sort(sort_key)
         return self
 
     def offset(self, n):
-
         self.data = self.data.skip(n)
         return self
 
     def limit(self, n):
-
         self.data = self.data.limit(n)
         return self
 
-class MongoStorage(Storage):
 
+class MongoStorage(Storage):
+    """Wrap a MongoDB collection. Note: `store` is a property instead of an
+    attribute to handle passing `db` as a proxy.
+
+    :param Database db:
+    :param str collection:
+    """
     QuerySet = MongoQuerySet
+
+    def __init__(self, db, collection):
+        self.db = db
+        self.collection = collection
+
+    @property
+    def store(self):
+        return self.db[self.collection]
 
     def _ensure_index(self, key):
         self.store.ensure_index(key)
 
-    def __init__(self, db, collection):
-        self.collection = collection
-        self.store = db[self.collection]
-
-    def find(self, *query):
-        mongo_query = self._translate_query(*query)
+    def find(self, query=None, **kwargs):
+        mongo_query = translate_query(query)
         return self.store.find(mongo_query)
 
-    def find_one(self, *query):
-        """ Gets a single object from the collection.
-
-        If no matching documents are found, raises ``NoResultsFound``.
-        If >1 matching documents are found, raises ``MultipleResultsFound``.
-
-        :params: One or more ``Query`` or ``QuerySet`` objects may be passed
-
-        :returns: The selected document
-        """
-        mongo_query = self._translate_query(*query)
+    def find_one(self, query=None, **kwargs):
+        mongo_query = translate_query(query)
         matches = self.store.find(mongo_query).limit(2)
 
         if matches.count() == 1:
@@ -154,77 +220,32 @@ class MongoStorage(Storage):
         if primary_name not in value:
             value = value.copy()
             value[primary_name] = key
-        self.store.insert(value)
+        try:
+            self.store.insert(value)
+        except pymongo.errors.DuplicateKeyError:
+            raise KeyExistsException
 
     def update(self, query, data):
-        mongo_query = self._translate_query(query)
-        update_query = {'$set' : data}
+        mongo_query = translate_query(query)
+
+        # Field "_id" shouldn't appear in both search and update queries; else
+        # MongoDB will raise a "Mod on _id not allowed" error
+        if '_id' in mongo_query:
+            update_data = {k: v for k, v in data.items() if k != '_id'}
+        else:
+            update_data = data
+        update_query = {'$set': update_data}
+
         self.store.update(
             mongo_query,
             update_query,
             upsert=False,
-            multi=True
+            multi=True,
         )
 
-    def remove(self, *query):
-        mongo_query = self._translate_query(*query)
+    def remove(self, query=None):
+        mongo_query = translate_query(query)
         self.store.remove(mongo_query)
 
     def flush(self):
         pass
-
-    def __repr__(self):
-        return self.find()
-
-    def _translate_query(self, *query):
-
-        if len(query) == 1:
-            query = query[0]
-        elif len(query) > 1:
-            query = QueryGroup('and', *query)
-        else:
-            query = None
-
-
-        mongo_query = {}
-
-        if isinstance(query, RawQuery):
-            attribute, operator, argument = \
-                query.attribute, query.operator, query.argument
-
-            if operator == 'eq':
-                mongo_query[attribute] = argument
-
-            elif operator in COMPARISON_OPERATORS:
-                mongo_operator = '$' + operator
-                mongo_query[attribute] = {mongo_operator : argument}
-
-            elif operator in STRING_OPERATORS:
-                mongo_operator = '$regex'
-                mongo_regex = prepare_query_value(operator, argument)
-                mongo_query[attribute] = {mongo_operator : mongo_regex}
-
-        elif isinstance(query, QueryGroup):
-
-            if query.operator == 'and':
-                mongo_query = {}
-                for node in query.nodes:
-                    mongo_query.update(self._translate_query(node))
-                return mongo_query
-
-            elif query.operator == 'or':
-                return {'$or' : [self._translate_query(node) for node in query.nodes]}
-
-            elif query.operator == 'not':
-                return {'$not' : self._translate_query(query.nodes[0])}
-
-            else:
-                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
-
-        elif query is None:
-            return {}
-
-        else:
-            raise Exception('Query must be a QueryGroup or Query object.')
-
-        return mongo_query

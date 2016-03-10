@@ -1,33 +1,27 @@
-from . import Field
+# -*- coding: utf-8 -*-
+
+from modularodm import exceptions
+
+from modularodm.fields.foreign import BaseForeignField
 from .lists import ForeignList
 
-class ForeignField(Field):
+
+class ForeignField(BaseForeignField):
 
     _list_class = ForeignList
 
     def __init__(self, *args, **kwargs):
+
         super(ForeignField, self).__init__(*args, **kwargs)
+
         self._backref_field_name = kwargs.get('backref', None)
-        self._base_class_name = args[0] # todo allow class references / callable?
+        self._base_class_reference = args[0]
         self._base_class = None
         self._is_foreign = True
+        self._is_abstract = False
 
-    def on_after_save(self, parent, field_name, old_stored_data, new_value):
-        '''
-            None, Obj = go from nothing or add
-            Obj, None = means go to nothing or remove
-            Obj, Obj = remove then add or swap
-        '''
-
-        if self._backref_field_name == None:
-            return
-
-        if old_stored_data is not None:
-            old_value = self.base_class.load(old_stored_data)
-            old_value._remove_backref(self._backref_field_name, parent, field_name)
-
-        if new_value is not None:
-            new_value._set_backref(self._backref_field_name, field_name, parent)
+    def get_foreign_object(self, value):
+        return self.base_class.load(value)
 
     def to_storage(self, value, translator=None):
 
@@ -58,7 +52,7 @@ class ForeignField(Field):
             return None
         if isinstance(value, self.base_class):
             if not value._is_loaded:
-                raise Exception('Record must be loaded.')
+                raise exceptions.DatabaseError('Record must be loaded.')
             return value._primary_key
 
         return self.base_class._to_primary_key(value)
@@ -70,10 +64,21 @@ class ForeignField(Field):
 
     @property
     def base_class(self):
-        if self._base_class is None:
-            # Look up base class in collections of attached schema; all
-            # schemas share collections
-            self._base_class = self._schema_class.get_collection(self._base_class_name)
+        if self._base_class:
+            return self._base_class
+        if isinstance(self._base_class_reference, type):
+            self._base_class = self._base_class_reference
+        else:
+            try:
+                self._base_class = self._schema_class.get_collection(
+                    self._base_class_reference
+                )
+            except KeyError:
+                raise exceptions.ModularOdmException(
+                    'Unknown schema "{0}"'.format(
+                        self._base_class_reference
+                    )
+                )
         return self._base_class
 
     def __set__(self, instance, value, safe=False, literal=False):

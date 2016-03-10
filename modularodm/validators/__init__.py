@@ -1,3 +1,6 @@
+import six
+from six.moves.urllib_parse import urlsplit, urlunsplit
+
 from modularodm.exceptions import (
     ValidationError,
     ValidationTypeError,
@@ -6,11 +9,16 @@ from modularodm.exceptions import (
 
 from bson import ObjectId
 
-class TypeValidator(object):
+class Validator(object):
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+class TypeValidator(Validator):
 
     def _as_list(self, value):
 
-        if isinstance(value, list):
+        if isinstance(value, (tuple, list)):
             return value
         return [value]
 
@@ -38,7 +46,7 @@ class TypeValidator(object):
             )
         )
 
-validate_string = TypeValidator(basestring)
+validate_string = TypeValidator(six.string_types)
 validate_integer = TypeValidator(
     allowed_types=int,
     forbidden_types=bool
@@ -55,7 +63,7 @@ validate_datetime = TypeValidator(datetime.datetime)
 
 # Adapted from Django RegexValidator
 import re
-class RegexValidator(object):
+class RegexValidator(Validator):
 
     def __init__(self, regex=None, flags=0):
 
@@ -74,7 +82,6 @@ class RegexValidator(object):
             )
 
 # Adapted from Django URLValidator
-from urlparse import urlsplit, urlunsplit
 class URLValidator(RegexValidator):
     regex = re.compile(
         r'^(?:http|ftp)s?://'  # http:// or https://
@@ -106,29 +113,8 @@ class URLValidator(RegexValidator):
             pass
             # url = value
 
-class BaseValidator(object):
-    compare = lambda self, a, b: a is not b
 
-    def __init__(self, limit_value):
-        self.limit_value = limit_value
-
-    def __call__(self, value):
-        if self.compare(value, self.limit_value):
-            raise ValidationError('Received bad value: <{}>.'.format(value))
-
-class MaxValueValidator(BaseValidator):
-    compare = lambda self, a, b: a > b
-
-class MinValueValidator(BaseValidator):
-    compare = lambda self, a, b: a < b
-
-class MinLengthValidator(BaseValidator):
-    compare = lambda self, a, b: len(a) < b
-
-class MaxLengthValidator(BaseValidator):
-    compare = lambda self, a, b: len(a) > b
-
-class BaseValidator(object):
+class BaseValidator(Validator):
 
     compare = lambda self, a, b: a is not b
     clean = lambda self, x: x

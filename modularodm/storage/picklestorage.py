@@ -1,61 +1,118 @@
-from .base import Storage, KeyExistsException
-from ..query.queryset import BaseQuerySet
-from ..query.query import QueryGroup
-from ..query.query import RawQuery
-from modularodm.exceptions import MultipleResultsFound, NoResultsFound
+# -*- coding utf-8 -*-
 
 import os
 import copy
+
+import six
+
+from .base import Storage
+from ..query.queryset import BaseQuerySet
+from ..query.query import QueryGroup
+from ..query.query import RawQuery
+
+from modularodm.utils import DirtyField
+from modularodm.exceptions import (
+    KeyExistsException,
+    MultipleResultsFound,
+    NoResultsFound,
+)
 
 try:
     import cpickle as pickle
 except ImportError:
     import pickle
 
+
 def _eq(data, test):
-    if hasattr(data, '__iter__'):
+    if isinstance(data, list):
         return test in data
     return data == test
 
 operators = {
 
-    'eq' : _eq,
-    'ne' : lambda data, test: data != test,
-    'gt' : lambda data, test: data > test,
-    'gte' : lambda data, test: data >= test,
-    'lt' : lambda data, test: data < test,
-    'lte' : lambda data, test: data <= test,
-    'in' : lambda data, test: data in test,
-    'nin' : lambda data, test: data not in test,
+    'eq':   _eq,
 
-    'startswith' : lambda data, test: data.startswith(test),
-    'endswith' : lambda data, test: data.endswith(test),
-    'contains' : lambda data, test: test in data,
-    'icontains' : lambda data, test: test.lower() in data.lower(),
+    'ne':   lambda data, test: data != test,
+    'gt':   lambda data, test: data > test,
+    'gte':  lambda data, test: data >= test,
+    'lt':   lambda data, test: data < test,
+    'lte':  lambda data, test: data <= test,
+    'in':   lambda data, test: data in test,
+    'nin':  lambda data, test: data not in test,
+
+    'startswith':  lambda data, test: data.startswith(test),
+    'endswith':    lambda data, test: data.endswith(test),
+    'contains':    lambda data, test: test in data,
+    'icontains':   lambda data, test: test.lower() in data.lower(),
 
 }
 
+
 class PickleQuerySet(BaseQuerySet):
+
+    _sort = DirtyField(None)
+    _offset = DirtyField(None)
+    _limit = DirtyField(None)
 
     def __init__(self, schema, data):
 
         super(PickleQuerySet, self).__init__(schema)
-        self.data = list(data)
 
-    def __getitem__(self, index, raw=False):
-        super(PickleQuerySet, self).__getitem__(index)
+        self._data = list(data)
+        self._dirty = True
+
+        self.data = []
+
+    def _eval(self):
+
+        if self._dirty:
+
+            self.data = self._data[:]
+
+            if self._sort is not None:
+
+                for key in self._sort[::-1]:
+
+                    if key.startswith('-'):
+                        reverse = True
+                        key = key.lstrip('-')
+                    else:
+                        reverse = False
+
+                    self.data = sorted(
+                        self.data,
+                        key=lambda record: record[key],
+                        reverse=reverse
+                    )
+
+            if self._offset is not None:
+                self.data = self.data[self._offset:]
+
+            if self._limit is not None:
+                self.data = self.data[:self._limit]
+
+            self._dirty = False
+
+        return self
+
+    def _do_getitem(self, index, raw=False):
+        self._eval()
+        if isinstance(index, slice):
+            return PickleQuerySet(self.schema, self.data[index])
         key = self.data[index][self.primary]
+        result = self.data[index]
         if raw:
-            return key
-        return self.schema.load(key)
+            return result[self.primary]
+        return self.schema.load(data=result)
 
     def __iter__(self, raw=False):
-        keys = [obj[self.primary] for obj in self.data]
+        self._eval()
         if raw:
-            return keys
-        return (self.schema.load(key) for key in keys)
+            return [each[self.primary] for each in self.data]
+        return (self.schema.load(data=each) for each in self.data)
 
     def __len__(self):
+        self._eval()
         return len(self.data)
 
     count = __len__
@@ -68,28 +125,17 @@ class PickleQuerySet(BaseQuerySet):
 
     def sort(self, *keys):
         """ Iteratively sort data by keys in reverse order. """
-
-        for key in keys[::-1]:
-
-            if key.startswith('-'):
-                reverse = True
-                key = key.lstrip('-')
-            else:
-                reverse = False
-
-            self.data = sorted(self.data, key=lambda record: record[key], reverse=reverse)
-
+        self._sort = keys
         return self
 
     def offset(self, n):
-
-        self.data = self.data[n:]
+        self._offset = n
         return self
 
     def limit(self, n):
-
-        self.data = self.data[:n]
+        self._limit = n
         return self
+
 
 class PickleStorage(Storage):
     """ Storage backend using pickle. """
@@ -100,12 +146,16 @@ class PickleStorage(Storage):
         """Build pickle file name and load data if exists.
 
         :param collection_name: Collection name
-        :param prefix: File prefix; defaults to 'db_'
-        :param ext: File extension; defaults to 'pkl'
+        :param prefix: File prefix.
+        :param ext: File extension.
 
         """
         # Build filename
-        self.filename = prefix + collection_name + '.' + ext
+        filename = collection_name + '.' + ext
+        if prefix:
+            self.filename = prefix + filename
+        else:
+            self.filename = filename
 
         # Initialize empty store
         self.store = {}
@@ -116,27 +166,30 @@ class PickleStorage(Storage):
                 data = fp.read()
                 self.store = pickle.loads(data)
 
+    def _delete_file(self):
+        try:
+            os.remove(self.filename)
+        except OSError:
+            pass
+
     def insert(self, primary_name, key, value):
-        """Add key-value pair to storage. Key must not exist.
-
-        :param key: Key
-        :param value: Value
-
-        """
         if key not in self.store:
-            self.store[key] = value
+            self.store[key] = copy.deepcopy(value)
             self.flush()
         else:
             msg = 'Key ({key}) already exists'.format(key=key)
             raise KeyExistsException(msg)
 
     def update(self, query, data):
+        data = copy.deepcopy(data)
         for pk in self.find(query, by_pk=True):
             for key, value in data.items():
                 self.store[pk][key] = value
 
     def get(self, primary_name, key):
-        return copy.deepcopy(self.store[key])
+        data = self.store.get(key)
+        if data is not None:
+            return copy.deepcopy(data)
 
     def _remove_by_pk(self, key, flush=True):
         """Retrieve value from store.
@@ -144,22 +197,24 @@ class PickleStorage(Storage):
         :param key: Key
 
         """
-        del self.store[key]
+        try:
+            del self.store[key]
+        except Exception as error:
+            pass
         if flush:
             self.flush()
 
-    def remove(self, *query):
-        for key in self.find(*query, by_pk=True):
+    def remove(self, query=None):
+        for key in self.find(query, by_pk=True):
             self._remove_by_pk(key, flush=False)
         self.flush()
 
     def flush(self):
-        """ Save store to file. """
         with open(self.filename, 'wb') as fp:
             pickle.dump(self.store, fp, -1)
 
-    def find_one(self, *query):
-        results = list(self.find(*query))
+    def find_one(self, query=None, **kwargs):
+        results = list(self.find(query))
         if len(results) == 1:
             return results[0]
         elif len(results) == 0:
@@ -183,7 +238,7 @@ class PickleStorage(Storage):
             elif query.operator == 'not':
                 return not any(matches)
             else:
-                raise Exception('QueryGroup operator must be <and>, <or>, or <not>.')
+                raise ValueError('QueryGroup operator must be <and>, <or>, or <not>.')
 
         elif isinstance(query, RawQuery):
             attribute, operator, argument = \
@@ -192,30 +247,17 @@ class PickleStorage(Storage):
             return operators[operator](value[attribute], argument)
 
         else:
-            raise Exception('Query must be a QueryGroup or Query object.')
+            raise TypeError('Query must be a QueryGroup or Query object.')
 
-    def find(self, *query, **kwargs):
-        """
-        Return generator over query results. Takes optional
-        by_pk keyword argument; if true, return keys rather than
-        values.
-
-        """
-        if len(query) == 0:
-            for key, value in self.store.iteritems():
+    def find(self, query=None, **kwargs):
+        if query is None:
+            for key, value in six.iteritems(self.store):
                 yield value
         else:
-            if len(query) > 1:
-                query = QueryGroup('and', *query)
-            else:
-                query = query[0]
-
-            for key, value in self.store.items():
+            # TODO: Making this a generator breaks it, since it can change
+            for key, value in list(six.iteritems(self.store)):
                 if self._match(value, query):
                     if kwargs.get('by_pk'):
                         yield key
                     else:
                         yield value
-
-    def __repr__(self):
-        return str(self.store)

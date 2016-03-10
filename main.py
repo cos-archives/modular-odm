@@ -240,7 +240,7 @@ with ContextLogger():
 
 logging.debug("bar")
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 Blog.remove(Q('title', 'startswith', 'tbd'))
 
@@ -255,7 +255,7 @@ Blog.remove(Q('title', 'startswith', 'tbd'))
 Tag.update(Q('count', 'startswith', 'count_'), {'count' : 'shutup'})
 print tag1.count
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
 
 # print 'here', [(r.misc, r.misc2) for r in res]
 

@@ -1,0 +1,14 @@
+language: python
+services: mongodb
+
+python:
+    - "2.7"
+    - "3.3"
+    - "3.4"
+    - "pypy"
+    - "pypy3"
+
+install:
+    - "pip install --upgrade ."
+
+script: "nosetests"

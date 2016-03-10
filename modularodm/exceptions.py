@@ -9,6 +9,12 @@ class QueryException(ModularOdmException):
     pass
 
 
+class KeyExistsException(QueryException):
+    """Raised when a insert in an object with a primary key that already exists.
+    """
+    pass
+
+
 class MultipleResultsFound(QueryException):
     """ Raised when multiple results match the passed query, and only a single
     object may be returned """
@@ -35,4 +41,13 @@ class ValidationTypeError(ValidationError, TypeError):
 class ValidationValueError(ValidationError, ValueError):
     """ Raised during validation if the value of the input is unacceptable, but
      the type is correct """
+    pass
+
+
+class ImproperConfigurationError(ModularOdmException):
+    """Raised if configuration options are not set correctly."""
+    pass
+
+class DatabaseError(ModularOdmException):
+    '''Raised when execution of a database operation fails.'''
     pass

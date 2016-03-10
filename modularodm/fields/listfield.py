@@ -1,6 +1,13 @@
-from ..fields import Field, ForeignField
-from ..validators import validate_list
+# -*- coding: utf-8 -*-
+
 import copy
+
+import six
+
+from modularodm import signals
+from ..fields import Field
+from ..validators import validate_list
+
 
 class ListField(Field):
 
@@ -8,36 +15,64 @@ class ListField(Field):
 
     def __init__(self, field_instance, **kwargs):
 
-        super(self.__class__, self).__init__(**kwargs)
+        super(ListField, self).__init__(**kwargs)
 
         self._list_validate, self.list_validate = self._prepare_validators(kwargs.get('list_validate', False))
 
         # ListField is a list of the following (e.g., ForeignFields)
         self._field_instance = field_instance
-        self._is_foreign = isinstance(field_instance, ForeignField)
+        self._is_foreign = field_instance._is_foreign
+        self._is_abstract = getattr(field_instance, '_is_abstract', False)
+        self._uniform_translator = field_instance._uniform_translator
 
         # Descriptor data is this type of list
         self._list_class = self._field_instance._list_class
 
         # Descriptor data is this type of list object, instantiated as our
         # default
-        if self._default and not hasattr(self._default, '__iter__'):
-            raise Exception(
-                'Default value for list fields must be a list; received <{0}>'.format(
-                    repr(self._field_instance._default)
+        if self._default:
+            default = self._default() if six.callable(self._default) else self._default
+            if (
+                not hasattr(default, '__iter__')
+                or isinstance(default, dict)
+                or isinstance(default, six.string_types)
+            ):
+                raise TypeError(
+                    'Default value for list fields must be a list; received {0}'.format(
+                        type(self._default)
+                    )
                 )
-            )
+        else:
+            default = None
+
+        #if (self._default
+        #    and not hasattr(self._default, '__iter__')
+        #    or isinstance(self._default, dict)):
+        #    raise TypeError(
+        #        'Default value for list fields must be a list; received {0}'.format(
+        #            type(self._default)
+        #        )
+        #    )
 
         # Default is a callable that returns an empty instance of the list class
         # Avoids the need to deepcopy default values for lists, which will break
         # e.g. when validators contain (un-copyable) regular expressions.
-        self._default = lambda: self._list_class(None, base_class=self._field_instance.base_class)
+        self._default = lambda: self._list_class(default, base_class=self._field_instance.base_class)
+
+        # Fields added by ``ObjectMeta``
+        self._field_name = None
+
+    def subscribe(self, sender=None):
+        self.update_backrefs_callback = signals.save.connect(
+            self.update_backrefs_callback,
+            sender=sender,
+        )
 
     def __set__(self, instance, value, safe=False, literal=False):
         self._pre_set(instance, safe=safe)
         # if isinstance(value, self._default.__class__):
         #     self.data[instance] = value
-        if hasattr(value, '__iter__'):
+        if hasattr(value, '__iter__') and not isinstance(value, six.string_types):
             if literal:
                 self.data[instance] = self._list_class(value, base_class=self._field_instance.base_class, literal=True)
             else:
@@ -46,11 +81,13 @@ class ListField(Field):
         else:
             self.data[instance] = value
 
-    def do_validate(self, value):
+    def do_validate(self, value, obj):
 
-        # Child-level validation
-        for part in value:
-            self._field_instance.do_validate(part)
+        inst = self._field_instance
+        if getattr(inst, 'validate', False) or inst._unique or inst._required:
+            # Child-level validation
+            for part in value:
+                self._field_instance.do_validate(part, obj)
 
         # Field-level list validation
         if hasattr(self.__class__, 'validate'):
@@ -83,64 +120,77 @@ class ListField(Field):
     def to_storage(self, value, translator=None):
         translator = translator or self._schema_class._translator
         if value:
-            if hasattr(value, '_to_primary_keys'):
-                value = value._to_primary_keys()
-            method = self._get_translate_func(translator, 'to')
-            if method is not None or translator.null_value is not None:
-                value = [
-                    translator.null_value if item is None
-                    else
-                    item if method is None
-                    else
-                    method(item)
+            if hasattr(value, '_to_data'):
+                value = value._to_data()
+            if self._uniform_translator:
+                method = self._get_translate_func(translator, 'to')
+                if method is not None or translator.null_value is not None:
+                    value = [
+                        translator.null_value if item is None
+                        else
+                        item if method is None
+                        else
+                        method(item)
+                        for item in value
+                    ]
+                if self._field_instance.mutable:
+                    return copy.deepcopy(value)
+                return copy.copy(value)
+            else:
+                return [
+                    self._field_instance.to_storage(item)
                     for item in value
                 ]
-            if self._field_instance.mutable:
-                return copy.deepcopy(value)
-            return copy.copy(value)
         return []
 
     def from_storage(self, value, translator=None):
         translator = translator or self._schema_class._translator
         if value:
-            method = self._get_translate_func(translator, 'from')
-            if method is not None or translator.null_value is not None:
-                value = [
-                    None if item is translator.null_value
-                    else
-                    item if method is None
-                    else
-                    method(item)
+            if self._uniform_translator:
+                method = self._get_translate_func(translator, 'from')
+                if method is not None or translator.null_value is not None:
+                    value = [
+                        None if item is translator.null_value
+                        else
+                        item if method is None
+                        else
+                        method(item)
+                        for item in value
+                    ]
+                if self._field_instance.mutable:
+                    return copy.deepcopy(value)
+                return copy.copy(value)
+            else:
+                return [
+                    self._field_instance.from_storage(item)
                     for item in value
                 ]
-            if self._field_instance.mutable:
-                return copy.deepcopy(value)
-            return copy.copy(value)
         return []
 
-    def on_after_save(self, parent, field_name, old_stored_data, new_value):
-        if not hasattr(self._field_instance, 'on_after_save'):
+    def update_backrefs(self, instance, cached_value, current_value):
+        if self._field_instance._backref_field_name is None:
             return
 
-        if new_value and not old_stored_data:
-            additions = new_value
-            removes = []
-        elif old_stored_data and not new_value:
-            additions = []
-            removes = old_stored_data
-        elif old_stored_data and new_value:
-            additions = [i for i in new_value if self._field_instance.to_storage(i) not in old_stored_data]
-            removes = [i for i in old_stored_data if self._field_instance.from_storage(i) not in new_value]
-        else:
-            # raise Exception('There shouldn\'t be a diff in the first place.')
-            # todo: discuss -- this point can be reached when the object is not loaded and the new value is an empty list
-            additions = []
-            removes = []
+        for item in current_value:
+            if self._field_instance.to_storage(item) not in cached_value:
+                self._field_instance.update_backrefs(instance, None, item)
 
-        for i in additions:
-            self._field_instance.on_after_save(parent, field_name, None, i)
-        for i in removes:
-            self._field_instance.on_after_save(parent, field_name, i, None)
+        for item in cached_value:
+            if self._field_instance.from_storage(item) not in current_value:
+                self._field_instance.update_backrefs(instance, item, None)
+
+    def update_backrefs_callback(self, cls, instance, fields_changed, cached_data):
+
+        if not hasattr(self._field_instance, 'update_backrefs'):
+            return
+
+        if self._field_name not in fields_changed:
+            return
+
+        cached_value = cached_data.get(self._field_name, [])
+        current_value = getattr(instance, self._field_name, [])
+
+        self.update_backrefs(instance, cached_value, current_value)
 
     @property
     def base_class(self):
