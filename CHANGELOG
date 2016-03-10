@@ -1,0 +1,10 @@
+*********
+ChangeLog
+*********
+
+0.3.0 (2016-03-10)
+==================
+- An Actual Release? Sure, why not!
+- This probably qualifies as a 1.0 from a code point of view, upgrade from 0.2.1 *carefully*.
+- Feature: Add support for negative indexing of query objects. (thanks, @chrisseto!)
+- Other Features/Fixes: git log 0.2.1..0.3.0   # i apologize
