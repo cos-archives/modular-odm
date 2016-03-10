@@ -76,8 +76,12 @@ class BasicQueryTestCase(ModularOdmTestCase):
 
     def test_slice_negative_index(self):
         queryset = self.Foo.find()
-        with self.assertRaises(IndexError):
-            queryset[-1]
+
+        if queryset._NEGATIVE_INDEXING:
+            self.assertEqual(queryset[-1], self.Foo.find().sort('-_id')[0])
+        else:
+            with self.assertRaises(IndexError):
+                queryset[-1]
 
     def test_slice_negative_slice(self):
         queryset = self.Foo.find()
