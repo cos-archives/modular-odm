@@ -72,7 +72,7 @@ class RegexValidator(Validator):
 
     def __call__(self, value):
 
-        if not self.regex.search(value):
+        if not self.regex.findall(value):
             raise ValidationError(
                 'Value must match regex {0} and flags {1}; received value <{2}>'.format(
                     self.regex.pattern,
@@ -84,34 +84,23 @@ class RegexValidator(Validator):
 # Adapted from Django URLValidator
 class URLValidator(RegexValidator):
     regex = re.compile(
-        r'^(?:http|ftp)s?://'  # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+        r'^(?:(?:https?|ftp)://)?'  # http:// or https://
+        r'(?:\S+(?::\S*)?@)?'  # user:passauthentication
+        ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|'  # domain...
         r'localhost|'  # localhost...
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|'  # ...or ipv4
-        r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
-        r'(?::\d+)?'  # optional port
-        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+        r'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' #...or ipv4
+        r'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # ...or ipv6
+        r'(?::\d{2,5})?'  # optional port
+        r'(?:/|/\S+)*$', re.IGNORECASE)
     # message = _('Enter a valid URL.')
 
     def __call__(self, value):
         try:
             super(URLValidator, self).__call__(value)
         except ValidationError as e:
-            # Trivial case failed. Try for possible IDN domain
-            if value:
-                # value = force_text(value)
-                scheme, netloc, path, query, fragment = urlsplit(value)
-                try:
-                    netloc = netloc.encode('idna').decode('ascii')  # IDN -> ACE
-                except UnicodeError:  # invalid domain part
-                    raise e
-                url = urlunsplit((scheme, netloc, path, query, fragment))
-                super(URLValidator, self).__call__(url)
-            else:
-                raise
+                raise e
         else:
             pass
-            # url = value
 
 
 class BaseValidator(Validator):
