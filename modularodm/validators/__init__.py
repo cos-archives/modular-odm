@@ -87,7 +87,7 @@ class URLValidator(RegexValidator):
     regex = re.compile(
         r'^(?:(?:https?|ftp)://)?'  # http:// or https://
         r'(?:\S+(?::\S*)?@)?'  # user:passauthentication
-        ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|' # domain
+        u'(?:(?:(?:[\\u00a1-\\uffffA-Z0-9][\\u00a1-\\uffffA-Z0-9-]{0,61}[\\u00a1-\\uffffA-Z0-9]?\.)+(?:[\\u00a1-\\uffffA-Z0-9]{2,}))|' # domain
         r'localhost|'  # localhost
         r'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' # or ipv4
         r'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
@@ -99,7 +99,7 @@ class URLValidator(RegexValidator):
         try:
             super(URLValidator, self).__call__(value)
         except ValidationError as e:
-                raise e
+                raise
         else:
             pass
 
