@@ -83,18 +83,28 @@ class RegexValidator(Validator):
 
 # Adapted from Django URLValidator
 class URLValidator(RegexValidator):
-    expression = ur'^(?:(?:https?|ftp)://)?(?:\S+(?::\S*)?@)?(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|localhost|(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))(\?[;&a-z\d%_.~+=-]*)?(?::\d{2,5})?(?:/|/\S+)*$'
-    regex = re.compile(expression, re.IGNORECASE)
-        #ur'^(?:(?:https?|ftp)://)?'  # http:// or https://
-        #ur'(?:\S+(?::\S*)?@)?'  # user:passauthentication
-        #ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|' # domain
-        #ur'localhost|'  # localhost
-        #ur'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' # or ipv4
-        #ur'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
-        #ur'(\?[;&a-z\d%_.~+=-]*)?' # query string
-        #ur'(?::\d{2,5})?'  # optional port
-        #ur'(?:/|/\S+)*$', re.IGNORECASE)
-
+    if six.PY2:
+        regex = re.compile(
+            ur'^(?:(?:https?|ftp)://)?'  # http:// or https://
+            ur'(?:\S+(?::\S*)?@)?'  # user:passauthentication
+            ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|' # domain
+            ur'localhost|'  # localhost
+            ur'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' # or ipv4
+            ur'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
+            ur'(\?[;&a-z\d%_.~+=-]*)?' # query string
+            ur'(?::\d{2,5})?'  # optional port
+            ur'(?:/|/\S+)*$', re.IGNORECASE)
+    else:
+        regex = re.compile(
+            r'^(?:(?:https?|ftp)://)?'  # http:// or https://
+            r'(?:\S+(?::\S*)?@)?'  # user:passauthentication
+            r'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|'  # domain
+            r'localhost|'  # localhost
+            r'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|'  # or ipv4
+            r'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
+            r'(\?[;&a-z\d%_.~+=-]*)?'  # query string
+            r'(?::\d{2,5})?'  # optional port
+            r'(?:/|/\S+)*$', re.IGNORECASE)
 
     # message = _('Enter a valid URL.')
 
