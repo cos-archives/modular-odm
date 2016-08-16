@@ -84,13 +84,13 @@ class RegexValidator(Validator):
 # Adapted from Django URLValidator
 class URLValidator(RegexValidator):
     regex = re.compile(
-        ur'^(?:(?:https?|ftp)://)?'+  # http:// or https://
-        ur'(?:\S+(?::\S*)?@)?'+  # user:passauthentication
-        ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|'+ # domain
-        ur'localhost|'+  # localhost
-        ur'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|'+ # or ipv4
-        ur'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'+  # or ipv6
-        ur'(?::\d{2,5})?'+  # optional port
+        ur'^(?:(?:https?|ftp)://)?'  # http:// or https://
+        ur'(?:\S+(?::\S*)?@)?'  # user:passauthentication
+        ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|' # domain
+        ur'localhost|'  # localhost
+        ur'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' # or ipv4
+        ur'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
+        ur'(?::\d{2,5})?'  # optional port
         ur'(?:/|/\S+)*$', re.IGNORECASE)
     # message = _('Enter a valid URL.')
 
