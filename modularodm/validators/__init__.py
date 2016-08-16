@@ -74,7 +74,7 @@ class RegexValidator(Validator):
 
         if not self.regex.findall(value):
             raise ValidationError(
-                'Value must match regex {0} and flags {1}; received value <{2}>'.format(
+                u'Value must match regex {0} and flags {1}; received value <{2}>'.format(
                     self.regex.pattern,
                     self.regex.flags,
                     value
@@ -90,6 +90,7 @@ class URLValidator(RegexValidator):
         ur'localhost|'  # localhost
         ur'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' # or ipv4
         ur'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
+        ur'(\?[;&a-z\d%_.~+=-]*)?' # query string
         ur'(?::\d{2,5})?'  # optional port
         ur'(?:/|/\S+)*$', re.IGNORECASE)
     # message = _('Enter a valid URL.')
@@ -97,7 +98,7 @@ class URLValidator(RegexValidator):
     def __call__(self, value):
         try:
             super(URLValidator, self).__call__(value)
-        except ValidationError as e:
+        except ValidationError:
                 raise
         else:
             pass
