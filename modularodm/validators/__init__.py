@@ -87,10 +87,10 @@ class URLValidator(RegexValidator):
     regex = re.compile(
         r'^(?:(?:https?|ftp)://)?'  # http:// or https://
         r'(?:\S+(?::\S*)?@)?'  # user:passauthentication
-        ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|'  # domain...
-        r'localhost|'  # localhost...
-        r'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' #...or ipv4
-        r'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # ...or ipv6
+        ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|' # domain
+        r'localhost|'  # localhost
+        r'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' # or ipv4
+        r'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
         r'(?::\d{2,5})?'  # optional port
         r'(?:/|/\S+)*$', re.IGNORECASE)
     # message = _('Enter a valid URL.')
