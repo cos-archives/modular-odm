@@ -83,39 +83,26 @@ class RegexValidator(Validator):
 
 # Adapted from Django URLValidator
 class URLValidator(RegexValidator):
-    if six.PY2:
-        regex = re.compile(
-            ur'^(?:(?:https?|ftp)://)?'  # http:// or https://
-            ur'(?:\S+(?::\S*)?@)?'  # user:passauthentication
-            ur'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|' # domain
-            ur'localhost|'  # localhost
-            ur'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|' # or ipv4
-            ur'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
-            ur'(\?[;&a-z\d%_.~+=-]*)?' # query string
-            ur'(?::\d{2,5})?'  # optional port
-            ur'(?:/|/\S+)*$', re.IGNORECASE)
-    else:
-        regex = re.compile(
-            r'^(?:(?:https?|ftp)://)?'  # http:// or https://
-            r'(?:\S+(?::\S*)?@)?'  # user:passauthentication
-            r'(?:(?:(?:[\u00a1-\uffffA-Z0-9][\u00a1-\uffffA-Z0-9-]{0,61}[\u00a1-\uffffA-Z0-9]?\.)+(?:[\u00a1-\uffffA-Z0-9]{2,}))|'  # domain
-            r'localhost|'  # localhost
-            r'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|'  # or ipv4
-            r'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
-            r'(\?[;&a-z\d%_.~+=-]*)?'  # query string
-            r'(?::\d{2,5})?'  # optional port
-            r'(?:/|/\S+)*$', re.IGNORECASE)
-
+    regex = re.compile(
+        u'^(?:(?:https?|ftp)://)?'  # http:// or https://
+        u'(?:\S+(?::\S*)?@)?'  # user:passauthentication
+        u'(?:(?:(?:[\\u00a1-\uffffA-Z0-9][\\u00a1-\uffffA-Z0-9-]{0,61}[\\u00a1-\uffffA-Z0-9]?\.)+(?:[\\u00a1-\uffffA-Z0-9]{2,}))|' # domain
+        u'localhost|'  # localhost
+        u'(?:(?:(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|[1]?[0-9]?[0-9]))|'  # or ipv4
+        u'(?:\[?[A-F0-9]*:[A-F0-9:]+\]?))'  # or ipv6
+        u'(\?[;&a-z\d%_.~+=-]*)?'  # query string
+        u'(?::\d{2,5})?'  # optional port
+        u'(?:/|/\S+)*$', re.IGNORECASE)
     # message = _('Enter a valid URL.')
 
     def __call__(self, value):
+
         try:
             super(URLValidator, self).__call__(value)
         except ValidationError:
                 raise
         else:
             pass
-
 
 class BaseValidator(Validator):
 
