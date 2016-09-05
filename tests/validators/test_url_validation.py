@@ -34,5 +34,9 @@ class UrlValueValidatorTestCase(ModularOdmTestCase):
 
         for urlFalse in data['testsNegative']:
             test_object.url_field = urlFalse
-            with self.assertRaises(ValidationError):
-                test_object.save()
+            try:
+                with self.assertRaises(ValidationError):
+                    test_object.save()
+            except AssertionError as e:
+                e.args += (' for ', urlFalse)
+                raise
