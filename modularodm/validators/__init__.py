@@ -91,9 +91,9 @@ class URLValidator(RegexValidator):
     ipv6_re = ur'\[[0-9a-f:\.]+\]'  # (simple regex, validated later)
 
     # Host patterns
-    hostname_re = ur'[a-z' + ul + r'0-9](?:[a-z' + ul + r'0-9-]{0,61}[a-z' + ul + r'0-9])?'
+    hostname_re = ur'[a-z' + ul + ur'0-9](?:[a-z' + ul + ur'0-9-]{0,61}[a-z' + ul + ur'0-9])?'
     # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
-    domain_re = ur'(?:\.(?!-)[a-z' + ul + r'0-9-]{1,63}(?<!-))*'
+    domain_re = ur'(?:\.(?!-)[a-z' + ul + ur'0-9-]{1,63}(?<!-))*'
     tld_re = (
         ur'\.'                                # dot
         ur'(?!-)'                             # can't start with a dash
