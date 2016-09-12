@@ -84,33 +84,33 @@ class RegexValidator(Validator):
 
 # Adapted from Django URLValidator
 class URLValidator(RegexValidator):
-    ul = ur'\u00a1-\uffff'  # unicode letters range, must be a unicode string
+    ul = u'\u00a1-\uffff'  # unicode letters range, must be a unicode string
 
     # IP patterns
-    ipv4_re = ur'(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}'
-    ipv6_re = ur'\[[0-9a-f:\.]+\]'  # (simple regex, validated later)
+    ipv4_re = r'(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}'
+    ipv6_re = r'\[[0-9a-f:\.]+\]'  # (simple regex, validated later)
 
     # Host patterns
-    hostname_re = ur'[a-z' + ul + ur'0-9](?:[a-z' + ul + ur'0-9-]{0,61}[a-z' + ul + ur'0-9])?'
+    hostname_re = r'[a-z' + ul + r'0-9](?:[a-z' + ul + r'0-9-]{0,61}[a-z' + ul + r'0-9])?'
     # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
-    domain_re = ur'(?:\.(?!-)[a-z' + ul + ur'0-9-]{1,63}(?<!-))*'
+    domain_re = r'(?:\.(?!-)[a-z' + ul + r'0-9-]{1,63}(?<!-))*'
     tld_re = (
-        ur'\.'                                # dot
-        ur'(?!-)'                             # can't start with a dash
-        ur'(?:xn--[a-z0-9]{1,59}'             # punycode labels (first for an eager regex match)
-        ur'|[a-z' + ul + '-]{2,63})'          # or domain label
-        ur'(?<!-)'                            # can't end with a dash
-        ur'\.?'                               # may have a trailing dot
+        r'\.'                                # dot
+        r'(?!-)'                             # can't start with a dash
+        r'(?:xn--[a-z0-9]{1,59}'             # punycode labels (first for an eager regex match)
+        r'|[a-z' + ul + '-]{2,63})'          # or domain label
+        r'(?<!-)'                            # can't end with a dash
+        r'\.?'                               # may have a trailing dot
     )
-    host_re = ur'(' + hostname_re + domain_re + tld_re + ur'|localhost)'
+    host_re = r'(' + hostname_re + domain_re + tld_re + r'|localhost)'
 
     regex = re.compile(
-        ur'^(?:[a-z0-9\.\-\+]*)://'  # scheme is validated separately
-        ur'(?:\S+(?::\S*)?@)?'  # user:pass authentication
-        ur'(?:' + ipv4_re + '|' + ipv6_re + '|' + host_re + ')'
-        ur'(?::\d{2,5})?'  # port
-        ur'(?:[/?#][^\s]*)?'  # resource path
-        ur'\Z', re.IGNORECASE)
+        r'^(?:[a-z0-9\.\-\+]*)://'  # scheme is validated separately
+        r'(?:\S+(?::\S*)?@)?'  # user:pass authentication
+        r'(?:' + ipv4_re + '|' + ipv6_re + '|' + host_re + ')'
+        r'(?::\d{2,5})?'  # port
+        r'(?:[/?#][^\s]*)?'  # resource path
+        r'\Z', re.IGNORECASE)
     message = 'Invalid URL'
     schemes = ['http', 'https', 'ftp', 'ftps']
 
