@@ -82,7 +82,8 @@ class RegexValidator(Validator):
                 )
             )
 
-# Adapted from Django URLValidator
+# Adapted from Django URLValidator v1.10
+# https://docs.djangoproject.com/en/1.10/_modules/django/core/validators/#URLValidator
 class URLValidator(RegexValidator):
     ul = u'\u00a1-\uffff'  # unicode letters range, must be a unicode string
 
