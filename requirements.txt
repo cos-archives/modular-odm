@@ -1,4 +1,3 @@
-Flask
 blinker
 pymongo
 python-dateutil
