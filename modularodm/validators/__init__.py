@@ -1,5 +1,6 @@
+# -*- coding: utf-8 -*-
 import six
-from six.moves.urllib_parse import urlsplit, urlunsplit
+from six.moves.urllib.parse import urlsplit, urlunsplit
 
 from modularodm.exceptions import (
     ValidationError,
@@ -72,35 +73,72 @@ class RegexValidator(Validator):
 
     def __call__(self, value):
 
-        if not self.regex.search(value):
+        if not self.regex.findall(value):
             raise ValidationError(
-                'Value must match regex {0} and flags {1}; received value <{2}>'.format(
+                u'Value must match regex {0} and flags {1}; received value <{2}>'.format(
                     self.regex.pattern,
                     self.regex.flags,
                     value
                 )
             )
 
-# Adapted from Django URLValidator
+# Adapted from Django URLValidator v1.10
+# https://docs.djangoproject.com/en/1.10/_modules/django/core/validators/#URLValidator
 class URLValidator(RegexValidator):
+    ul = u'\u00a1-\uffff'  # unicode letters range, must be a unicode string
+
+    # IP patterns
+    ipv4_re = r'(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}'
+    ipv6_re = r'\[[0-9a-f:\.]+\]'  # (simple regex, validated later)
+
+    # Host patterns
+    hostname_re = r'[a-z' + ul + r'0-9](?:[a-z' + ul + r'0-9-]{0,61}[a-z' + ul + r'0-9])?'
+    # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
+    domain_re = r'(?:\.(?!-)[a-z' + ul + r'0-9-]{1,63}(?<!-))*'
+    tld_re = (
+        r'\.'                                # dot
+        r'(?!-)'                             # can't start with a dash
+        r'(?:xn--[a-z0-9]{1,59}'             # punycode labels (first for an eager regex match)
+        r'|[a-z' + ul + '-]{2,63})'          # or domain label
+        r'(?<!-)'                            # can't end with a dash
+        r'\.?'                               # may have a trailing dot
+    )
+    host_re = r'(' + hostname_re + domain_re + tld_re + r'|localhost)'
+
     regex = re.compile(
-        r'^(?:http|ftp)s?://'  # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
-        r'localhost|'  # localhost...
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|'  # ...or ipv4
-        r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
-        r'(?::\d+)?'  # optional port
-        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-    # message = _('Enter a valid URL.')
+        r'^(?:[a-z0-9\.\-\+]*)://'  # scheme is validated separately
+        r'(?:\S+(?::\S*)?@)?'  # user:pass authentication
+        r'(?:' + ipv4_re + '|' + ipv6_re + '|' + host_re + ')'
+        r'(?::\d{2,5})?'  # port
+        r'(?:[/?#][^\s]*)?'  # resource path
+        r'\Z', re.IGNORECASE)
+    message = 'Invalid URL'
+    schemes = ['http', 'https', 'ftp', 'ftps']
+
+    def __init__(self, schemes=None, **kwargs):
+        super(URLValidator, self).__init__(**kwargs)
+        if schemes is not None:
+            self.schemes = schemes
 
     def __call__(self, value):
+        # Check first if the scheme is valid (if there is a scheme used)
+        if '://' in value:
+            scheme = value.split('://')[0].lower()
+            if scheme not in self.schemes:
+                raise ValidationError(self.message + ' ' + value)
+        else:
+            value = 'http://' + value # implicit scheme
+
+        # Then check full URL
         try:
             super(URLValidator, self).__call__(value)
         except ValidationError as e:
             # Trivial case failed. Try for possible IDN domain
             if value:
-                # value = force_text(value)
-                scheme, netloc, path, query, fragment = urlsplit(value)
+                try:
+                    scheme, netloc, path, query, fragment = urlsplit(value)
+                except ValueError:  # for example, "Invalid IPv6 URL"
+                    raise ValidationError(self.message + ' ' + value)
                 try:
                     netloc = netloc.encode('idna').decode('ascii')  # IDN -> ACE
                 except UnicodeError:  # invalid domain part
@@ -110,9 +148,22 @@ class URLValidator(RegexValidator):
             else:
                 raise
         else:
-            pass
-            # url = value
+            # Now verify IPv6 in the netloc part
+            host_match = re.search(r'^\[(.+)\](?::\d{2,5})?$', urlsplit(value).netloc)
+            if host_match:
+                potential_ip = host_match.groups()[0]
+                try:
+                    validate_ipv6_address(potential_ip)
+                except ValidationError:
+                    raise ValidationError(self.message, code=self.code)
+            url = value
 
+        # The maximum length of a full host name is 253 characters per RFC 1034
+        # section 3.1. It's defined to be 255 bytes or less, but this includes
+        # one byte for the length of the name and one byte for the trailing dot
+        # that's used to indicate absolute names in DNS.
+        if len(urlsplit(value).netloc) > 253:
+            raise ValidationError(self.message, code=self.code)
 
 class BaseValidator(Validator):
 

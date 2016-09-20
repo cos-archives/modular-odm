@@ -2,6 +2,11 @@
 ChangeLog
 *********
 
+0.4.0 (2016-09-20)
+==================
+- Update the URLValidator to support unicode domain names. (thanks, @caspinelli and @acshi!)
+- Get rid of the unused FlaskStoredObject, letting us remove Flask as a dependency.
+
 0.3.0 (2016-03-10)
 ==================
 - An Actual Release? Sure, why not!
